@@ -43,6 +43,7 @@ import {
   airportSchedule,
   boardRows,
   CITY_NAMES,
+  flightStatus,
   fmtFlightTime,
   liveryOf,
   nextFlightTo,
@@ -52,10 +53,12 @@ import {
 } from '../travel';
 import {
   chooseAtDesk,
+  departsOf,
   deskPicked,
   seatOf,
   setTicket,
   ticketFrom,
+  useWaitedFor,
   useTicket,
   type Ticket,
 } from '../ticket';
@@ -71,7 +74,7 @@ import { ArrivalScene, type Arrival } from './arrivals';
 import { Flaps } from './flaps';
 import { TerminalView } from './halls';
 import { PlaneTop, fliesPrivate } from './planes';
-import { flightNow } from '../../gameClock';
+import { flightNow, gameMinuteOf } from '../../gameClock';
 import './airport.css';
 
 const STATUS_LABEL = (s: FlightStatus) =>
@@ -88,8 +91,18 @@ const STATUS_LABEL = (s: FlightStatus) =>
 // ---------------------------------------------------------------------------
 // The split-flap board
 
+/** The board's row for the flight on your ticket, if it's on today's schedule. */
+const isHeld = (f: ScheduledFlight, k: Ticket | null) =>
+  !!k &&
+  !f.arrival &&
+  f.city === k.to &&
+  (k.flight ? f.flight === k.flight : !!k.time && f.time === k.time);
+
 function Board({ marketId, day, start }: { marketId: string; day: string; start: number }) {
   const schedule = useMemo(() => airportSchedule(marketId, day), [marketId, day]);
+  // Your flight waits for you: past its time it's boarding, never departed.
+  const own = useTicket();
+  const held = own?.from === marketId ? own : null;
   // The board moves on: every few seconds it's a few minutes later.
   const [clock, setClock] = useState(() => ({ base: start, tick: 0 }));
   useEffect(() => {
@@ -98,7 +111,14 @@ function Board({ marketId, day, start }: { marketId: string; day: string; start:
     return () => clearInterval(id);
   }, []);
   const now = clock.base + clock.tick * 6;
-  const rows = boardRows(schedule, now);
+  let rows = boardRows(schedule, now);
+  const mine = schedule.find((f) => isHeld(f, held));
+  // Long past its time, it stays on the board (in its place among the gone).
+  if (mine && !rows.some((r) => isHeld(r, held)) && now >= mine.at + mine.late)
+    rows = [...rows.slice(1), { ...mine, status: flightStatus(mine, now) }].sort(
+      (a, b) => a.at - b.at || a.flight.localeCompare(b.flight),
+    );
+  const waited = rows.find((r) => isHeld(r, held) && r.status === 'Departed');
   return (
     <section className="board" aria-label={t('Departures board')}>
       <header className="board-head">
@@ -118,13 +138,16 @@ function Board({ marketId, day, start }: { marketId: string; day: string; start:
         <tbody>
           {rows.map((r, n) => {
             const where = r.arrival ? t('from {city}', { city: r.cityName }) : r.cityName;
-            const status = STATUS_LABEL(r.status);
+            const wait = r === waited;
+            const shown: FlightStatus = wait ? 'Boarding' : r.status;
+            const status = STATUS_LABEL(shown);
             return (
               <tr
                 key={`${r.flight}:${r.at}`}
                 data-board-row=""
-                data-status={r.status}
-                className={`is-${r.status.toLowerCase().replace(' ', '-')}`}
+                data-status={shown}
+                data-waited={wait ? '' : undefined}
+                className={`is-${shown.toLowerCase().replace(' ', '-')}${wait ? ' is-waited' : ''}`}
               >
                 <td>
                   <span className="sr-only">{r.time}</span>
@@ -143,7 +166,9 @@ function Board({ marketId, day, start }: { marketId: string; day: string; start:
                   <Flaps text={r.gate} width={3} delay={n * 0.08 + 0.3} />
                 </td>
                 <td className="board-status">
-                  <span className="sr-only">{status}</span>
+                  <span className="sr-only">
+                    {wait ? t('Boarding now · we waited for you') : status}
+                  </span>
                   <Flaps text={status} width={9} delay={n * 0.08 + 0.35} />
                 </td>
               </tr>
@@ -151,6 +176,11 @@ function Board({ marketId, day, start }: { marketId: string; day: string; start:
           })}
         </tbody>
       </table>
+      {waited && (
+        <p className="board-waited" data-board-waited={waited.flight}>
+          {waited.flight} · {waited.cityName}: {t('Boarding now · we waited for you')}
+        </p>
+      )}
     </section>
   );
 }
@@ -484,6 +514,7 @@ const ticketLine = (k: Ticket) =>
 function BoardingPass({ ticket, from }: { ticket: Ticket; from: string }) {
   const line = ticketLine(ticket);
   const { view } = useView();
+  const waited = useWaitedFor(ticket, ticket.from);
   const homeName = CITY_NAMES[view.me.market] ?? view.me.market;
   return (
     <div className="trip-pass" data-boarding-pass={ticket.to}>
@@ -495,6 +526,7 @@ function BoardingPass({ ticket, from }: { ticket: Ticket; from: string }) {
         {line ? `${line} · ` : ''}
         {t('Seat {seat}', { seat: seatOf(ticket) })}
       </span>
+      {waited && <WaitedLine />}
       <FlyingWith to={ticket.to} />
       {ticket.cabin && (
         <span className={`small ticket-cabin is-${ticket.cabin}`} data-pass-cabin={ticket.cabin}>
@@ -511,6 +543,13 @@ function BoardingPass({ ticket, from }: { ticket: Ticket; from: string }) {
   );
 }
 
+/** Past the time on your ticket: the plane hasn't gone without you. */
+const WaitedLine = () => (
+  <span className="small ticket-waited" data-ticket-waited="">
+    {t('Boarding now · we waited for you')}
+  </span>
+);
+
 function TripSheet({
   place,
   marketId,
@@ -519,6 +558,7 @@ function TripSheet({
   homeId,
   schedule,
   now,
+  at: atMin,
   abroad,
   crowd,
   onMore,
@@ -531,6 +571,8 @@ function TripSheet({
   homeId: string | null;
   schedule: ScheduledFlight[];
   now: number;
+  /** The game minute at `now` (null without a game clock). */
+  at: number | null;
   abroad: boolean;
   /** The travellers in the business or first lounge today. */
   crowd: Traveller[];
@@ -553,6 +595,8 @@ function TripSheet({
     .sort((a, b) => departs(a.f, now) - departs(b.f, now));
   // A ticket booked for a flight out of here (in the Travel app, or at the desk below).
   const ticket = ticketFrom(useTicket(), marketId, desk?.destinations ?? []);
+  // Past its time on the game clock: it waits for you (check in and board as ever).
+  const waited = useWaitedFor(ticket, marketId);
   // No ticket yet: the first thing is the ticket desk, where you choose where to go.
   const [step, setStep] = useState<Step>(() => (ticket ? 'checkin' : 'ticket'));
   const [playing, setPlaying] = useState<Step | null>(null);
@@ -656,6 +700,7 @@ function TripSheet({
       airline: f?.airline,
       flight: f?.flight,
       gate: f?.gate,
+      ...(f && atMin !== null ? { departs: departsOf(f, atMin, now) } : {}),
       ...(stay
         ? {
             hotel: {
@@ -697,18 +742,25 @@ function TripSheet({
           {flights.map(({ d, f }) => {
             // The way home you paid for with the flight out (play-test: it read "₦383k · Book").
             const held = d.id === homeId && !d.done ? (flightsInfo?.heldReturn ?? null) : null;
+            // The flight you hold, at its own time (it waits for you once that's passed).
+            const mine = ticket?.to === d.id ? ticket : null;
             return (
               <li
                 key={d.id}
                 data-dest={d.id}
                 data-held-return={held ? '' : undefined}
-                className={ticket?.to === d.id ? 'is-booked' : undefined}
+                className={mine ? 'is-booked' : undefined}
               >
-                <span className="trip-flight-time">{f?.time ?? '—'}</span>
+                <span className="trip-flight-time">{(mine?.time ?? f?.time) || '—'}</span>
                 <span className="trip-flight-main">
                   <b>{d.name}</b>
+                  {mine && waited && <WaitedLine />}
                   <span className="small muted">
-                    {f ? `${f.airline} · ${f.flight}` : ''}
+                    {mine?.flight
+                      ? [mine.airline, mine.flight].filter(Boolean).join(' · ')
+                      : f
+                        ? `${f.airline} · ${f.flight}`
+                        : ''}
                     {d.hours > 0 && d.hours < 40 ? ` · ${fmtFlightTime(d.hours)}` : ''}
                     {d.id === homeId ? ` · ${t('Home city')}` : ''}
                   </span>
@@ -772,6 +824,7 @@ function TripSheet({
           {t('Your ticket: {from} → {to}', { from: fromName, to: ticket.toName })}
           {ticketLine(ticket) ? ` · ${ticketLine(ticket)}` : ''} ·{' '}
           {money(ticket.fare, ticket.currency)}
+          {waited && <WaitedLine />}
           {ticket.hotel && (
             <span className="hotel-stay" data-ticket-hotel={ticket.hotel.tier}>
               {t('Hotel: {name}', { name: ticket.hotel.name })} ·{' '}
@@ -985,7 +1038,11 @@ export function AirportScene({
   const booked = view.me.flightTicket?.cabin;
   const jet = fliesPrivate(view.me.lifestyle?.tier) && !booked;
   // The game clock's time of day (the HUD's): only flights still to leave are offered.
-  const [{ at0, now }] = useState(() => ({ at0: Date.now(), now: flightNow(view, marketId) }));
+  const [{ at0, now, at }] = useState(() => ({
+    at0: Date.now(),
+    now: flightNow(view, marketId),
+    at: gameMinuteOf(view),
+  }));
   const day = scheduleDay(view.market.month, at0);
   const schedule = useMemo(() => airportSchedule(marketId, day), [marketId, day]);
   // The business or first lounge: made-up premium travellers, and the players flying up front.
@@ -1113,6 +1170,7 @@ export function AirportScene({
               homeId={homeId}
               schedule={schedule}
               now={now}
+              at={at}
               abroad={!!onFlyHome}
               crowd={crowd}
               onMore={() => setMore(true)}

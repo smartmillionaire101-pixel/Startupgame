@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { money } from '../../format';
 import { t } from '../../i18n';
 import { useView } from '../../store';
-import { flightNow } from '../../gameClock';
+import { flightNow, gameMinuteOf } from '../../gameClock';
 import {
   CITY_NAMES,
   airportSchedule,
@@ -18,12 +18,11 @@ import {
   flightsOf,
   fmtFlightTime,
   hereOf,
-  cityViewOf,
   isAbroad,
   nextFlightTo,
   scheduleDay,
 } from '../../city/travel';
-import { setTicket, ticketFrom, useTicket } from '../../city/ticket';
+import { departsOf, setTicket, ticketFrom, useTicket, useWaitedFor } from '../../city/ticket';
 import { CABIN_NAME, TicketLegs, TripPicker } from '../../city/CabinPicker';
 import { HotelList } from '../../city/HotelList';
 import { Segmented } from '../../ui';
@@ -38,12 +37,15 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
   const here = hereOf(view);
   const dests = destinationsOf(view);
   const month = view.market.month;
-  // Departures by the game clock (the HUD's time): only flights still to leave.
-  const [{ day, now }] = useState(() => ({
+  // Departures by the game clock (the HUD's time, as at the airport): only flights still to leave.
+  const [{ day, now, at }] = useState(() => ({
     day: scheduleDay(month),
-    now: flightNow(cityViewOf(view), here.id),
+    now: flightNow(view, here.id),
+    at: gameMinuteOf(view),
   }));
   const booked = ticketFrom(useTicket(), here.id, dests);
+  // Its time has passed on the game clock: the plane waits for you.
+  const waited = useWaitedFor(booked, here.id);
   // The destination whose hotels you're choosing from, before booking.
   const [choosing, setChoosing] = useState<string | null>(null);
   // Flights, or (the feedback round) the named hotels of a city you could fly to.
@@ -107,6 +109,7 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
       airline: f?.airline,
       flight: f?.flight,
       gate: f?.gate,
+      ...(f && at !== null ? { departs: departsOf(f, at, now) } : {}),
       ...(stay
         ? {
             hotel: {
@@ -140,6 +143,11 @@ export function Travel({ ctx }: { ctx: PhoneCtx }) {
               <span className="small muted">
                 {[booked.time, booked.airline, booked.flight].filter(Boolean).join(' · ')}
               </span>
+              {waited && (
+                <span className="small ticket-waited" data-ticket-waited="">
+                  {t('Boarding now · we waited for you')}
+                </span>
+              )}
               {booked.cabin && (
                 <span
                   className={`small ticket-cabin is-${booked.cabin}`}

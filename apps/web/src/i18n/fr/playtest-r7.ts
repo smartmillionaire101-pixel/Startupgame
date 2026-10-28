@@ -10,4 +10,6 @@ export const playtestR7: Record<string, string> = {
   'You were seen at your appointment ({when}).': 'Vous avez été reçu à votre rendez-vous ({when}).',
   'The regulator is satisfied you are fit and proper to run a bank.':
     'Le régulateur estime que vous êtes apte à diriger une banque.',
+  // A held ticket past its departure time: the plane waits for you
+  'Boarding now · we waited for you': 'Embarquement immédiat · nous vous avons attendu',
 };

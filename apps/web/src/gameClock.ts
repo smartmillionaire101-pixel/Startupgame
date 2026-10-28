@@ -82,6 +82,8 @@ export interface GameClockNow {
   hour: number;
   /** "04:29". */
   time: string;
+  /** The game minute (as `gameMinuteOf` counts), or null without a clock. */
+  min: number | null;
 }
 
 /** The game clock, ticking about every game minute (at most once a second). */
@@ -106,8 +108,13 @@ export function useGameClock(view: PlayerView, marketId: string): GameClockNow {
   if (min === null) {
     const hour = localHour(marketId, tick.now);
     const m = Math.floor((((hour % 24) + 24) % 24) * 60);
-    return { when: null, hour, time: hhmm({ hour: Math.floor(m / 60), minute: m % 60 }) };
+    return {
+      when: null,
+      hour,
+      time: hhmm({ hour: Math.floor(m / 60), minute: m % 60 }),
+      min: null,
+    };
   }
   const when = whenOf(min);
-  return { when, hour: when.hour + when.minute / 60, time: hhmm(when) };
+  return { when, hour: when.hour + when.minute / 60, time: hhmm(when), min };
 }

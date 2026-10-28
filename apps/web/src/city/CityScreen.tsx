@@ -21,7 +21,7 @@ import { PLACE_SPECS, type Command, type PlaceRole, type PlayerView } from '@run
 import './city.css';
 import { api, ApiError } from '../api';
 import { money } from '../format';
-import { flightNow } from '../gameClock';
+import { flightNow, gameMinuteOf } from '../gameClock';
 import { companyPillLine, settingUp } from './companyPill';
 import { t, tx, useLang } from '../i18n';
 import { useView, WithView } from '../store';
@@ -862,6 +862,7 @@ function CityBodyInner({
           homeMonth,
           Date.now(),
           flightNow(view, layout.marketId),
+          gameMinuteOf(view),
         ),
       );
     } else chooseAtDesk(home.id);
