@@ -436,6 +436,30 @@
   color: #1c1814;
 }
 
+/* Solo, the title is hidden: the ✕ keeps to the right (alone in the row it
+   slid to the left, over the hole card). */
+.golf-scene.is-play:not(.golf-match-scene) .place-head {
+  justify-content: flex-end;
+}
+/* While you play, the nav pill and the phone step aside (the ✕ is the way
+   out), so they never sit on the aim buttons, the clubs or the swing; the
+   course runs down to the bottom edge. */
+.place-scene.golf-scene.is-play {
+  bottom: 0;
+  box-shadow: none;
+}
+:root:has(.golf-scene.is-play) :is(.nav, .hud-phone.hud-ib) {
+  transform: translateY(calc(100% + var(--hud-bottom) + 12px));
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+@media (min-width: 900px) {
+  :root:has(.golf-scene.is-play) .nav {
+    transform: translate(calc(-100% - 24px), -50%);
+  }
+}
+
 /* The layer over the course that holds the controls. */
 .golf-tray {
   --golf-clubs-top: calc(62px + var(--hud-scene-top));

@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import type { AvatarLook } from '../../city/art';
 import { disposeTree } from '../../interiors3d/kit';
+import { screenBoxOf } from '../../three-kit/screen-box';
 import type { Character } from '../../interiors3d/character';
 import {
   boxPose,
@@ -27,10 +28,13 @@ import {
   canopyPose,
   cockpit,
   doorPose,
+  flarePose,
   freefallArms,
   helicopter,
   jumpPlane,
   jumper,
+  landPose,
+  suitColours,
   type Craft,
 } from './craft';
 import { toTarget, type Heli, type Jump } from './flight';
@@ -70,6 +74,120 @@ export type Shown = '' | 'heli' | 'cockpit' | 'plane' | 'jumper' | 'canopy' | 'a
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _c = new THREE.Vector3();
+const _d = new THREE.Vector3();
+const _e = new THREE.Vector3();
+const _f = new THREE.Vector3();
+const _g = new THREE.Vector3();
+const _h = new THREE.Vector3();
+const ZERO = new THREE.Vector3();
+const ease = (u: number) => u * u * (3 - 2 * u);
+
+/** Where the Outside camera looks from (the craft's frame: x right, y up, +z behind). */
+const CLIMB_DIR = new THREE.Vector3(-0.62, 0.34, 0.71);
+const DOOR_DIR = new THREE.Vector3(-0.88, 0.24, 0.42);
+const CANOPY_DIR = new THREE.Vector3(0.3, 0.42, 1);
+/** You under the canopy, in your frame (feet at 0): its span, its top, you. */
+const CANOPY_BOX = new THREE.Box3(
+  new THREE.Vector3(-4.1, -0.1, -1.6),
+  new THREE.Vector3(4.1, 7.4, 1.6),
+);
+
+/**
+ * How far from `centre` (along `dir`, from it towards the camera) a camera
+ * with this vertical `fov` (degrees) and `aspect` must stand to see all of
+ * `box` (the craft's frame, heading `h`, placed at the origin) inside
+ * `margin` of the screen's half-width and half-height.
+ */
+export function fitDistance(
+  box: THREE.Box3,
+  h: number,
+  dir: THREE.Vector3,
+  centre: THREE.Vector3,
+  fov: number,
+  aspect: number,
+  margin = 0.85,
+) {
+  const tanV = Math.tan(((fov / 2) * Math.PI) / 180) * margin;
+  const tanH = Math.tan(((fov / 2) * Math.PI) / 180) * aspect * margin;
+  // The camera's frame: it looks along −dir; right and up across the screen.
+  const f = _fwd.copy(dir).negate();
+  const r = _right.crossVectors(f, UP);
+  if (r.lengthSq() < 1e-6) r.set(1, 0, 0);
+  r.normalize();
+  const u = _up.crossVectors(r, f).normalize();
+  let need = 1;
+  const p = new THREE.Vector3();
+  for (let i = 0; i < 8; i++) {
+    toWorld(
+      p,
+      ZERO,
+      h,
+      i & 1 ? box.max.x : box.min.x,
+      i & 2 ? box.max.y : box.min.y,
+      i & 4 ? box.max.z : box.min.z,
+    ).sub(centre);
+    const z = p.dot(f);
+    need = Math.max(need, Math.abs(p.dot(r)) / tanH - z, Math.abs(p.dot(u)) / tanV - z);
+  }
+  return need;
+}
+/**
+ * The camera fitted at `dist` along `dir` from `centre` sees the box's
+ * middle off the screen's (perspective draws its near end lower and bigger):
+ * the shift (world) that pans the camera so the box sits centred across and
+ * `lift` (−1 … 1) above the middle up the screen.
+ */
+export function centring(
+  box: THREE.Box3,
+  h: number,
+  dir: THREE.Vector3,
+  centre: THREE.Vector3,
+  dist: number,
+  fov: number,
+  aspect: number,
+  lift = 0,
+  out = new THREE.Vector3(),
+) {
+  const tanV = Math.tan(((fov / 2) * Math.PI) / 180);
+  const tanH = tanV * aspect;
+  const f = _fwd.copy(dir).negate();
+  const r = _right.crossVectors(f, UP);
+  if (r.lengthSq() < 1e-6) r.set(1, 0, 0);
+  r.normalize();
+  const u = _up.crossVectors(r, f).normalize();
+  let l = Infinity;
+  let rt = -Infinity;
+  let b = Infinity;
+  let t = -Infinity;
+  const p = new THREE.Vector3();
+  for (let i = 0; i < 8; i++) {
+    toWorld(
+      p,
+      ZERO,
+      h,
+      i & 1 ? box.max.x : box.min.x,
+      i & 2 ? box.max.y : box.min.y,
+      i & 4 ? box.max.z : box.min.z,
+    ).sub(centre);
+    const depth = Math.max(0.1, dist + p.dot(f));
+    const x = p.dot(r) / (depth * tanH);
+    const y = p.dot(u) / (depth * tanV);
+    l = Math.min(l, x);
+    rt = Math.max(rt, x);
+    b = Math.min(b, y);
+    t = Math.max(t, y);
+  }
+  const mx = (l + rt) / 2;
+  const my = (b + t) / 2 - lift;
+  return out
+    .copy(r)
+    .multiplyScalar(mx * dist * tanH)
+    .addScaledVector(u, my * dist * tanV);
+}
+const UP = new THREE.Vector3(0, 1, 0);
+const _fwd = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3();
 
 /** Point the camera from `from` at `to`. */
 function aim(cam: CamPose, from: THREE.Vector3, to: THREE.Vector3) {
@@ -134,6 +252,22 @@ export class AirRig {
   private bank = 0;
   private lastHeading: number | null = null;
   private pose = '';
+  /** The screen's shape (width / height): the shots are fitted to it. */
+  aspect =
+    typeof window !== 'undefined' && window.innerHeight
+      ? window.innerWidth / window.innerHeight
+      : 1;
+  private phase = '';
+  private phaseAt = 0;
+  private lastNow: number | null = null;
+  private lastMode: AirCamMode | '' = '';
+  private camSet = false;
+  private readonly camFrom = new THREE.Vector3();
+  private readonly camTo = new THREE.Vector3();
+  /** The jump plane's extent in its own frame (with you in the door). */
+  private planeBox = new THREE.Box3();
+  /** The helicopter's extent in its own frame (rotor and tail). */
+  private heliBox = new THREE.Box3();
 
   constructor(
     kind: 'skydive' | 'heli',
@@ -156,17 +290,21 @@ export class AirRig {
     };
     if (kind === 'heli') {
       this.heli = add(helicopter({ reduced: o.reduced }));
+      this.heliBox.setFromObject(this.heli.group);
       this.cabin = add(cockpit({ reduced: o.reduced }));
     } else {
       this.plane = add(jumpPlane({ reduced: o.reduced }));
       this.you = jumper(look);
+      // You sit in the door from the start: the plane's extent counts your legs out in the wind.
+      this.seatInDoor();
+      this.planeBox.setFromObject(this.plane.group);
       this.holder.add(this.you.root);
       this.holder.visible = false;
       this.scene.add(this.holder);
       this.chute = canopy();
       this.chute.visible = false;
       this.holder.add(this.chute);
-      this.arms = freefallArms();
+      this.arms = freefallArms(suitColours(look).suit);
       this.arms.group.visible = false;
       this.camera.add(this.arms.group);
       this.crafts.push(this.arms);
@@ -181,6 +319,16 @@ export class AirRig {
     if (this.arms) this.arms.group.visible = which === 'arms';
     this.holder.visible = which === 'jumper' || which === 'canopy';
     if (this.chute) this.chute.visible = which === 'canopy';
+  }
+
+  /** You, sitting on the jump door's sill. */
+  private seatInDoor() {
+    const plane = this.plane!;
+    const you = this.you!;
+    plane.group.add(you.root);
+    doorPose(you);
+    you.root.position.set(plane.door.x - 0.12, plane.door.y - 0.79, plane.door.z + 0.05);
+    this.pose = 'door';
   }
 
   /** Turn what turns (rotors, props). */
@@ -224,10 +372,22 @@ export class AirRig {
     const at = _a.set(h.x, y, h.z);
     const flying = h.alt > 2;
     if (mode === 'outside') {
-      // Behind, above and a little to the left, looking down past the cabin.
-      const from = toWorld(_b, at, h.heading, -4.5, 6.5, 17);
+      // Behind, above and a little to the left. A tall phone sees less across: the
+      // camera is fitted to the whole helicopter, rotor and tail, looking at its middle.
+      let from: THREE.Vector3;
+      let to: THREE.Vector3;
+      if (this.aspect < 1) {
+        const d = toWorld(_d, ZERO, h.heading, -4.5, 6.5, 17).normalize();
+        const mid = this.heliBox.getCenter(_e);
+        const centre = toWorld(_f, ZERO, h.heading, mid.x, mid.y, mid.z);
+        const dist = fitDistance(this.heliBox, h.heading, d, centre, 58, this.aspect, 0.78);
+        from = _b.copy(at).add(centre).addScaledVector(d, dist);
+        to = _c.copy(at).add(centre);
+      } else {
+        from = toWorld(_b, at, h.heading, -4.5, 6.5, 17);
+        to = toWorld(_c, at, h.heading, 0, flying ? -2.5 : 0.5, -2);
+      }
       if (top) from.y += chaseLift(at, from, top);
-      const to = toWorld(_c, at, h.heading, 0, flying ? -2.5 : 0.5, -2);
       aim(cam, from, to);
       cam.fov = 58;
       this.show('heli');
@@ -257,6 +417,13 @@ export class AirRig {
    * (Inside or Outside) and you, the plane or the canopy. `track`: you're
    * tracking (arms back). Inside, the page draws the door's frame, the
    * goggles or the canopy overhead (./AirFlight.tsx).
+   *
+   * The camera is placed first and the models against it (placed before it,
+   * a fast climb or fall left them one frame's travel behind: on a slow
+   * phone the plane slid out of the picture and only its wheels showed).
+   * Outside, the shots are fitted to the screen (`fit`: the whole plane, the
+   * whole canopy, on a tall phone too), and between phases the camera glides
+   * (no cut from freefall to the canopy) unless motion is reduced.
    */
   placeJump(
     j: Jump,
@@ -270,7 +437,18 @@ export class AirRig {
     const tt = toTarget(j);
     const at = _a.set(j.x, base + j.alt, j.z);
     const still = this.o.reduced;
+    if (j.phase !== this.phase) {
+      this.phaseAt = now;
+      this.phase = j.phase;
+    }
+    // The camera glides in real time (a slowed or sped-up jump glides the same).
+    const wall =
+      this.lastNow === null ? 0 : Math.min(0.5, Math.max(0, (now - this.lastNow) / 1000));
+    this.lastNow = now;
+    // Seconds since this phase began (on screen).
+    const since = Math.max(0, (now - this.phaseAt) / 1000);
     if (mode === 'inside') {
+      this.lastMode = mode;
       // First person, as you'd see it: the door, the ground, the canopy overhead.
       cam.pos.set(j.x, base + j.alt + 1.7, j.z);
       if (j.phase === 'climb' || j.phase === 'door') {
@@ -297,24 +475,23 @@ export class AirRig {
       }
       return;
     }
+    const cut = this.lastMode !== mode || still;
+    this.lastMode = mode;
+    const tall = this.aspect < 1;
+    const fov = tall ? 62 : 52;
     const you = this.you!;
     if (j.phase === 'climb' || j.phase === 'door') {
       // The plane, broadside: you sit in the door on its left, facing where you'd look out.
       const heading = tt.bearing + 0.9 + Math.PI / 2;
       const plane = this.plane!;
+      // Climbing: from behind and above on the door's side; at the door, more from the side.
+      const dir = j.phase === 'climb' ? CLIMB_DIR : DOOR_DIR;
+      this.glide(heading, this.planeBox, dir, fov, cut || this.shown !== 'plane', wall, 1.6, 0.92);
+      this.aimFrom(cam, at);
+      cam.fov = fov;
       this.show('plane');
       this.put(plane.group, cam, at, heading, 0.03, still ? 0 : Math.sin(now / 1300) * 0.02);
-      if (you.root.parent !== plane.group) {
-        plane.group.add(you.root);
-        this.pose = '';
-      }
-      if (this.pose !== 'door') {
-        doorPose(you);
-        you.root.position.set(plane.door.x - 0.12, plane.door.y - 0.79, plane.door.z + 0.05);
-        this.pose = 'door';
-      }
-      aim(cam, toWorld(_b, at, heading, -7.2, 2.6, 7.5), toWorld(_c, at, heading, -0.8, -0.6, 0.8));
-      cam.fov = 58;
+      if (you.root.parent !== plane.group || this.pose !== 'door') this.seatInDoor();
       this.turn(plane, dt);
       return;
     }
@@ -324,6 +501,7 @@ export class AirRig {
     }
     const fx = Math.sin(j.heading);
     const fz = -Math.cos(j.heading);
+    const chute = this.chute!;
     if (j.phase === 'freefall') {
       const p = o.track ? 'track' : 'box';
       if (this.pose !== p) {
@@ -332,45 +510,152 @@ export class AirRig {
         you.root.position.set(0, 0, -0.85);
         this.pose = p;
       }
+      // Chasing you from behind and above; a tall phone stands back a little more.
+      const k = tall ? 1.45 : 1;
+      this.want(
+        _b.set(-fx * 3.4 * k, 2.6 * k, -fz * 3.4 * k),
+        _c.set(fx * 0.8, -1.2, fz * 0.8),
+        cut || this.shown === 'plane',
+        wall,
+        2.2,
+      );
+      this.aimFrom(cam, at);
+      cam.fov = fov;
       this.show('jumper');
       const wobble = still ? 0 : Math.sin(now / 420) * 0.04;
       this.holder.position.copy(at).sub(cam.pos);
       this.holder.rotation.set(0, Math.PI - j.heading, j.body * 0.45 + wobble, 'YXZ');
-      aim(
-        cam,
-        _b.set(at.x - fx * 3.4, at.y + 2.6, at.z - fz * 3.4),
-        _c.set(at.x + fx * 0.8, at.y - 1.2, at.z + fz * 0.8),
-      );
-      cam.fov = 62;
       return;
     }
-    // Under the canopy, then on the ground.
-    const p = j.phase === 'canopy' ? `canopy${Math.sign(o.turn)}` : 'landed';
+    // Under the canopy (it opens over a second: you swing upright under it), then on the ground.
+    const flaring = j.phase === 'canopy' && j.flared && j.alt < 25;
+    const p = j.phase === 'canopy' ? (flaring ? 'flare' : `canopy${Math.sign(o.turn)}`) : 'landed';
     if (this.pose !== p) {
-      canopyPose(you, j.phase === 'canopy' ? o.turn : 0);
-      if (j.phase !== 'canopy') {
-        you.armL.rotation.set(0, 0, 0.1);
-        you.armR.rotation.set(0, 0, -0.1);
-      }
+      if (p === 'flare') flarePose(you);
+      else canopyPose(you, j.phase === 'canopy' ? o.turn : 0);
       you.root.position.set(0, 0, 0);
       this.pose = p;
     }
+    const heading = j.heading;
+    if (j.phase === 'canopy') {
+      const open = still ? 1 : ease(Math.min(1, since / 1.1));
+      chute.scale.set(0.25 + 0.75 * open, 0.15 + 0.85 * open, 0.4 + 0.6 * open);
+      chute.rotation.set(0, 0, 0);
+      chute.position.set(0, 0, 0);
+      // From lying in the box position to hanging upright in the harness.
+      const up = still ? 1 : ease(Math.min(1, since / 0.8));
+      you.root.rotation.x = (Math.PI / 2) * (1 - up);
+      you.root.position.set(0, 0.9 * (1 - up), -0.85 * (1 - up));
+      // From behind and above, the whole canopy and you under it.
+      this.glide(heading, CANOPY_BOX, CANOPY_DIR, fov, cut, wall, 3, 0.88);
+    } else {
+      // Landed: a few running steps as the canopy settles behind you, then you stand.
+      const run = still ? 1 : Math.min(1, since / 1.3);
+      if (run < 1) {
+        landPose(you, now / 1000, run);
+        this.pose = '';
+      } else if (this.pose !== 'stood') {
+        landPose(you, 0, 1);
+        this.pose = 'stood';
+      }
+      const fall = still ? 1 : ease(Math.min(1, since / 1.6));
+      chute.scale.set(1, Math.max(0.05, 1 - fall * 0.9), 1);
+      chute.rotation.set(fall * 1.35, 0, 0);
+      chute.position.set(0, 0, 0);
+      // In front and to the side, looking back at you (your face, the suit),
+      // you in the upper part of a tall screen (the result card is below).
+      const ahead = still ? 2.4 : 2.4 * ease(run);
+      you.root.position.set(0, 0, ahead);
+      this.want(
+        toWorld(_b, ZERO, heading, 2.4, 1.6, -ahead - 4.6).sub(ZERO),
+        toWorld(_c, ZERO, heading, 0, tall ? 0.15 : 0.65, -ahead).sub(ZERO),
+        cut || this.shown === 'canopy',
+        wall,
+        2,
+      );
+    }
+    this.aimFrom(cam, at);
+    cam.fov = fov;
     this.show(j.phase === 'canopy' ? 'canopy' : 'jumper');
+    // The collapsing canopy stays in view a moment after touchdown.
+    chute.visible = j.phase === 'canopy' || (!still && since < 1.8);
     this.holder.position.copy(at).sub(cam.pos);
     this.holder.rotation.set(
       0,
-      Math.PI - j.heading,
+      Math.PI - heading,
       j.phase === 'canopy' ? -o.turn * 0.15 : 0,
       'YXZ',
     );
-    if (j.phase === 'canopy')
-      aim(
-        cam,
-        _b.set(at.x - fx * 11, at.y + 5.5, at.z - fz * 11),
-        _c.set(at.x + fx * 3, at.y + 2.2, at.z + fz * 3),
-      );
-    else aim(cam, _b.set(at.x - fx * 5, at.y + 2.2, at.z - fz * 5), _c.set(at.x, at.y + 1, at.z));
-    cam.fov = 60;
+  }
+
+  /** The camera's offsets from the jumper (`from`, `to`): set, or eased towards. */
+  private want(from: THREE.Vector3, to: THREE.Vector3, cut: boolean, dt: number, k: number) {
+    if (cut || !this.camSet) {
+      this.camFrom.copy(from);
+      this.camTo.copy(to);
+      this.camSet = true;
+      return;
+    }
+    const e = 1 - Math.exp(-Math.max(0, dt) * k);
+    this.camFrom.lerp(from, e);
+    this.camTo.lerp(to, e);
+  }
+
+  /**
+   * Fit a shot: looking along `dir` (the craft's frame, heading `h`) at the
+   * middle of `box`, from as near as keeps the whole box on screen at this
+   * `fov` and the screen's shape (with a margin round it).
+   */
+  private glide(
+    h: number,
+    box: THREE.Box3,
+    dir: THREE.Vector3,
+    fov: number,
+    cut: boolean,
+    dt: number,
+    k: number,
+    margin: number,
+  ) {
+    const d = toWorld(_d, ZERO, h, dir.x, dir.y, dir.z).normalize();
+    const mid = box.getCenter(_e);
+    const centre = toWorld(_f, ZERO, h, mid.x, mid.y, mid.z);
+    let dist = fitDistance(box, h, d, centre, fov, this.aspect, margin);
+    // Centred on screen, a little above the middle (the controls are at the bottom).
+    // (Half steps: the near end moves faster on screen than the middle, so a whole
+    // step overshoots.)
+    for (let i = 0; i < 6; i++) {
+      centre.addScaledVector(centring(box, h, d, centre, dist, fov, this.aspect, 0.1, _g), 0.5);
+      dist = fitDistance(box, h, d, centre, fov, this.aspect, margin);
+    }
+    this.want(_b.copy(centre).addScaledVector(d, dist), _c.copy(centre), cut, dt, k);
+  }
+
+  private aimFrom(cam: CamPose, at: THREE.Vector3) {
+    aim(cam, _g.copy(at).add(this.camFrom), _h.copy(at).add(this.camTo));
+  }
+
+  /**
+   * Where what's shown lands on the screen (tests): its box's corners
+   * projected through a camera posed like `cam`, as −1 … 1 across and up
+   * (left, right, bottom, top), or null with nothing shown.
+   */
+  screenBox(cam: CamPose, aspect = this.aspect) {
+    const obj =
+      this.shown === 'plane'
+        ? this.plane?.group
+        : this.shown === 'jumper'
+          ? this.you?.root
+          : this.shown === 'canopy'
+            ? this.holder
+            : this.shown === 'heli'
+              ? this.heli?.group
+              : null;
+    if (!obj) return null;
+    const c = new THREE.PerspectiveCamera(cam.fov, aspect, 0.05, 2000);
+    const cp = Math.cos(cam.pitch);
+    c.position.set(0, 0, 0);
+    c.lookAt(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), -Math.cos(cam.yaw) * cp);
+    return screenBoxOf(obj, c);
   }
 
   /** Draw the models over the city's frame (call after it renders). */
@@ -380,6 +665,7 @@ export class AirRig {
     c.quaternion.copy(main.quaternion);
     c.fov = main.fov;
     c.aspect = main.aspect;
+    this.aspect = main.aspect;
     c.updateProjectionMatrix();
     c.updateMatrixWorld();
     const auto = renderer.autoClear;

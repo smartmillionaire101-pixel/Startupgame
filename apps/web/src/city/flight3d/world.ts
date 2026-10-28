@@ -22,6 +22,7 @@
  * destination's runway; and the plane rolled out there.
  */
 import * as THREE from 'three';
+import { screenBoxOf } from '../../three-kit/screen-box';
 import { applySky, skyAt, skyDome, skyUniforms, type SkyState } from '../three/sky';
 import type { SkyUniforms } from '../three/ground';
 import { makePlane3D, type Plane3D, type Plane3DKind } from '../../three-kit/plane';
@@ -636,6 +637,11 @@ export class SkyWorld {
   }
 
   /** Where the plane is and where the camera looks, for a shot at k (0–1) and t seconds in. */
+  /** Where the plane is on screen (tests: the whole plane in the picture), or null. */
+  planeOnScreen() {
+    return screenBoxOf(this.plane.root, this.camera);
+  }
+
   pose(shot: WorldShot, k: number, t: number, aspect: number) {
     const cam = this.camera;
     const P = this.plane.root;

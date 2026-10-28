@@ -20,8 +20,8 @@ type JumpPhase = 'climb' | 'door' | 'freefall' | 'canopy' | 'landed';
  * under canopy in about a minute), the same way at any frame rate.
  */
 export const JUMP = {
-  /** The climb to altitude (s on screen). */
-  climbS: 9,
+  /** The climb to altitude (s on screen; Skip goes straight to the door). */
+  climbS: 8,
   exit: SKYDIVE.exit,
   /** Freefall: terminal velocity (m/s, real) and the speed-up. */
   terminal: 55,
@@ -147,6 +147,10 @@ export function stepJump(j: Jump, dt: number, input: JumpInput, drift = 0): Jump
   }
   return s;
 }
+
+/** Skip the climb: the plane is at altitude with the door open. */
+export const skipClimb = (j: Jump): Jump =>
+  j.phase === 'climb' ? { ...j, phase: 'door', t: 0, alt: JUMP.exit } : j;
 
 /** Out of the door. */
 export const exitPlane = (j: Jump): Jump =>

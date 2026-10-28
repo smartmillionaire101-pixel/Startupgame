@@ -471,6 +471,30 @@ export async function expectGolfControlsClear(page: Page, what = 'address') {
       false,
     );
   }
+  // The nav pill and the phone button step aside while you play: neither sits on a control.
+  for (const sel of ['.nav', '.hud-phone']) {
+    const el = page.locator(sel).first();
+    if (!(await el.count()) || !(await el.isVisible())) continue;
+    const n = (await el.boundingBox())!;
+    for (const [name, b] of boxes) {
+      const over =
+        n.x < b.x + b.width && n.x + n.width > b.x && n.y < b.y + b.height && n.y + n.height > b.y;
+      expect(over, `${what}: ${sel} covers the ${name} control`).toBe(false);
+    }
+  }
+  // The golfer in the picture (3D): inside the canvas and clear of the clubs down the left.
+  const golfer = (await canvas.getAttribute('data-golf-golfer')) ?? '';
+  if (golfer) {
+    const [l, t, r, b] = golfer.split(',').map(Number) as [number, number, number, number];
+    const clubs = boxes.filter(([n]) => n === 'club').map(([, b]) => b.x + b.width);
+    const clubsRight = clubs.length ? (Math.max(...clubs) - c.x) / c.width : 0;
+    expect(l, `${what}: the golfer is cut at the left (or under the clubs)`).toBeGreaterThan(
+      clubsRight - 0.02,
+    );
+    expect(r, `${what}: the golfer is cut at the right`).toBeLessThan(1);
+    expect(t, `${what}: the golfer is cut at the top`).toBeGreaterThan(0);
+    expect(b, `${what}: the golfer is cut at the bottom`).toBeLessThan(1);
+  }
 }
 
 /**

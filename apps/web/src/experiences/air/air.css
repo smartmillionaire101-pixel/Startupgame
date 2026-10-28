@@ -183,7 +183,8 @@
   position: absolute;
   top: 136px;
   left: 16px;
-  right: 16px;
+  /* Clear of the camera's round buttons down the right (they sat on the line's end). */
+  right: 76px;
   display: grid;
   gap: 2px;
   margin: 0;
@@ -292,4 +293,40 @@
   background: #1e293b;
   color: #fff;
   border: 1px solid #fff4;
+}
+
+/* The short loading screen: what's ready, a bar, the next step. */
+.air-loading {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: min(300px, 80vw);
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #0f172acc;
+  text-align: center;
+  text-shadow: 0 1px 4px #000;
+}
+.air-loading .panorama-progress {
+  margin-top: 2px;
+}
+.air-loading small {
+  opacity: 0.8;
+  font-size: 12px;
+}
+/* Skip the climb: always there while the plane climbs (and while it loads). */
+.air-controls .air-skip {
+  justify-self: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  background: #0f172acc;
+  color: #fff;
+  border: 1px solid #fff5;
+  font-weight: 700;
 }
