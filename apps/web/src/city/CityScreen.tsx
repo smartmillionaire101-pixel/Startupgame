@@ -29,7 +29,14 @@ import { Button, HudButton, HudRail, Icon, Pill, Sheet, reduceMotion } from '../
 import { HudSlot } from '../Hud';
 import { GameActivity } from '../GameActivity';
 import { avatarLook } from './art';
-import { CityMap, districtLabel, placeAvatarAt, type CityMapHandle, type FarTrip } from './CityMap';
+import {
+  CityMap,
+  avatarPosIn,
+  districtLabel,
+  placeAvatarAt,
+  type CityMapHandle,
+  type FarTrip,
+} from './CityMap';
 import { MonthCountdown, RideChooser, RideIcon } from './Transport';
 import {
   stayOf,
@@ -63,7 +70,8 @@ import { suggestionText, WhatNowCard, WhatNowList, whatNowOptions } from './What
 import { suggestionsFor } from './whatnow';
 import type { Nav } from './Interiors';
 import { useRiding } from './riding';
-import { crowdSize, eventsOf, flaggedPlaces, newBusinessIds, passersBy } from './people';
+import { crowdSize, eventsOf, flaggedPlaces, newBusinessesOf, passersBy } from './people';
+import { firstSeenMonth, markVisited, newPlaces, seenNew, visitedPlaces } from './newPlaces';
 import { PersonCard, type PersonRef } from './PersonCard';
 import { SkyViewsList } from '../experiences/SkyViewsList';
 import { JourneyCelebration, JourneyChip, JourneyPanel, Objectives } from './JourneyPanel';
@@ -154,10 +162,17 @@ const DISTRICT_ORDER: DistrictId[] = [
   'events',
 ];
 
-type Filter = 'all' | 'capital' | 'customers' | 'civic' | (typeof BUSINESS_CATEGORIES)[number];
+type Filter =
+  'all' | 'capital' | 'customers' | 'civic' | 'unvisited' | (typeof BUSINESS_CATEGORIES)[number];
 
-const matches = (p: Place, f: Filter) =>
+const matches = (p: Place, f: Filter, visited?: ReadonlySet<string>) =>
   f === 'all' ||
+  // Round 7: the places you haven't been in yet (your home and office aren't news).
+  (f === 'unvisited' &&
+    !!visited &&
+    !visited.has(p.id) &&
+    p.kind !== 'home' &&
+    p.kind !== 'office') ||
   (f === 'capital' &&
     (p.kind === 'lender' ||
       p.kind === 'playerbank' ||
@@ -266,12 +281,16 @@ function PlacesList({
   layout,
   labelOf,
   onPick,
+  meId,
 }: {
   layout: CityLayout;
   labelOf: (p: Place) => string;
   onPick: (p: Place) => void;
+  /** Round 7: whose visits to read ("Not visited yet"). */
+  meId?: string;
 }) {
   const [filter, setFilter] = useState<Filter>('all');
+  const visited = useMemo(() => (meId ? visitedPlaces(meId) : new Set<string>()), [meId]);
   const cats = BUSINESS_CATEGORIES.filter((c) => layout.places.some((p) => p.category === c));
   const groups: { id: string; title: string; places: Place[] }[] = layout.areas.length
     ? [
@@ -301,6 +320,7 @@ function PlacesList({
     { id: 'all', label: t('All') },
     { id: 'capital', label: t('Money') },
     { id: 'customers', label: t('Customers') },
+    ...(meId ? [{ id: 'unvisited' as const, label: t('Not visited yet') }] : []),
     // City places: the named buildings (ministries, the exchange, clubs…), once the city has them.
     ...(layout.places.some((p) => p.kind === 'civic')
       ? [{ id: 'civic' as const, label: t('Institutions') }]
@@ -344,6 +364,7 @@ function PlacesList({
               key={f.id}
               type="button"
               className="chip"
+              data-filter={f.id}
               aria-pressed={filter === f.id}
               onClick={() => setFilter(f.id)}
             >
@@ -354,7 +375,7 @@ function PlacesList({
         </div>
       )}
       {groups.map((g) => {
-        const ps = g.places.filter((p) => matches(p, filter));
+        const ps = g.places.filter((p) => matches(p, filter, visited));
         if (!ps.length) return null;
         return (
           <section key={g.id} className="places-group" data-area={g.id}>
@@ -763,6 +784,11 @@ function CityBodyInner({
   useEffect(() => {
     if (inside?.id !== 'home') holdHome(false);
   }, [inside]);
+  // Round 7: been in it, so it isn't new any more (its dot goes).
+  useEffect(() => {
+    if (!inside) return;
+    markVisited(meId, inside.id);
+  }, [inside, meId]);
   // A few anonymous passers-by: deterministic for the city, sized for the screen.
   // Everyone you can talk to is inside a building (Wave 6).
   const [crowdMax] = useState(() =>
@@ -771,11 +797,38 @@ function CityBodyInner({
   const walkers = useMemo(() => passersBy(layout, crowdMax), [layout, crowdMax]);
   // Other players (never in lite mode: no polling to save data): a count on their building.
   const { players, report } = usePresence({ enabled: !lite, selfId: meId });
-  const freshKey = newBusinessIds(view).join(',');
-  const fresh = useMemo(
-    () => (freshKey ? freshKey.split(',').map((id) => `biz:${id}`) : []),
-    [freshKey],
-  );
+  // Round 7: a dot on the few nearest places genuinely new to you (opened since
+  // you came, not been in, first marked a few game days ago at most).
+  const joinMonth = firstSeenMonth(meId, view.market.id, view.market.month);
+  const freshKey = newBusinessesOf(view)
+    .map((b) => `${b.id}:${b.openedMonth}`)
+    .join(',');
+  const [fresh, setFresh] = useState<string[]>([]);
+  const monthMs = view.clock?.monthMs ?? 86_400_000;
+  useEffect(() => {
+    // Read from this device and the clock: worked out just after the render.
+    const id = window.setTimeout(() => {
+      const byId = new Map(layout.places.map((p) => [p.id, p]));
+      const cands = (freshKey ? freshKey.split(',') : []).flatMap((k) => {
+        const i = k.lastIndexOf(':');
+        const pid = `biz:${k.slice(0, i)}`;
+        const p = byId.get(pid);
+        return p ? [{ id: pid, openedMonth: Number(k.slice(i + 1)), x: p.x, y: p.y }] : [];
+      });
+      const now = Date.now();
+      const shown = newPlaces(cands, {
+        joinMonth,
+        visited: visitedPlaces(meId),
+        seen: seenNew(meId, [], now),
+        now,
+        monthMs,
+        at: avatarPosIn(layout.marketId) ?? layout.start,
+      });
+      seenNew(meId, shown, now);
+      setFresh((was) => (was.join() === shown.join() ? was : shown));
+    }, 0);
+    return () => clearTimeout(id);
+  }, [freshKey, layout, joinMonth, meId, inside, monthMs]);
   const flagKey = flaggedPlaces(eventsOf(view)).join(',');
   const flags = useMemo(() => (flagKey ? flagKey.split(',') : []), [flagKey]);
   const onArrive = useCallback(
@@ -1063,7 +1116,7 @@ function CityBodyInner({
             </section>
           )}
           {simple && <h2 className="section-h">{t('Where to?')}</h2>}
-          <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
+          <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} meId={meId} />
           <section className="places-group people-group">
             <h3>{t('People around')}</h3>
             <WhoIsAround layout={layout} players={players} labelOf={labelOf} onGo={visit} />
@@ -1361,7 +1414,7 @@ function CityBodyInner({
         <Sheet title={simple ? t('Where to?') : t('Places')} onClose={() => setPlacesOpen(false)}>
           {/* Simple mode: places first; the sky views (no button of their own) after them. */}
           {!simple && <SkyViewsList city={skyCity} onOpen={() => setPlacesOpen(false)} />}
-          <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} />
+          <PlacesList layout={layout} labelOf={labelOf} onPick={goTo} meId={meId} />
           {simple && <SkyViewsList city={skyCity} onOpen={() => setPlacesOpen(false)} />}
         </Sheet>
       )}

@@ -748,10 +748,8 @@ const Overlays = memo(function Overlays({
             data-new={p.id}
             transform={`translate(${corner.x + 10} ${corner.y - p.h + 4})`}
           >
-            <rect x={-14} y={-6} width={28} height={12} rx={3} />
-            <text y={3} textAnchor="middle">
-              {t('New')}
-            </text>
+            {/* Round 7: a small dot, not a "New" label on every pin. */}
+            <circle r={4.5} />
           </g>
         )}
         {n > 0 && (

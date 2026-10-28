@@ -517,6 +517,7 @@
 .city-new {
   cursor: pointer;
 }
+.city-new circle,
 .city-new rect {
   fill: #16a34a;
   stroke: #fff;

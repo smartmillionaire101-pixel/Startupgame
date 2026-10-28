@@ -13,4 +13,5 @@ export const city3d: Record<string, string> = {
   'The map of {city}': 'La carte de {city}',
   'Streets and buildings': 'Rues et bâtiments',
   'Drawing the city': 'Dessin de la ville',
+  'Not visited yet': 'Pas encore visités',
 };
