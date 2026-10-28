@@ -162,6 +162,7 @@ test('an appliance shop sells a TV, and it shows in your flat', async ({ page })
     timeout: 40000,
   });
   await social.getByRole('button', { name: 'Unpack delivery' }).click();
-  await social.getByRole('button', { name: 'Close home experiences' }).click();
+  // Round 7: unpacking goes straight to placing it.
+  await home.getByRole('button', { name: 'Put it here' }).click();
   await expect(home.locator('[data-furniture="tv"]')).toHaveAttribute('data-owned', '1');
 });

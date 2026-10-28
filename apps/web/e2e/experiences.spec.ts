@@ -153,8 +153,10 @@ test('a paid home order arrives and can be unpacked, and paid flight bookings su
     timeout: 40000,
   });
   await home.getByRole('button', { name: 'Unpack delivery' }).click();
-  await expect(home.getByText('No deliveries on the way.')).toBeVisible();
-  expect((await state(page)).me.home.items.some((i) => i.itemId === furniture.id)).toBeTruthy();
+  // Round 7: unpacking takes you home; a TV goes into its spot.
+  await expect
+    .poll(async () => (await state(page)).me.home.items.some((i) => i.itemId === furniture.id))
+    .toBeTruthy();
   const before = (await state(page)).accounts.local!.balance;
   await command(page, { type: 'travel.book', to: 'lagos' });
   const booked = await state(page);

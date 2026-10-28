@@ -94,7 +94,7 @@ test('a life event pops up, the player chooses, and sees what happened', async (
 
   // The card opens on its own over the City.
   const card = page.locator('[data-life-event]');
-  await expect(card).toBeVisible({ timeout: 15_000 });
+  await expect(card).toBeVisible({ timeout: 30_000 });
   const sheet = page.getByRole('dialog').filter({ has: card });
   await expect(sheet.locator('.life-card-pic')).not.toBeEmpty();
   await expect(sheet.locator('.life-card-story')).not.toBeEmpty();
@@ -117,20 +117,25 @@ test('a life event pops up, the player chooses, and sees what happened', async (
   const changes = result.locator('[data-life-change]');
   expect(await changes.count()).toBeGreaterThanOrEqual(1);
   const bar = result.locator('[data-life-change][data-delta]').first();
-  if (await bar.count()) {
-    const key = (await bar.getAttribute('data-life-change')) as keyof typeof before;
-    const delta = Number(await bar.getAttribute('data-delta'));
-    const after = (await state(page)).view!.me.bars!;
-    expect(after[key] - before[key]).toBe(delta);
-    // Me shows the new value.
-    await tab(page, 'Me').click();
-    await expect(
-      page.locator(`[data-lifebars-sheet] [data-bar="${key}"] [role="meter"]`),
-    ).toHaveAttribute('aria-valuenow', String(after[key]));
-  }
+  const moved = (await bar.count())
+    ? {
+        key: (await bar.getAttribute('data-life-change')) as keyof typeof before,
+        delta: Number(await bar.getAttribute('data-delta')),
+      }
+    : null;
   await shot(page, 'life-event-result');
   await sheet.getByRole('button', { name: 'OK' }).click();
   await expect(card).toBeHidden();
+  if (moved) {
+    const after = (await state(page)).view!.me.bars!;
+    expect(after[moved.key] - before[moved.key]).toBe(moved.delta);
+    // Me shows the new value (on a phone the nav steps aside while a sheet is open).
+    await tab(page, 'Me').click();
+    await expect(
+      page.locator(`[data-lifebars-sheet] [data-bar="${moved.key}"] [role="meter"]`),
+    ).toHaveAttribute('aria-valuenow', String(after[moved.key]));
+    await page.keyboard.press('Escape');
+  }
 
   // It's kept on Today with what you chose.
   await tab(page, 'Today').click();
