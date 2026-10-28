@@ -31,7 +31,7 @@ import { CITY_NAME_PARTS, KIND_NAME_SUFFIXES } from './data/business-names.js';
 import { LANDMARKS } from './data/landmarks.js';
 import { AIR_ACTIVITIES } from './data/games.js';
 import { shopSells } from './data/lifestyle-shop.js';
-import { INDUSTRY_LABEL } from './data/industries.js';
+import { INDUSTRIES, INDUSTRY_LABEL } from './data/industries.js';
 import type { Industry } from './data/industries.js';
 import type { MarketId } from './data/markets.js';
 import { priceScore, reliability } from './customers.js';
@@ -64,7 +64,8 @@ import { metAtVenue, peopleHere } from './people.js';
 import { deriveRng } from './rng.js';
 import { randomDistrict } from './districts.js';
 import { venueNeeds } from './needs.js';
-import { investorOn } from './releases.js';
+import { gameplayOn, investorOn } from './releases.js';
+import { buyerSegment } from './data/buyers.js';
 import type { Rng } from './rng.js';
 import type {
   BusinessNews,
@@ -833,7 +834,13 @@ export function pitchBlocker(
         (!companyId || c.id === companyId),
     );
   if (!mine.length) return 'Only founders with a company in this city can pitch.';
-  const sells = mine.filter((c) => (spec.buys[c.industry] ?? 0) > 0);
+  // Gameplay note: a business buys from the industries its kind is a customer
+  // of (data/buyers.ts): a spa is no healthtech customer, whatever it spends.
+  const sells = mine.filter((c) =>
+    gameplayOn(world)
+      ? buyerSegment(c.industry, b.kind) !== null
+      : (spec.buys[c.industry] ?? 0) > 0,
+  );
   if (!sells.length)
     return `They don’t buy ${mine.map((c) => INDUSTRY_LABEL[c.industry].toLowerCase()).join(' or ')} products.`;
   const open = sells.filter((c) => !b.suppliers.some((s) => s.companyId === c.id));
@@ -1337,6 +1344,24 @@ export function eventVenueBusiness(world: World, me: Player, businessId: Id): Lo
 
 // ---------------------------------------------------------------- Views
 
+/**
+ * The industries a business buys from: what it spends on, or (gameplay note)
+ * the industries whose customers its kind is (data/buyers.ts).
+ */
+function buyingSectors(world: World, b: LocalBusiness): Industry[] {
+  if (!gameplayOn(world)) return Object.keys(specOf(b).buys) as Industry[];
+  return INDUSTRIES.filter((i) => buyerSegment(i, b.kind) !== null);
+}
+
+/** What it would spend a month (gameplay note: at least what its segment's buyers spend). */
+function buyerBudget(world: World, m: MarketState, b: LocalBusiness, sector: Industry): number {
+  const own = sectorBudget(b, sector);
+  if (!gameplayOn(world)) return own;
+  const key = buyerSegment(sector, b.kind);
+  const seg = key ? m.segments[key] : undefined;
+  return Math.max(own, seg ? Math.round(seg.budget * 0.6) : 0);
+}
+
 export function businessesView(world: World, viewer: Player, m: MarketState) {
   const month = m.month;
   const here = peopleHere(world, m);
@@ -1395,13 +1420,13 @@ export function businessesView(world: World, viewer: Player, m: MarketState) {
           pay: gigPay(m, viewer, g),
           skillMatch: gigSkillMatch(viewer, g.skill),
         })),
-        buys: (Object.keys(spec.buys) as Industry[]).map((sector) => {
+        buys: buyingSectors(world, b).map((sector) => {
           const s = b.suppliers.find((x) => x.sector === sector);
           const c = s ? world.companies[s.companyId] : undefined;
           return {
             sector,
             label: CATEGORY[sector],
-            monthlyBudget: sectorBudget(b, sector),
+            monthlyBudget: buyerBudget(world, m, b, sector),
             supplier: c
               ? { companyId: c.id, name: c.name, you: c.founderIds.includes(viewer.id) }
               : null,

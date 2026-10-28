@@ -117,6 +117,18 @@ export const SHOP_NOTE = 'release-2026-10-25-online-shop';
  */
 export const FEEDBACK_NOTE = 'release-2026-10-25-game-feedback';
 
+/**
+ * Round 7 gameplay (sales and the team): leads are the kinds of business an
+ * industry really sells to, a lost deal names the one real reason (luck only
+ * when it was luck), budget and timing losses come back on a date, every
+ * customer counts the same everywhere, and hires do their job (a salesperson
+ * brings leads from their sector, runs discovery and lifts the chance; a
+ * technical co-founder lifts demos; a business co-founder brings warmer leads
+ * and a better pitch; everyone gets better with the months). Worlds without
+ * this note play exactly as before.
+ */
+export const GAMEPLAY_NOTE = 'release-2026-10-28-gameplay';
+
 /** Every behaviour-switching note, oldest first. */
 export const RELEASES = [
   JOURNEY_EVENTS_NOTE,
@@ -130,6 +142,7 @@ export const RELEASES = [
   BANKERS_NOTE,
   SHOP_NOTE,
   FEEDBACK_NOTE,
+  GAMEPLAY_NOTE,
 ] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
@@ -149,3 +162,4 @@ export const moreGamesOn = (w: World): boolean => releaseOn(w, MORE_GAMES_NOTE);
 export const bankersOn = (w: World): boolean => releaseOn(w, BANKERS_NOTE);
 export const shopOn = (w: World): boolean => releaseOn(w, SHOP_NOTE);
 export const feedbackOn = (w: World): boolean => releaseOn(w, FEEDBACK_NOTE);
+export const gameplayOn = (w: World): boolean => releaseOn(w, GAMEPLAY_NOTE);

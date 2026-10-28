@@ -24,6 +24,7 @@
  * randomness from `deriveRng(seed, 'sales', …)`. Old worlds never see it.
  */
 import { CITY_NAME_PARTS } from './data/business-names.js';
+import { buyerSegment } from './data/buyers.js';
 import { reliability, segmentFit } from './customers.js';
 import { businessesOf, isOpen, sectorBudget, specOf } from './economy.js';
 import { ensure, fail } from './errors.js';
@@ -37,7 +38,7 @@ import { outputOf } from './staff.js';
 import { barEdgeIn } from './lifebars.js';
 import { rivalPressure } from './rivals.js';
 import { firstPayment, starterIdeaEdge } from './firstsession.js';
-import { feedbackOn } from './releases.js';
+import { feedbackOn, gameplayOn } from './releases.js';
 import type {
   Company,
   Id,
@@ -149,6 +150,30 @@ const segmentsOf = (m: MarketState, c: Company): SegmentState[] => {
   const b2b = pool.filter((s) => s.kind === 'b2b');
   return b2b.length ? b2b : pool;
 };
+
+/** The segments a company prospects in: the ones it targets in its industry (all of them if none). */
+const prospectSegments = (m: MarketState, c: Company): string[] => {
+  const all = Object.values(m.segments).filter((s) => s.industry === c.industry);
+  const targeted = all.filter((s) => c.targetSegments.includes(s.key));
+  return (targeted.length ? targeted : all).map((s) => s.key);
+};
+
+/**
+ * Gameplay note: the segment a local business buys as (data/buyers.ts), one
+ * the company targets first; null when it is no customer of this industry (a
+ * spa or a co-working space for a healthtech company).
+ */
+export function businessSegment(m: MarketState, c: Company, b: LocalBusiness): string | null {
+  const key =
+    buyerSegment(c.industry, b.kind, prospectSegments(m, c)) ?? buyerSegment(c.industry, b.kind);
+  return key && m.segments[key] ? key : null;
+}
+
+/** Does this business buy what the company sells (gameplay note: by kind; before it, by spending)? */
+export const buysFrom = (world: World, c: Company, b: LocalBusiness): boolean =>
+  gameplayOn(world)
+    ? businessSegment(getMarket(world, c.market), c, b) !== null
+    : (specOf(b).buys[c.industry] ?? 0) > 0;
 
 /** What a founder would assume about a customer before discovery. */
 export function assumed(m: MarketState, d: SalesDeal): SalesCustomer {
@@ -407,8 +432,15 @@ export function makeLead(
   rng: Rng,
   b: LocalBusiness | undefined,
 ): SalesCustomer | null {
-  const segs = segmentsOf(m, c);
-  const seg = segs.length ? rng.pick(segs) : undefined;
+  let seg: SegmentState | undefined;
+  if (b && gameplayOn(world)) {
+    // Gameplay note: a business buys as the segment its kind belongs to, or not at all.
+    const key = businessSegment(m, c, b);
+    seg = key ? m.segments[key] : undefined;
+  } else {
+    const segs = segmentsOf(m, c);
+    seg = segs.length ? rng.pick(segs) : undefined;
+  }
   if (!seg) return null;
   const parts = CITY_NAME_PARTS[m.id];
   const person = `${rng.pick(rng.chance(0.5) ? parts.female : parts.male)} ${rng.pick(parts.last)}`;
@@ -486,11 +518,17 @@ export function prospect(world: World, me: Player, companyId?: Id) {
       .filter(Boolean),
     ...(c.salesAccounts ?? []).map((a) => a.businessId).filter(Boolean),
   ]);
+  // Gameplay note: only the kinds of business the segments you target are
+  // (data/buyers.ts), not every business that spends something on the industry.
+  const on = gameplayOn(world);
+  const targets = prospectSegments(m, c);
   const businesses = Object.values(businessesOf(m))
     .filter(
       (b) =>
         isOpen(b) &&
-        (specOf(b).buys[c.industry] ?? 0) > 0 &&
+        (on
+          ? buyerSegment(c.industry, b.kind, targets) !== null
+          : (specOf(b).buys[c.industry] ?? 0) > 0) &&
         !taken.has(b.id) &&
         !b.suppliers.some((s) => s.companyId === c.id),
     )
@@ -891,6 +929,8 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       contact: d.customer.contact,
       businessId: d.customer.businessId ?? null,
       segment: seg?.name ?? '',
+      /** Why this kind of customer buys (the segment's needs: "Records, billing, data protection"). */
+      segmentNeeds: seg?.needsLabel ?? '',
       /** What kind of business a local business is ("Spa"); null for a made-up lead. */
       businessKind: biz ? specOf(biz).label : null,
       createdMonth: d.createdMonth,

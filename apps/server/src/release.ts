@@ -3,7 +3,9 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  *
  * Logging a note is also a switch (see the engine's releases.ts): this one
- * turns on the game-feedback round (a 30-day banking licence review, a
+ * turns on round 7's gameplay (leads that fit the industry, lost deals with
+ * their real reason, one customer count, hires that do their job) and, being
+ * later, the game-feedback round (a 30-day banking licence review, a
  * bigger quiz bank, tasks at work, named hotels, outfits by role and the Suit
  * Shop, errands in every building, events by role, the banker's reputation,
  * the stock market's analysis and the founder and investor guides) and,
@@ -21,20 +23,16 @@
  * events, Founder Journey 5 (exits) and 4a (decision events and visible
  * rivals) for new worlds.
  */
-import { FEEDBACK_NOTE } from '@runway/engine';
+import { GAMEPLAY_NOTE } from '@runway/engine';
 
 export const RELEASE_NOTE = {
-  id: FEEDBACK_NOTE,
+  id: GAMEPLAY_NOTE,
   text:
-    'Update from your feedback. Founders now set up properly: register, fund the company with ' +
-    'your own money, a scheme or a startup loan (banker players can lend), make a plan, then ' +
-    'lease an office. Customer interviews and sales are real conversations, scored with the ' +
-    'best answer and why. Founders and investors get a stage tracker, live checks and a mentor. ' +
-    'Job interviews get harder with the level, with a brief to study, and jobs come with tasks ' +
-    'from your manager. Bankers: a 30-day licence review, a reputation that brings bigger ' +
-    'clients, and banking events. The stock market shows your city first, 15 to 20 companies ' +
-    'each, with an analysis before you buy. Buy mode at home has pictures, a basket, floors and ' +
-    'paint, and your things lift your needs. Named hotels, a Suit Shop, outfits by role, golf ' +
-    'controls off the aim, a new sign-up and over 1,100 quiz questions. Refresh to get it; your ' +
-    'game is saved.',
+    'Update from your feedback. Sales leads are now the customers your industry really sells ' +
+    'to, with openings that fit your idea and their business. Before you ask for a deal you see ' +
+    'what is holding the chance back, and a lost deal tells you the real reason and what to do ' +
+    'next. Won customers count everywhere at once. Your hires do their job: a salesperson brings ' +
+    'leads from their sector, runs discovery and gives you tips; a technical co-founder lifts ' +
+    'demos; a business co-founder brings warmer leads and a better pitch; engineers ship faster. ' +
+    'Interview notes fill in even from weaker questions. Refresh to get it; your game is saved.',
 } as const;
