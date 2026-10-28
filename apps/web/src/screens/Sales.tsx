@@ -15,13 +15,13 @@ import { activeStep, setTutorial, useTutorial } from '../tutorial/state';
 import { useSpotlight } from '../tutorial/spotlight';
 import { DemoBreakdown } from './FounderGuide';
 import { SalesTalkSheet } from './SalesTalk';
+import { LossReason, lossAdvice, lossLabel, type LossReason as LossReasonId } from './SalesReasons';
 import './sales.css';
 
 type Sales = NonNullable<Company['sales']>;
 type DealV = Sales['deals'][number];
 type Action = DealV['actions'][number]['action'];
 type Stage = DealV['stage'];
-type LossReason = NonNullable<DealV['lossReason']>;
 
 export const stageLabel = (s: Stage | string) =>
   ({
@@ -57,32 +57,12 @@ const actionWhy = (a: Action) =>
     recover: t('One more try: answer their objection and get back to the table.'),
   })[a];
 
-const lossLabel = (r: LossReason) =>
-  ({
-    price: t('Too expensive for them'),
-    missing_feature: t('The product doesn’t do what they need yet'),
-    timing: t('Not the right time'),
-    trust: t('They don’t trust you enough yet'),
-    competitor: t('They stayed with a competitor'),
-    no_budget: t('No budget for it'),
-  })[r];
-
 /** Why a won customer stopped buying (sales.ts CHURN_WHY). */
 export const churnLabel = (r: 'reliability' | 'hibernation' | 'switched') =>
   ({
     reliability: t('outages and slow support drove them away'),
     hibernation: t('you paused the company'),
     switched: t('they moved to another supplier'),
-  })[r];
-
-const lossAdvice = (r: LossReason) =>
-  ({
-    price: t('Try again, then lower the price or offer a discount.'),
-    missing_feature: t('Try again: improve the product and show a new demo.'),
-    timing: t('Try again: they may be ready a little later.'),
-    trust: t('Try again with a reference: trust grows.'),
-    competitor: t('Try again: beat their current supplier on price or fit.'),
-    no_budget: t('Try again: get in front of whoever holds the budget.'),
   })[r];
 
 const needLabel = (n: string | null) =>
@@ -306,7 +286,7 @@ function DealCard({
       ...(a === 'negotiate' ? { discountPct: discount } : {}),
     };
     setPending(null);
-    void send<{ won?: boolean; monthly?: number; lossReason?: LossReason }>(cmd, (r) =>
+    void send<{ won?: boolean; monthly?: number; lossReason?: LossReasonId }>(cmd, (r) =>
       a === 'close'
         ? r.won
           ? t('{name} signed! {amount}/mo from next month.', {
@@ -409,7 +389,9 @@ function DealCard({
               ? t('Ran out of time')
               : t('Lost: {reason}', { reason: lossLabel(d.lossReason) })}
           </strong>
-          {d.canRecover ? (
+          {d.loss ? (
+            <LossReason d={d} heading={false} />
+          ) : d.canRecover ? (
             <span className="small">{lossAdvice(d.lossReason)}</span>
           ) : (
             <span className="small muted">{t('This one is gone. Find new leads.')}</span>

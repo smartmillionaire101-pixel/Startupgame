@@ -65,12 +65,13 @@ import {
   assumed,
   closeDeal,
   hasDealRoom,
+  holdingBack,
   isOpenDeal,
   makeLead,
   salesView,
   winChance,
 } from './sales.js';
-import { feedbackOn } from './releases.js';
+import { feedbackOn, gameplayOn } from './releases.js';
 import type {
   Company,
   Id,
@@ -195,6 +196,29 @@ function talkChance(world: World, c: Company, d: SalesDeal, me: Player, known?: 
   if (t?.lead) p += (leadScore(world, c, d, t.lead as LeadKind).score - 0.5) * TALK.leadEffect;
   if (t?.terms) p += (termsScore(d.customer, t.terms as TermsKind) - 0.6) * TALK.termsEffect;
   return round2(clamp(p, SALES.chance[0], SALES.chance[1]));
+}
+
+/**
+ * Round 7: the best chance today, with a perfect conversation (their need
+ * first, the middle of the band, the terms that suit them): what's left
+ * below it is what holds the deal back, not the talk.
+ */
+function bestChance(world: World, c: Company, d: SalesDeal, me: Player): number {
+  const mid = priceOptions(world, c, d).find((o) => o.id === 'mid')!.amount;
+  let p = winChance(world, c, d, { price: mid, founder: me });
+  p += 0.5 * TALK.leadEffect;
+  p += (termsScore(d.customer, bestTerms(d.customer)) - 0.6) * TALK.termsEffect;
+  return round2(clamp(p, SALES.chance[0], SALES.chance[1]));
+}
+
+/** Round 7: how the conversation has gone so far (0–100), null before the first turn. */
+function talkSoFar(world: World, c: Company, d: SalesDeal): number | null {
+  const t = d.talk;
+  if (!t?.lead) return null;
+  const scores = [leadScore(world, c, d, t.lead as LeadKind).score];
+  if (t.price) scores.push(PRICE_SCORE[bandFor(d.customer, monthlyOf(d))]);
+  if (t.terms) scores.push(termsScore(d.customer, t.terms as TermsKind));
+  return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100);
 }
 
 // ---------------------------------------------------------------- Commands
@@ -466,6 +490,19 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
     })),
     terms: t?.terms ? { id: t.terms, reaction: reactTerms } : null,
     hints: interviewHints(world, c, d.customer.segmentKey),
+    /**
+     * Round 7 (gameplay note): what is holding the chance down before you ask
+     * (biggest first, in chance points), how your talk has gone, and the best
+     * chance a perfect talk could get today.
+     */
+    holding:
+      open && t && gameplayOn(world)
+        ? {
+            talk: talkSoFar(world, c, d),
+            items: holdingBack(world, c, d, { price: talkValue(world, c, d) }),
+            best: bestChance(world, c, d, me),
+          }
+        : null,
     result: res
       ? {
           score: res.score,

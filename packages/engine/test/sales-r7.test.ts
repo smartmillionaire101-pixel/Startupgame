@@ -11,6 +11,8 @@ import { SEGMENT_TEMPLATES } from '../src/data/industries.js';
 import { businessesOf, specOf } from '../src/economy.js';
 import type { Company, SalesDeal, World } from '../src/types.js';
 import { playerView } from '../src/views.js';
+import { closeDeal, holdingBack } from '../src/sales.js';
+import { salesWithTalk } from '../src/salestalk.js';
 import { customerFacts, payingCustomers } from '../src/traction.js';
 import { founderGuide } from '../src/founderguide.js';
 import { customersOf } from '../src/dealflow.js';
@@ -161,5 +163,143 @@ describe('#14 one customer count everywhere', () => {
     const c = co(w);
     expect(payingCustomers(w, c)).toBe(totalCustomers(c));
     expect(customersOf(w, c)).toBe(Object.values(c.segments).reduce((a, s) => a + s.paying, 0));
+  });
+});
+
+/** One open deal in a strong company, the customer shaped by `f`, at `stage`. */
+function shaped(on: boolean, f: (d: SalesDeal) => void, seed = 7) {
+  let w = target(founder('healthtech', on, seed), ['healthtech.clinics']);
+  const r = run(w, F, { type: 'sales.prospect' });
+  w = r.world;
+  const id = r.result.leads[0].id as string;
+  w = run(w, F, { type: 'sales.advance', dealId: id, action: 'contact' }).world;
+  w = produce(w, (x) => {
+    const c = companyOf(x, F);
+    Object.assign(c.product, { fit: 1, quality: 1, techDebt: 0 });
+    c.product.discovery['healthtech.clinics'] = 1;
+    c.stars.value = 5;
+    const d = c.deals!.find((y) => y.id === id)!;
+    d.demoScore = 1;
+    d.revealed = true;
+    Object.assign(d.customer, { trust: 1, authority: 1, urgency: 1, current: 'nothing' });
+    d.price = Math.round((d.customer.budgetMin + d.customer.budgetMax) / 2);
+    f(d);
+  });
+  return { w, id };
+}
+
+/** Ask for the deal with a given chance, rolling again (another label) until it is lost. */
+function loseAt(w: World, id: string, chance: number) {
+  for (let k = 0; k < 40; k++) {
+    let won = false;
+    const x = produce(w, (y) => {
+      const c = companyOf(y, F);
+      const d = c.deals!.find((z) => z.id === id)!;
+      const out = closeDeal(y, y.players[F]!, c, d, y.markets.london!.month, {
+        chance,
+        label: `t${k}`,
+      });
+      won = !!out.won;
+    });
+    if (!won) return x;
+  }
+  throw new Error('never lost');
+}
+
+describe('#11 a lost deal names the one real reason', () => {
+  it('says “can’t sign alone” when that is what held it back (it used to say “no budget”)', () => {
+    const { w, id } = shaped(true, (d) => {
+      d.customer.authority = 0;
+    });
+    const held = holdingBack(
+      w,
+      co(w),
+      co(w).deals!.find((d) => d.id === id)!,
+    );
+    expect(held[0]!.reason).toBe('authority');
+    const lost = loseAt(w, id, 0.05);
+    const d = co(lost).deals!.find((x) => x.id === id)!;
+    expect(d.lossReason).toBe('authority');
+    // Before the note, a weak signer read as no budget.
+    const old = shaped(false, (x) => {
+      x.customer.authority = 0;
+    });
+    const od = co(loseAt(old.w, old.id, 0.05)).deals!.find((x) => x.id === old.id)!;
+    expect(od.lossReason).toBe('no_budget');
+  });
+
+  it('blames product fit for a weak product, whatever the talk', () => {
+    const { w, id } = shaped(true, (d) => {
+      d.demoScore = 0.2;
+    });
+    const weak = produce(w, (x) => {
+      companyOf(x, F).product.fit = 0.2;
+    });
+    expect(
+      holdingBack(
+        weak,
+        co(weak),
+        co(weak).deals!.find((d) => d.id === id)!,
+      )[0]!.reason,
+    ).toBe('missing_feature');
+    const d = co(loseAt(weak, id, 0.4)).deals!.find((x) => x.id === id)!;
+    expect(d.lossReason).toBe('missing_feature');
+  });
+
+  it('calls it luck only when the chance was good and nothing big held it back', () => {
+    const { w, id } = shaped(true, () => {});
+    const lost = loseAt(w, id, 0.85);
+    const v = salesWithTalk(lost, co(lost)).deals.find((d) => d.id === id)!;
+    expect(v.lossReason).toBe('luck');
+    expect(v.loss!.luck).toBe(true);
+    expect(v.loss!.words.en).toMatch(/close/i);
+    expect(v.canRecover).toBe(true);
+  });
+
+  it('budget and timing: come back in N months, the lead stays and opens again then', () => {
+    const { w, id } = shaped(true, (d) => {
+      d.customer.urgency = 0;
+      d.customer.trust = 1;
+    });
+    const lost = loseAt(w, id, 0.3);
+    const d = co(lost).deals!.find((x) => x.id === id)!;
+    expect(d.lossReason).toBe('timing');
+    const n = d.revisit! - lost.markets.london!.month;
+    expect(n).toBeGreaterThanOrEqual(1);
+    const v = salesWithTalk(lost, co(lost)).deals.find((x) => x.id === id)!;
+    expect(v.loss!.revisitIn).toBe(n);
+    expect(v.loss!.words.en).toMatch(/month/);
+    expect(v.canRecover).toBe(false);
+    const r = tryRun(lost, F, { type: 'sales.advance', dealId: id, action: 'recover' });
+    expect(!r.ok && r.error.code).toBe('sales.recover.later');
+    // It stays on the board, and opens again at the month they named.
+    let x = lost;
+    for (let i = 0; i < n; i++) x = settle(x, 'london', 1);
+    const back = co(x).deals!.find((y) => y.id === id)!;
+    expect(back.stage).toBe('contacted');
+    expect(back.revisit).toBeUndefined();
+    expect(back.customer.urgency).toBeGreaterThan(0);
+    expect((x.inbox[F] ?? []).some((m) => m.text.includes('ready to talk again'))).toBe(true);
+  });
+
+  it('shows what is holding the chance down before you ask, and the best chance today', () => {
+    const { w, id } = shaped(true, (d) => {
+      d.customer.authority = 0.1;
+      d.customer.trust = 0.2;
+    });
+    let x = run(w, F, { type: 'sales.talk', dealId: id, action: 'start' } as never).world;
+    const need = co(x).deals!.find((d) => d.id === id)!.customer.need;
+    x = run(x, F, { type: 'sales.talk', dealId: id, action: 'lead', option: need } as never).world;
+    const t = salesWithTalk(x, co(x)).deals.find((d) => d.id === id)!.talk!;
+    expect(t.holding).not.toBeNull();
+    expect(t.holding!.talk).toBe(100);
+    const reasons = t.holding!.items.map((i) => i.reason);
+    expect(reasons).toContain('trust');
+    expect(reasons).toContain('authority');
+    expect(t.holding!.best).toBeGreaterThanOrEqual(t.chance! - 0.001);
+    // Before the note there's no such panel.
+    const old = shaped(false, () => {});
+    const y = run(old.w, F, { type: 'sales.talk', dealId: old.id, action: 'start' } as never).world;
+    expect(salesWithTalk(y, co(y)).deals.find((d) => d.id === old.id)!.talk!.holding).toBeNull();
   });
 });

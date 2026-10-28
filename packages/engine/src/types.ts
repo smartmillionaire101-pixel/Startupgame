@@ -3176,6 +3176,10 @@ export const SALES_LOSS_REASONS = [
   'trust',
   'competitor',
   'no_budget',
+  // Round 7 (gameplay note): "can't sign alone" (before it, a weak signer read as
+  // no budget), and a deal that was likely and lost anyway.
+  'authority',
+  'luck',
 ] as const;
 export type SalesLossReason = (typeof SALES_LOSS_REASONS)[number];
 export const SALES_ACTIONS = [
@@ -3241,6 +3245,11 @@ export interface SalesDeal {
   /** Lost because the deadline passed. */
   expired?: boolean;
   closedMonth?: number;
+  /**
+   * Round 7 (gameplay note): lost on budget or timing, they asked you to come
+   * back: the month the lead opens again (it stays on the board until then).
+   */
+  revisit?: number;
   /** A won deal whose customer later stopped buying (feedback note): when and why. */
   churned?: { month: number; reason: SalesChurnReason };
   /** The sales conversation (feedback note, salestalk.ts). Missing = none started. */

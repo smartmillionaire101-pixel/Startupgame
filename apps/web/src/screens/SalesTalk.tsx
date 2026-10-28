@@ -19,6 +19,7 @@ import { t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import { Button, Card, Sheet, Stat } from '../ui';
 import { ScoreRing, markIcon, useLine } from './Interview';
+import { HoldingBack, LossReason, lossLabel } from './SalesReasons';
 import './convo.css';
 
 type DealV = NonNullable<Company['sales']>['deals'][number];
@@ -46,16 +47,6 @@ const needLong = (n: string | null) =>
 
 const level = (v: number | null) =>
   v === null ? '?' : v >= 0.67 ? t('High') : v >= 0.34 ? t('Medium') : t('Low');
-
-const lossText = (r: string) =>
-  ({
-    price: t('Too expensive for them'),
-    missing_feature: t('The product doesn’t do what they need yet'),
-    timing: t('Not the right time'),
-    trust: t('They don’t trust you enough yet'),
-    competitor: t('They stayed with a competitor'),
-    no_budget: t('No budget for it'),
-  })[r] ?? r;
 
 /** Where an option sits: against their band after discovery, against your guess before it. */
 const priceLabel = (id: string, known: boolean) =>
@@ -478,6 +469,7 @@ function Turns({
       )}
       <Card>
         {talk.chance !== null && <Chance p={talk.chance} guess={talk.chanceGuess} />}
+        {talk.holding && <HoldingBack d={d} holding={talk.holding} />}
         <p className="small muted">{t('Good answers build trust.')}</p>
         {step === 'ask' && (
           <Button
@@ -548,9 +540,10 @@ function ResultView({
             tone={r.won ? 'money' : undefined}
           />
           {!r.won && d.lossReason && (
-            <Stat label={t('Why they said no')} value={lossText(d.lossReason)} />
+            <Stat label={t('Why they said no')} value={lossLabel(d.lossReason)} />
           )}
         </div>
+        {!r.won && <LossReason d={d} />}
         <ul className="convo-marks" aria-label={t('Your calls')}>
           {r.turns.map((x) => (
             <li key={x.turn} data-turn-mark={x.mark}>
@@ -613,9 +606,11 @@ function ResultView({
         <p className="small">
           {r.won
             ? t('A paying customer: billed every settlement on 30-day terms.')
-            : t(
-                'You can try once more from Sales: answer their objection and get back to the table.',
-              )}
+            : d.canRecover
+              ? t(
+                  'You can try once more from Sales: answer their objection and get back to the table.',
+                )
+              : null}
         </p>
       </Card>
     </>

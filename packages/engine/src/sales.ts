@@ -25,6 +25,7 @@
  */
 import { CITY_NAME_PARTS } from './data/business-names.js';
 import { buyerSegment } from './data/buyers.js';
+import { LOSS_WORDS, MONTHS_WORDS } from './data/sales-reasons.js';
 import { reliability, segmentFit } from './customers.js';
 import { businessesOf, isOpen, sectorBudget, specOf } from './economy.js';
 import { ensure, fail } from './errors.js';
@@ -224,9 +225,8 @@ function factors(c: Company, d: SalesDeal, who: SalesCustomer, price: number): F
   };
 }
 
-function chanceFrom(c: Company, f: Factors, need: SalesNeed, founderSales: number): number {
-  const rel = reliability(c);
-  const stars = c.stars.value / 5;
+/** How much each factor weighs in the chance, for a customer whose need is `need`. */
+function chanceWeights(need: SalesNeed) {
   const w = {
     price: 0.25,
     fit: 0.25,
@@ -242,6 +242,13 @@ function chanceFrom(c: Company, f: Factors, need: SalesNeed, founderSales: numbe
   else if (need === 'reliability') w.rel += 0.15;
   else w.stars += 0.15;
   const total = Object.values(w).reduce((a, b) => a + b, 0);
+  return { w, total };
+}
+
+function chanceFrom(c: Company, f: Factors, need: SalesNeed, founderSales: number): number {
+  const rel = reliability(c);
+  const stars = c.stars.value / 5;
+  const { w, total } = chanceWeights(need);
   const base =
     (w.price * f.price +
       w.fit * f.fit +
@@ -325,6 +332,74 @@ export function addEventDeal(
   };
   (c.deals ??= []).push(d);
   return d;
+}
+
+/** What can hold a deal's chance down (round 7): every loss reason but price and luck. */
+export type HoldReason = Exclude<SalesLossReason, 'price' | 'luck'>;
+
+/** Below this many chance points, a factor isn't holding the deal back. */
+const HOLD_MIN = 0.03;
+/** Lost with at least this chance, or with nothing holding it back: it was luck. */
+export const LUCK_CHANCE = 0.65;
+
+/**
+ * Round 7: what is holding a deal's chance down, biggest first: each factor's
+ * cost in chance points against a customer who'd be perfect on it (a fair
+ * price, the middle of their band, costs nothing). Product fit is the fit for
+ * their segment and the demo; trust is their trust, your stars and your
+ * reliability; "can't sign alone", urgency and a rival they're locked in with
+ * are theirs. Before discovery it reads what you'd assume.
+ */
+export function holdingBack(
+  world: World,
+  c: Company,
+  d: SalesDeal,
+  opts: { price?: number; known?: boolean } = {},
+): { reason: HoldReason; cost: number }[] {
+  const m = getMarket(world, c.market);
+  const who = (opts.known ?? d.revealed) ? d.customer : assumed(m, d);
+  const f = factors(c, d, who, opts.price ?? dealPrice(c, d));
+  const { w, total } = chanceWeights(who.need);
+  const rel = reliability(c);
+  const stars = c.stars.value / 5;
+  const base =
+    (w.price * f.price +
+      w.fit * f.fit +
+      w.trust * f.trust +
+      w.rel * rel +
+      w.stars * stars +
+      w.authority * f.authority +
+      w.urgency * f.urgency) /
+    total;
+  const costs: [HoldReason, number][] = [
+    ['missing_feature', (w.fit * (1 - f.fit)) / total],
+    ['trust', (w.trust * (1 - f.trust) + w.rel * (1 - rel) + w.stars * (1 - stars)) / total],
+    ['authority', (w.authority * (1 - f.authority)) / total],
+    ['timing', (w.urgency * (1 - f.urgency)) / total],
+    ['no_budget', (w.price * Math.max(0, 0.5 - f.price)) / total],
+    ['competitor', base * 0.25 * (1 - f.competition)],
+  ];
+  return costs
+    .map(([reason, cost]) => ({ reason, cost: round2(cost) }))
+    .filter((x) => x.cost >= HOLD_MIN)
+    .sort((a, b) => b.cost - a.cost);
+}
+
+/**
+ * Round 7: the one real reason a deal was lost: what held it back most, or
+ * luck when the chance was good and nothing big held it back.
+ */
+function realLossReason(world: World, c: Company, d: SalesDeal, chance: number): SalesLossReason {
+  if (dealPrice(c, d) > d.customer.budgetMax * 1.6) return 'no_budget';
+  const top = holdingBack(world, c, d, { known: true })[0];
+  if (!top || chance >= LUCK_CHANCE || top.cost < 0.05) return 'luck';
+  return top.reason;
+}
+
+/** Round 7: months until a customer lost on budget or timing wants to talk again. */
+export function revisitMonths(d: SalesDeal, reason: SalesLossReason): number {
+  if (reason === 'no_budget') return 3;
+  return clamp(1 + Math.round((1 - d.customer.urgency) * 3), 1, 4);
 }
 
 /** Why a lost deal was lost: the weakest factor on their side. */
@@ -590,6 +665,12 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
   if (a === 'recover') {
     ensure(!d.recovered, 'sales.recover.used', 'You’ve already tried to win this one back.');
     ensure(!d.expired, 'sales.recover.expired', 'This deal ran out of time.');
+    const wait = Math.max(1, (d.revisit ?? month) - month);
+    ensure(
+      d.revisit === undefined,
+      'sales.recover.later',
+      `They asked you to come back ${wait === 1 ? 'next month' : `in ${wait} months`}: the lead opens again then.`,
+    );
   } else {
     ensure(month <= d.deadline, 'sales.deadline', 'This deal has run out of time.');
   }
@@ -749,14 +830,20 @@ export function closeDeal(
     };
   }
   d.stage = 'lost';
-  d.lossReason = lossReasonOf(c, d);
+  if (gameplayOn(world)) {
+    // Round 7: the one real reason, and a date to come back on budget or timing.
+    d.lossReason = realLossReason(world, c, d, chance);
+    if (d.lossReason === 'no_budget' || d.lossReason === 'timing')
+      d.revisit = month + revisitMonths(d, d.lossReason);
+  } else d.lossReason = lossReasonOf(c, d);
   me.skills.sales = Math.min(100, me.skills.sales + 1);
   return {
     dealId: d.id,
     stage: d.stage,
     won: false,
     lossReason: d.lossReason,
-    canRecover: !d.recovered,
+    canRecover: !d.recovered && d.revisit === undefined,
+    ...(d.revisit !== undefined ? { revisit: d.revisit } : {}),
     chance,
   };
 }
@@ -787,7 +874,8 @@ function recoverDeal(d: SalesDeal, month: number) {
       d.stage = 'negotiation';
       break;
     case 'no_budget':
-      // You get in front of whoever holds the budget.
+    case 'authority':
+      // You get in front of whoever holds the budget (and signs).
       d.customer.authority = Math.round(clamp01(d.customer.authority + 0.3) * 100) / 100;
       d.stage = 'negotiation';
       break;
@@ -800,6 +888,28 @@ function recoverDeal(d: SalesDeal, month: number) {
   }
   d.revealed = true;
   return { dealId: d.id, stage: d.stage, recovering: reason };
+}
+
+/**
+ * Round 7: a deal lost on budget or timing opens again when they asked: back
+ * to "contacted", what you learned kept, the budget renewed or the need now
+ * pressing, a fresh deadline and one more recovery attempt.
+ */
+function reopenDeal(d: SalesDeal, month: number) {
+  const reason = d.lossReason;
+  delete d.revisit;
+  delete d.lossReason;
+  delete d.closedMonth;
+  delete d.recovered;
+  if (reason === 'no_budget') {
+    d.customer.budgetMin = Math.round(d.customer.budgetMin * 1.15);
+    d.customer.budgetMax = Math.round(d.customer.budgetMax * 1.15);
+  } else d.customer.urgency = Math.round(clamp01(d.customer.urgency + 0.3) * 100) / 100;
+  if (d.talk) d.talk = { n: d.talk.n, month: d.talk.month, leadOptions: [] };
+  d.stage = 'contacted';
+  d.createdMonth = month;
+  d.deadline = month + 2;
+  d.negotiations = 0;
 }
 
 export function dropDeal(world: World, me: Player, dealId: Id, companyId?: Id) {
@@ -829,6 +939,17 @@ export function settleSales(world: World, c: Company, month: number) {
         month,
         kind: 'warning',
         text: `${d.customer.name} went cold: the deal ran out of time.`,
+      });
+  }
+  // Round 7: a customer who said "come back in N months" is ready to talk again.
+  for (const d of c.deals ?? []) {
+    if (d.stage !== 'lost' || d.revisit === undefined || month < d.revisit) continue;
+    reopenDeal(d, month);
+    for (const fid of c.founderIds)
+      notify(world, fid, {
+        month,
+        kind: 'lead',
+        text: `${d.customer.name} asked you to come back about now: they’re ready to talk again.`,
       });
   }
   if (c.salesAccounts?.length) {
@@ -871,7 +992,8 @@ export function settleSales(world: World, c: Company, month: number) {
     c.salesAccounts = kept;
   }
   if (c.deals) {
-    const closed = c.deals.filter((d) => !isOpenDeal(d));
+    // A lead waiting to come back stays on the board until it does.
+    const closed = c.deals.filter((d) => !isOpenDeal(d) && d.revisit === undefined);
     if (closed.length > SALES.keepClosed) {
       const drop = new Set(
         closed
@@ -907,6 +1029,31 @@ interface SalesNextAction {
   cost: number;
 }
 
+/** Round 7: why a lost deal was lost, in the customer's words, and when to come back. */
+function lossView(d: SalesDeal, month: number) {
+  const reason = d.lossReason!;
+  const wait = d.revisit !== undefined ? Math.max(0, d.revisit - month) : null;
+  const months = MONTHS_WORDS(
+    d.revisit !== undefined ? Math.max(1, d.revisit - (d.closedMonth ?? month)) : 1,
+  );
+  const rival = d.customer.currentName;
+  const words = LOSS_WORDS[reason];
+  const fill = (s: string, lang: 'en' | 'fr') =>
+    s
+      .replace(/\{months\}/g, months[lang])
+      .replace(
+        /\{rival\}/g,
+        rival ?? (lang === 'en' ? 'their current supplier' : 'leur fournisseur actuel'),
+      );
+  return {
+    reason,
+    words: { en: fill(words.en, 'en'), fr: fill(words.fr, 'fr') },
+    luck: reason === 'luck',
+    /** Months until the lead opens again (lost on budget or timing); null otherwise. */
+    revisitIn: wait,
+  };
+}
+
 export function salesView(world: World, c: Company, viewer?: Player) {
   const m = getMarket(world, c.market);
   const month = m.month;
@@ -918,7 +1065,11 @@ export function salesView(world: World, c: Company, viewer?: Player) {
     const biz = d.customer.businessId ? businessesOf(m)[d.customer.businessId] : undefined;
     const actions: SalesNextAction[] = (Object.keys(ACTION_FROM) as SalesAction[])
       .filter((a) => ACTION_FROM[a].includes(d.stage))
-      .filter((a) => (a === 'recover' ? !d.recovered && !d.expired : month <= d.deadline))
+      .filter((a) =>
+        a === 'recover'
+          ? !d.recovered && !d.expired && d.revisit === undefined
+          : month <= d.deadline,
+      )
       .filter((a) => a !== 'negotiate' || (d.negotiations ?? 0) < SALES.maxNegotiations)
       .map((a) => ({ action: a, hours: SALES.hours[a], cost: actionCost(m, a) }));
     const open = isOpenDeal(d);
@@ -961,7 +1112,9 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       actions,
       next: actions.find((x) => x.action === 'close') ?? actions[0] ?? null,
       lossReason: d.lossReason ?? null,
-      canRecover: d.stage === 'lost' && !d.recovered && !d.expired,
+      /** Round 7: the one real reason in their words, and when they'll talk again. */
+      loss: d.stage === 'lost' && d.lossReason && gameplayOn(world) ? lossView(d, month) : null,
+      canRecover: d.stage === 'lost' && !d.recovered && !d.expired && d.revisit === undefined,
       expired: !!d.expired,
       /** Won, then they stopped buying (feedback note): when and why. */
       churned: d.churned ?? null,
