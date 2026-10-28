@@ -330,6 +330,10 @@ export interface Player {
   needs?: { hunger: number; hygiene: number; fun: number; social: number };
   /** Wave 7: home acts (and 'invite') used per home month. Missing = none. */
   homeActs?: Record<string, { month: number; n: number }>;
+  /** Round 7 (rest.ts): sitting or lying down at home since this game minute. */
+  rest?: { spot: 'seat' | 'bed'; since: number };
+  /** Round 7: what resting did this month (stress taken off, energy back). */
+  restMonth?: { month: number; stress: number; energy: number };
   /**
    * Phase 3 life bars (lifebars.ts), 0–100 each. Humans created after the
    * release note start at 80 and 20; missing (older saves) = 75 and 25.

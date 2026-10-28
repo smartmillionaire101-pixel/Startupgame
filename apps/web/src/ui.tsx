@@ -324,10 +324,16 @@ export function ListRow({
  */
 export function Sheet({
   title,
+  sub,
+  className,
   onClose,
   children,
 }: {
   title: string;
+  /** A line under the title (round 7: where and who, in a conversation). */
+  sub?: string;
+  /** Extra class on the panel (`sheet-convo`: the wide two-column conversation panel). */
+  className?: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -346,7 +352,7 @@ export function Sheet({
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div
-        className="sheet"
+        className={className ? `sheet ${className}` : 'sheet'}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -359,7 +365,14 @@ export function Sheet({
               {t('Back')}
             </button>
           )}
-          <h2>{title}</h2>
+          {sub ? (
+            <div className="sheet-title">
+              <h2>{title}</h2>
+              <p className="sheet-sub">{sub}</p>
+            </div>
+          ) : (
+            <h2>{title}</h2>
+          )}
           {!simple && (
             <button className="icon-btn" aria-label={t('Close')} onClick={onClose}>
               <Icon name="close" size={18} />

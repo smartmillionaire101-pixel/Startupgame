@@ -221,8 +221,18 @@ export function InterviewSheet({
     else setReview(round);
   };
 
+  // Where and who, under the title (round 7: one centred panel on a laptop).
+  const who = iv.active?.person ?? (summary && iv.last ? iv.last.person : person);
+  const sub = who
+    ? t('At {place} · {name}, {job}', {
+        place: who.place,
+        name: who.name.split(' ')[0]!,
+        job: ln(who.job).split(' · ')[0]!,
+      })
+    : undefined;
+
   return (
-    <Sheet title={title} onClose={onClose}>
+    <Sheet title={title} sub={sub} className="sheet-convo" onClose={onClose}>
       <div className="convo" data-interview={iv.active ? 'round' : summary ? 'summary' : 'intro'}>
         {iv.active ? (
           <Rounds
@@ -243,51 +253,57 @@ export function InterviewSheet({
           />
         ) : person ? (
           <>
-            <Card>
-              <MarketScene caption={`${person.place} · ${tx(person.segment)}`} />
-              <PersonCard p={person} ln={ln} />
-              <p className="bubble them">{ln(person.greeting)}</p>
-            </Card>
-            <Card title={t('How it works')} sub={t('{n} rounds', { n: iv.rounds })}>
-              {iv.next.length > 1 && (
-                <Segmented
-                  label={t('Who to meet')}
-                  value={person.segmentKey}
-                  options={iv.next.map((p) => ({ value: p.segmentKey, label: tx(p.segment) }))}
-                  onChange={(v) => setSeg(v)}
-                />
-              )}
-              <ol className="small">
-                <li>
-                  {t('Pick a question. Open questions about real past events teach you most.')}
-                </li>
-                <li>{t('They answer in their own words; useful lines go in your notes.')}</li>
-                <li>
-                  {t('Leading questions (“Would you use…?”) get polite yeses that teach nothing.')}
-                </li>
-              </ol>
-              <dl className="convo-known">
-                <dt>{t('What you know about them')}</dt>
-                <dd>{tx(person.needs)}</dd>
-                <dt>{t('Customer understanding')}</dt>
-                <dd data-understanding>{pct(person.understanding)}</dd>
-                <dt>{t('Takes')}</dt>
-                <dd>{t('{h}h · {amount}', { h: iv.hours, amount: money(iv.cost, cur) })}</dd>
-                <dt>{t('Interviews left this month')}</dt>
-                <dd>{iv.left}</dd>
-              </dl>
-              <Button
-                onClick={start}
-                disabled={busy || iv.left === 0 || view.me.hours.left < iv.hours}
-              >
-                {t('Start the interview')}
-              </Button>
-              {iv.left === 0 && (
-                <p className="small muted">
-                  {t('No more interviews this month. Come back next month.')}
-                </p>
-              )}
-            </Card>
+            <div className="convo-main">
+              <Card>
+                <MarketScene caption={`${person.place} · ${tx(person.segment)}`} />
+                <PersonCard p={person} ln={ln} />
+                <p className="bubble them">{ln(person.greeting)}</p>
+              </Card>
+            </div>
+            <aside className="convo-side" aria-label={t('How it works')}>
+              <Card title={t('How it works')} sub={t('{n} rounds', { n: iv.rounds })}>
+                {iv.next.length > 1 && (
+                  <Segmented
+                    label={t('Who to meet')}
+                    value={person.segmentKey}
+                    options={iv.next.map((p) => ({ value: p.segmentKey, label: tx(p.segment) }))}
+                    onChange={(v) => setSeg(v)}
+                  />
+                )}
+                <ol className="small">
+                  <li>
+                    {t('Pick a question. Open questions about real past events teach you most.')}
+                  </li>
+                  <li>{t('They answer in their own words; useful lines go in your notes.')}</li>
+                  <li>
+                    {t(
+                      'Leading questions (“Would you use…?”) get polite yeses that teach nothing.',
+                    )}
+                  </li>
+                </ol>
+                <dl className="convo-known">
+                  <dt>{t('What you know about them')}</dt>
+                  <dd>{tx(person.needs)}</dd>
+                  <dt>{t('Customer understanding')}</dt>
+                  <dd data-understanding>{pct(person.understanding)}</dd>
+                  <dt>{t('Takes')}</dt>
+                  <dd>{t('{h}h · {amount}', { h: iv.hours, amount: money(iv.cost, cur) })}</dd>
+                  <dt>{t('Interviews left this month')}</dt>
+                  <dd>{iv.left}</dd>
+                </dl>
+                <Button
+                  onClick={start}
+                  disabled={busy || iv.left === 0 || view.me.hours.left < iv.hours}
+                >
+                  {t('Start the interview')}
+                </Button>
+                {iv.left === 0 && (
+                  <p className="small muted">
+                    {t('No more interviews this month. Come back next month.')}
+                  </p>
+                )}
+              </Card>
+            </aside>
           </>
         ) : (
           <Card>
@@ -321,79 +337,92 @@ function Rounds({
   const first = a.person.name.split(' ')[0]!;
   return (
     <>
-      <Card>
-        <div className="convo-head">
-          <Portrait id={a.person.portraitId} bg="b-commercial" gender={a.person.gender} size={48} />
-          <div>
-            <strong>
-              {first} · {ln(a.person.job).split(' · ')[0]}, {a.person.place}
-            </strong>
-            <div className="small muted">{t('Round {n} of {of}', { n: shown + 1, of: 3 })}</div>
+      <div className="convo-main">
+        <Card>
+          <div className="convo-head">
+            <Portrait
+              id={a.person.portraitId}
+              bg="b-commercial"
+              gender={a.person.gender}
+              size={48}
+            />
+            <div>
+              <strong>
+                {first} · {ln(a.person.job).split(' · ')[0]}, {a.person.place}
+              </strong>
+              <div className="small muted">{t('Round {n} of {of}', { n: shown + 1, of: 3 })}</div>
+            </div>
+            <span className="round-dots" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <i key={i} className={i < a.round ? 'done' : i === shown ? 'now' : ''} />
+              ))}
+            </span>
           </div>
-          <span className="round-dots" aria-hidden="true">
-            {[0, 1, 2].map((i) => (
-              <i key={i} className={i < a.round ? 'done' : i === shown ? 'now' : ''} />
-            ))}
-          </span>
-        </div>
-        <div className="chat" aria-label={t('The interview so far')}>
-          {asked.map((r) => (
-            <div key={r.round} className="chat" data-asked={r.round}>
-              <p className="bubble me">{ln(r.question)}</p>
-              <div className="who">
-                <p className="bubble them">{ln(r.answer)}</p>
+          <div className="chat" aria-label={t('The interview so far')}>
+            {asked.map((r) => (
+              <div key={r.round} className="chat" data-asked={r.round}>
+                <p className="bubble me">{ln(r.question)}</p>
+                <div className="who">
+                  <p className="bubble them">{ln(r.answer)}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-        {just ? (
-          <>
-            <h3 className="small">{t('Your question')}</h3>
-            <ul className="convo-opts" data-round-review={just.round}>
-              {just.offered.map((o, i) => (
-                <li key={o.id}>
-                  <div className={`convo-opt ${o.id === just.id ? 'is-on' : 'is-off'}`}>
-                    <span className="convo-letter">{LETTERS[i]}</span>
-                    <span>
-                      {ln(o.text)}
-                      <span className={`q-tag q-${o.kind}`} data-kind={o.kind}>
-                        {kindLabel(o.kind)}
+            ))}
+          </div>
+          {just ? (
+            <>
+              <h3 className="small">{t('Your question')}</h3>
+              <ul className="convo-opts" data-round-review={just.round}>
+                {just.offered.map((o, i) => (
+                  <li key={o.id}>
+                    <div className={`convo-opt ${o.id === just.id ? 'is-on' : 'is-off'}`}>
+                      <span className="convo-letter">{LETTERS[i]}</span>
+                      <span>
+                        {ln(o.text)}
+                        <span className={`q-tag q-${o.kind}`} data-kind={o.kind}>
+                          {kindLabel(o.kind)}
+                        </span>
                       </span>
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <div className="who" data-answer>
-              <p className="bubble them">{ln(just.answer)}</p>
-            </div>
-          </>
-        ) : (
-          <>
-            <h3 className="small">{t('Ask')}</h3>
-            <ul className="convo-opts" aria-label={t('Your next question')}>
-              {a.options.map((o, i) => (
-                <li key={o.id}>
-                  <button
-                    type="button"
-                    className="convo-opt"
-                    data-question={o.id}
-                    disabled={busy}
-                    onClick={() => onAsk(o.id, a.round)}
-                  >
-                    <span className="convo-letter">{LETTERS[i]}</span>
-                    <span>{ln(o.text)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="who" data-answer>
+                <p className="bubble them">{ln(just.answer)}</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="small">{t('Ask')}</h3>
+              <ul className="convo-opts" aria-label={t('Your next question')}>
+                {a.options.map((o, i) => (
+                  <li key={o.id}>
+                    <button
+                      type="button"
+                      className="convo-opt"
+                      data-question={o.id}
+                      disabled={busy}
+                      onClick={() => onAsk(o.id, a.round)}
+                    >
+                      <span className="convo-letter">{LETTERS[i]}</span>
+                      <span>{ln(o.text)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </Card>
+        {just && (
+          <div className="convo-next">
+            <Button onClick={onNext}>{t('Round {n}', { n: just.round + 2 })}</Button>
+          </div>
         )}
-      </Card>
-      <Card title={t('📝 Your notes')}>
-        <NotesPanel notes={a.notes} vague={a.vague} fresh={just ? fresh : null} />
-      </Card>
-      {just && <Button onClick={onNext}>{t('Round {n}', { n: just.round + 2 })}</Button>}
+      </div>
+      <aside className="convo-side" aria-label={t('📝 Your notes')}>
+        <Card title={t('📝 Your notes')}>
+          <NotesPanel notes={a.notes} vague={a.vague} fresh={just ? fresh : null} />
+        </Card>
+      </aside>
     </>
   );
 }
@@ -415,79 +444,83 @@ function SummaryView({
   const need = c.guide.stages[0]?.tasks.find((x) => x.id === 'idea.discovery')?.need ?? 20;
   return (
     <>
-      <Card
-        title={t('Interview done: {name}', { name: s.person.name.split(' ')[0]! })}
-        sub={`${ln(s.person.job).split(' · ')[0]} · ${s.person.place}`}
-      >
-        <div className="convo-score" data-interview-score={s.score}>
-          <ScoreRing score={s.score} />
-          <div>
-            <strong>
-              {s.score} / 100 · {ln(s.grade)}
-            </strong>
+      <div className="convo-main">
+        <Card
+          title={t('Interview done: {name}', { name: s.person.name.split(' ')[0]! })}
+          sub={`${ln(s.person.job).split(' · ')[0]} · ${s.person.place}`}
+        >
+          <div className="convo-score" data-interview-score={s.score}>
+            <ScoreRing score={s.score} />
+            <div>
+              <strong>
+                {s.score} / 100 · {ln(s.grade)}
+              </strong>
+            </div>
           </div>
-        </div>
-        <ul className="convo-marks" aria-label={t('Your questions')}>
-          {s.rounds.map((r) => (
-            <li key={r.round} data-mark={r.mark}>
-              <span className={r.mark === 'good' ? 'good' : r.mark === 'ok' ? '' : 'bad'}>
-                {markIcon(r.mark)}
-              </span>{' '}
-              {t('Round {n}', { n: r.round + 1 })} <b>{ln(r.question)}</b>
-              {r.best && (
-                <span className="muted"> {t('Best question: {q}', { q: ln(r.best) })}</span>
-              )}
-              <span className="why">💡 {ln(r.why)}</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
-      <Card title={t('Best question you missed')}>
-        <div className="convo-ask">
-          <div className="small good">
-            <b>{t('ASK NEXT TIME')}</b>
+          <ul className="convo-marks" aria-label={t('Your questions')}>
+            {s.rounds.map((r) => (
+              <li key={r.round} data-mark={r.mark}>
+                <span className={r.mark === 'good' ? 'good' : r.mark === 'ok' ? '' : 'bad'}>
+                  {markIcon(r.mark)}
+                </span>{' '}
+                {t('Round {n}', { n: r.round + 1 })} <b>{ln(r.question)}</b>
+                {r.best && (
+                  <span className="muted"> {t('Best question: {q}', { q: ln(r.best) })}</span>
+                )}
+                <span className="why">💡 {ln(r.why)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+        <Card title={t('Best question you missed')}>
+          <div className="convo-ask">
+            <div className="small good">
+              <b>{t('ASK NEXT TIME')}</b>
+            </div>
+            {ln(s.missed.question)}
           </div>
-          {ln(s.missed.question)}
-        </div>
-        <p className="small">
-          <b>{t('Because:')}</b> {ln(s.missed.why)}
-        </p>
-      </Card>
-      <Card title={t('📝 What you learned')}>
-        <NotesPanel notes={s.notes} vague={s.vague} />
-        <NoteGaps gaps={s.gaps} />
-      </Card>
-      <Card title={t('Knowledge')} sub={tx(s.person.segment)}>
-        <div className="k-gain" data-gain>
-          <div>
-            <div className="v">{pct(s.before)}</div>
-            <div className="small muted">{t('before')}</div>
+          <p className="small">
+            <b>{t('Because:')}</b> {ln(s.missed.why)}
+          </p>
+        </Card>
+      </div>
+      <aside className="convo-side" aria-label={t('📝 What you learned')}>
+        <Card title={t('📝 What you learned')}>
+          <NotesPanel notes={s.notes} vague={s.vague} />
+          <NoteGaps gaps={s.gaps} />
+        </Card>
+        <Card title={t('Knowledge')} sub={tx(s.person.segment)}>
+          <div className="k-gain" data-gain>
+            <div>
+              <div className="v">{pct(s.before)}</div>
+              <div className="small muted">{t('before')}</div>
+            </div>
+            <div className="arr" aria-hidden="true">
+              →
+            </div>
+            <div>
+              <div className="v good">{pct(s.after)}</div>
+              <div className="small muted">{t('customer understanding')}</div>
+            </div>
           </div>
-          <div className="arr" aria-hidden="true">
-            →
+          <p className="small muted">
+            {t(
+              'The Idea stage needs {need}% · product fit grows faster as this rises · sales skill +1',
+              {
+                need,
+              },
+            )}
+          </p>
+          <div className="convo-actions">
+            {left > 0 && (
+              <Button onClick={onNext}>{t('Next interview ({n} left)', { n: left })}</Button>
+            )}
+            <Button variant="ghost" onClick={onClose}>
+              {t('Done for today')}
+            </Button>
           </div>
-          <div>
-            <div className="v good">{pct(s.after)}</div>
-            <div className="small muted">{t('customer understanding')}</div>
-          </div>
-        </div>
-        <p className="small muted">
-          {t(
-            'The Idea stage needs {need}% · product fit grows faster as this rises · sales skill +1',
-            {
-              need,
-            },
-          )}
-        </p>
-        <div className="convo-actions">
-          {left > 0 && (
-            <Button onClick={onNext}>{t('Next interview ({n} left)', { n: left })}</Button>
-          )}
-          <Button variant="ghost" onClick={onClose}>
-            {t('Done for today')}
-          </Button>
-        </div>
-      </Card>
+        </Card>
+      </aside>
     </>
   );
 }

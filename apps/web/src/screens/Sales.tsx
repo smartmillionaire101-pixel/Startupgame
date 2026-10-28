@@ -1,7 +1,8 @@
 /**
  * The sales pipeline (Founder Journey 2a; blueprint §3 "Customer interaction",
  * §6.2): find leads, then work each deal from first call to signature.
- * Stage columns on a wide screen, one stacked list on a phone. Each card shows
+ * A row of stage chips (round 7) filters the board; the deal cards are grouped
+ * by stage below it, side by side on a wide screen. Each card shows
  * what you know about the customer ('?' until discovery), the chance to win,
  * and the next step with its time and cost before you confirm.
  */
@@ -16,6 +17,7 @@ import { useSpotlight } from '../tutorial/spotlight';
 import { DemoBreakdown } from './FounderGuide';
 import { SalesTalkSheet } from './SalesTalk';
 import { DealOwner } from './SalesTeam';
+import { openCompanyTab } from './Company';
 import { LossReason, lossAdvice, lossLabel, type LossReason as LossReasonId } from './SalesReasons';
 import './sales.css';
 
@@ -92,12 +94,18 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
   const { send, view } = useView();
   // The conversation sheet lives here: a deal changes column (and remounts) when it closes.
   const [talkDeal, setTalkDeal] = useState<string | null>(null);
+  // Round 7: the stage chips filter the board ("all": every open stage, then won and lost).
+  const [filter, setFilter] = useState<BoardFilter>('all');
+  // …and, with salespeople, whose deals: yours ("me") or one person's.
+  const [owner, setOwner] = useState<string | null>(null);
   const sales = c.sales;
   if (!sales) return <Empty>{t('The sales pipeline isn’t available yet.')}</Empty>;
   const cur = c.currency;
   const hoursLeft = view.me.hours.left;
-  const open = sales.deals.filter((d) => d.monthsLeft !== null);
-  const closed = sales.deals.filter((d) => d.monthsLeft === null);
+  const salesStaff = c.staff.filter((s) => s.role === 'sales');
+  const mine = (d: DealV) => owner === null || (owner === 'me' ? !d.owner : d.owner?.id === owner);
+  const shown = sales.deals.filter(mine);
+  const groups = boardGroups(sales.stages, shown, filter);
   const prospect = () =>
     send<{ leads: { id: string; name: string }[] }>(
       { type: 'sales.prospect', companyId: c.id },
@@ -171,53 +179,43 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
           })}
         </Empty>
       ) : (
-        <div className="sales-board" aria-label={t('Deals by stage')}>
-          {sales.stages.map((st) => {
-            const here = open.filter((d) => d.stage === st);
-            return (
-              <section
-                key={st}
-                className={`sales-col${here.length ? '' : ' sales-col-empty'}`}
-                data-stage={st}
-                aria-label={stageLabel(st)}
-              >
+        <>
+          <StageChips
+            sales={sales}
+            filter={filter}
+            setFilter={setFilter}
+            owner={owner}
+            setOwner={setOwner}
+            salesStaff={salesStaff}
+          />
+          <div className="sales-board" aria-label={t('Deals by stage')} data-filter={filter}>
+            {groups.map(({ id, deals }) => (
+              <section key={id} className="sales-col" data-stage={id} aria-label={stageLabel(id)}>
                 <h3 className="sales-col-head">
-                  {stageLabel(st)} <span className="muted">{here.length}</span>
+                  {stageLabel(id)} <span className="muted">· {deals.length}</span>
                 </h3>
-                {here.map((d) => (
+                {deals.map((d) => (
                   <DealCard
                     key={d.id}
                     d={d}
                     cur={cur}
-                    companyId={c.id}
+                    c={c}
                     hoursLeft={hoursLeft}
                     onTalk={setTalkDeal}
+                    onFindLeads={blocker ? undefined : () => void prospect()}
                   />
                 ))}
               </section>
-            );
-          })}
-          {closed.length > 0 && (
-            <section className="sales-col" data-stage="closed" aria-label={t('Closed')}>
-              <h3 className="sales-col-head">
-                {t('Closed')} <span className="muted">{closed.length}</span>
-              </h3>
-              {closed
-                .slice()
-                .reverse()
-                .map((d) => (
-                  <DealCard
-                    key={d.id}
-                    d={d}
-                    cur={cur}
-                    companyId={c.id}
-                    hoursLeft={hoursLeft}
-                    onTalk={setTalkDeal}
-                  />
-                ))}
-            </section>
-          )}
-        </div>
+            ))}
+            {groups.length === 0 && (
+              <p className="small muted sales-none" data-sales-none>
+                {filter === 'all'
+                  ? t('No deals to show.')
+                  : t('No deals at this stage: tap “All open” to see the rest.')}
+              </p>
+            )}
+          </div>
+        </>
       )}
 
       {sales.accounts.length > 0 && (
@@ -247,20 +245,135 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
   );
 }
 
+/** What the board shows: every open stage, a stage, or the won or lost deals. */
+type BoardFilter = 'all' | Stage;
+
+/** The groups of deal cards for a filter: empty stages are left out (their chip says 0). */
+function boardGroups(stages: readonly Stage[], deals: DealV[], filter: BoardFilter) {
+  const ids: Stage[] = filter === 'all' ? [...stages, 'won', 'lost'] : [filter];
+  return ids
+    .map((id) => ({
+      id,
+      deals: deals
+        .filter((d) =>
+          id === 'won' || id === 'lost'
+            ? d.stage === id && d.monthsLeft === null
+            : d.stage === id && d.monthsLeft !== null,
+        )
+        .sort((a, b) => (id === 'won' || id === 'lost' ? b.createdMonth - a.createdMonth : 0)),
+    }))
+    .filter((g) => g.deals.length > 0);
+}
+
+/**
+ * The stage chips (round 7, player feedback: empty stages showed as thin
+ * strips with turned labels): All open, each stage with its count (empty
+ * ones dimmed), Won and Lost. A tap filters the board to that stage. With
+ * salespeople, owner chips too: yours, or one person's. Scrolls sideways on
+ * a phone.
+ */
+function StageChips({
+  sales,
+  filter,
+  setFilter,
+  owner,
+  setOwner,
+  salesStaff,
+}: {
+  sales: Sales;
+  filter: BoardFilter;
+  setFilter: (f: BoardFilter) => void;
+  owner: string | null;
+  setOwner: (o: string | null) => void;
+  salesStaff: { id: string; name: string }[];
+}) {
+  const count = (st: Stage) =>
+    sales.deals.filter((d) =>
+      st === 'won' || st === 'lost'
+        ? d.stage === st && d.monthsLeft === null
+        : d.stage === st && d.monthsLeft !== null,
+    ).length;
+  const open = sales.deals.filter((d) => d.monthsLeft !== null).length;
+  const chip = (id: BoardFilter, label: string, n: number, extra = '') => (
+    <button
+      key={id}
+      type="button"
+      className={`sales-stage${n ? '' : ' is-empty'}${filter === id ? ' is-on' : ''}${extra}`}
+      aria-pressed={filter === id}
+      aria-label={t('{stage}: {n} deals', { stage: label, n })}
+      data-chip={id}
+      onClick={() => setFilter(id)}
+    >
+      {label}
+      <span className="n" aria-hidden="true">
+        {n}
+      </span>
+    </button>
+  );
+  const owners = salesStaff.length > 0 && sales.deals.some((d) => d.owner);
+  return (
+    <nav className="sales-stages" aria-label={t('Stages')} data-sales-stages>
+      {chip('all', t('All open'), open)}
+      <span className="sales-stage-sep" aria-hidden="true" />
+      {sales.stages.map((st) => chip(st, stageLabel(st), count(st)))}
+      <span className="sales-stage-sep" aria-hidden="true" />
+      {chip('won', stageLabel('won'), count('won'), ' won')}
+      {chip('lost', stageLabel('lost'), count('lost'), ' lost')}
+      {owners && (
+        <>
+          <span className="sales-stage-sep" aria-hidden="true" />
+          {salesStaff.map((s) => {
+            const n = sales.deals.filter((d) => d.owner?.id === s.id).length;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                className={`sales-stage owner${owner === s.id ? ' is-on' : ''}${n ? '' : ' is-empty'}`}
+                aria-pressed={owner === s.id}
+                data-chip-owner={s.id}
+                onClick={() => setOwner(owner === s.id ? null : s.id)}
+              >
+                {t('{name}’s', { name: s.name.split(' ')[0]! })}
+                <span className="n">{n}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className={`sales-stage owner${owner === 'me' ? ' is-on' : ''}`}
+            aria-pressed={owner === 'me'}
+            data-chip-owner="me"
+            onClick={() => setOwner(owner === 'me' ? null : 'me')}
+          >
+            {t('Mine')}
+            <span className="n">{sales.deals.filter((d) => !d.owner).length}</span>
+          </button>
+        </>
+      )}
+    </nav>
+  );
+}
+
 function DealCard({
   d,
   cur,
-  companyId,
+  c,
   hoursLeft,
   onTalk,
+  onFindLeads,
 }: {
   d: DealV;
   cur: string;
-  companyId: string;
+  c: Company;
   hoursLeft: number;
   onTalk: (dealId: string) => void;
+  onFindLeads?: () => void;
 }) {
-  const { send } = useView();
+  const { send, busy } = useView();
+  const companyId = c.id;
+  const salesStaff = c.staff
+    .filter((s) => s.role === 'sales')
+    .map((s) => ({ id: s.id, name: s.name, skill: s.skill }));
   const [pending, setPending] = useState<Action | null>(null);
   const [price, setPrice] = useState(amountInput(d.price ?? d.listPrice));
   const [discount, setDiscount] = useState(Math.max(d.discountPct, 10));
@@ -269,7 +382,11 @@ function DealCard({
   const tone = p >= 60 ? 'good' : p >= 35 ? 'warn' : 'bad';
   // Feedback note: the price, the discount and the close happen in a sales conversation.
   const talk = d.talk;
-  const actions = talk ? d.actions.filter((a) => !TALK_STEPS.includes(a.action)) : d.actions;
+  // Round 7: a lost deal's "Try again" sits with what to do next (SalesReasons.tsx).
+  const retryInLoss = !!d.loss && d.canRecover && d.loss.reason !== 'trust';
+  const actions = (
+    talk ? d.actions.filter((a) => !TALK_STEPS.includes(a.action)) : d.actions
+  ).filter((a) => !(retryInLoss && a.action === 'recover'));
   const talkFirst = !!talk?.canStart && (TALK_FIRST.includes(d.stage) || !!talk.step);
   const primary = talkFirst
     ? null
@@ -316,7 +433,6 @@ function DealCard({
         <span className="small muted">
           {d.contact} · {tx(d.businessKind ?? d.segment)}
         </span>
-        <DealOwner d={d} />
       </header>
       <div className="sales-deal-line small">
         <span>
@@ -332,24 +448,39 @@ function DealCard({
           </span>
         )}
       </div>
-      <dl className="sales-known" aria-label={t('What you know')}>
-        <dt>{t('Needs')}</dt>
-        <dd>{needLabel(k.need)}</dd>
-        <dt>{t('Budget')}</dt>
-        <dd data-known="budget">
-          {k.budgetMin === null || k.budgetMax === null
-            ? '?'
-            : t('{min}–{max}/mo', { min: money(k.budgetMin, cur), max: money(k.budgetMax, cur) })}
-        </dd>
-        <dt>{t('Can sign alone')}</dt>
-        <dd>{level(k.authority)}</dd>
-        <dt>{t('Urgency')}</dt>
-        <dd>{level(k.urgency)}</dd>
-        <dt>{t('Uses today')}</dt>
-        <dd>{currentLabel(k)}</dd>
-        <dt>{t('Trust')}</dt>
-        <dd>{level(k.trust)}</dd>
-      </dl>
+      {(d.owner || (d.monthsLeft !== null && salesStaff.length > 0)) && (
+        <DealOwner
+          d={d}
+          staff={salesStaff}
+          brings={c.teamBrings}
+          busy={busy}
+          onAssign={(staffId) =>
+            void send(
+              {
+                type: 'sales.assign',
+                companyId,
+                dealId: d.id,
+                ...(staffId ? { staffId } : {}),
+              },
+              staffId
+                ? t('{name} is handling it now.', {
+                    name: salesStaff.find((s) => s.id === staffId)?.name.split(' ')[0] ?? '',
+                  })
+                : t('You’re handling it now.'),
+            )
+          }
+          onDelegate={(staffId) =>
+            void send({
+              type: 'sales.talk',
+              companyId,
+              dealId: d.id,
+              action: 'delegate',
+              staffId,
+            }).then((r) => r && onTalk(d.id))
+          }
+        />
+      )}
+      <KnownFacts k={k} cur={cur} />
       {d.stage !== 'won' && d.stage !== 'lost' && (
         <div
           className={`sales-meter tone-${tone}`}
@@ -392,7 +523,17 @@ function DealCard({
               : t('Lost: {reason}', { reason: lossLabel(d.lossReason) })}
           </strong>
           {d.loss ? (
-            <LossReason d={d} heading={false} />
+            <LossReason
+              d={d}
+              heading={false}
+              onRetry={
+                d.actions.some((a) => a.action === 'recover')
+                  ? () => setPending('recover')
+                  : undefined
+              }
+              onFindLeads={onFindLeads}
+              onRoadmap={() => openCompanyTab('roadmap')}
+            />
           ) : d.canRecover ? (
             <span className="small">{lossAdvice(d.lossReason)}</span>
           ) : (
@@ -524,6 +665,54 @@ function DealCard({
         </div>
       )}
     </article>
+  );
+}
+
+/**
+ * What you know about a customer. Before discovery most of it is '?': those
+ * rows fold into one line, "N things to find out" (they stay in the page,
+ * hidden, so the card reads the same to a screen reader once known).
+ */
+function KnownFacts({ k, cur }: { k: DealV['known']; cur: string }) {
+  const rows: { id: string; label: string; value: string }[] = [
+    { id: 'need', label: t('Needs'), value: needLabel(k.need) },
+    {
+      id: 'budget',
+      label: t('Budget'),
+      value:
+        k.budgetMin === null || k.budgetMax === null
+          ? '?'
+          : t('{min}–{max}/mo', { min: money(k.budgetMin, cur), max: money(k.budgetMax, cur) }),
+    },
+    { id: 'authority', label: t('Can sign alone'), value: level(k.authority) },
+    { id: 'urgency', label: t('Urgency'), value: level(k.urgency) },
+    { id: 'current', label: t('Uses today'), value: currentLabel(k) },
+    { id: 'trust', label: t('Trust'), value: level(k.trust) },
+  ];
+  const unknown = rows.filter((r) => r.value === '?').length;
+  return (
+    <>
+      <dl className="sales-known" aria-label={t('What you know')}>
+        {rows.map((r) => (
+          <div key={r.id} className={r.value === '?' ? 'is-unknown' : undefined}>
+            <dt>{r.label}</dt>
+            <dd data-known={r.id}>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {unknown > 0 && (
+        <p className="sales-tofind" data-tofind={unknown}>
+          {unknown === 1
+            ? t('1 thing to find out: a discovery meeting tells you.')
+            : t(
+                '{n} things to find out: needs, budget, who signs… (a discovery meeting tells you)',
+                {
+                  n: unknown,
+                },
+              )}
+        </p>
+      )}
+    </>
   );
 }
 

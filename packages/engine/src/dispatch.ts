@@ -78,7 +78,8 @@ import {
   travel,
 } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
-import { advanceDeal, dropDeal, prospect } from './sales.js';
+import { advanceDeal, assignDeal, dropDeal, prospect } from './sales.js';
+import { homeRest } from './rest.js';
 import { salesTalk } from './salestalk.js';
 import { askInterview, leaveInterview, startInterview } from './customer-interviews.js';
 import { chooseDecision } from './decisions.js';
@@ -1663,6 +1664,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return advanceDeal(world, me, cmd);
     case 'sales.drop':
       return dropDeal(world, me, cmd.dealId, cmd.companyId);
+    case 'sales.assign':
+      // Unknown until the gameplay note: old worlds replay as before.
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return assignDeal(world, me, cmd.dealId, cmd.staffId, cmd.companyId);
     case 'sales.talk':
       if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
       return salesTalk(world, me, cmd);
@@ -1756,6 +1761,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'car.sell':
       return sellCar(world, me);
     // ------------------------------------------------------------ life at home (Wave 7)
+    case 'home.rest':
+      // Unknown until the gameplay note: old worlds replay as before.
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return homeRest(world, me, cmd, ctx.now);
     case 'home.act': {
       const done = homeAct(world, me, cmd.act);
       if (!feedbackOn(world)) return done;

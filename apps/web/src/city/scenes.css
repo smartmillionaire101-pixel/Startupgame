@@ -955,3 +955,24 @@ html:has(.place-scene) .city-rail {
 .city-map:is([data-zoom='0'], [data-zoom='1']) :is(.city-street-name, .city-landmark-name) {
   display: none;
 }
+
+/* Round 7: while an interview or a sales conversation is open over a place
+   (tablet and laptop), the place's 560px column and its strip with the
+   business name step back: the conversation is one centred panel over the
+   map (convo.css .sheet-convo). */
+@media (min-width: 600px) {
+  .place-scene:has(> .sheet-backdrop .sheet-convo) {
+    max-width: none;
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    animation: none;
+  }
+  .place-scene:has(> .sheet-backdrop .sheet-convo) > :not(.sheet-backdrop) {
+    visibility: hidden;
+  }
+  .place-scene:has(> .sheet-backdrop .sheet-convo) > .sheet-backdrop {
+    inset: 0;
+    backdrop-filter: blur(3px);
+  }
+}

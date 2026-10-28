@@ -941,24 +941,47 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           seatH = water ? 0.2 : 0.42;
           if (water) fx.water(particles, pos.clone().add(new THREE.Vector3(0, 0.9, 0)), dt * 0.3);
         } else if (p.pose === 'lie') {
-          const b = bedOf() ?? live.current.objects.find((o) => o.id === 'bed')?.spot;
+          // Round 7: the bed you lie on, whatever it is: your bed, a guest bed or
+          // the starter flat's sleeping mat (its object id is 'bed' too).
+          const on = p.seat ? placedRef.current.get(p.seat) : undefined;
+          const b =
+            on?.obj.spot ?? bedOf() ?? live.current.objects.find((o) => o.id === 'bed')?.spot;
           if (b) {
             const bc = center(b);
-            const bedRy = facingOf(P.plan, 'bed', b);
+            const bedRy = on ? on.ry : facingOf(P.plan, 'bed', b);
+            const under = on ?? placedRef.current.get('bed');
+            const mat = !!under && modelIdOf(under.obj) === 'mat';
             pos = bc
               .clone()
               .add(new THREE.Vector3(Math.sin(bedRy) * 0.25, 0, Math.cos(bedRy) * 0.25));
             face = bedRy;
             poseId = 'lie';
-            seatH = placedRef.current.has('bed') ? 0.5 : 0.12;
+            seatH = mat || !under ? 0.12 : 0.5;
           }
         } else if (p.pose === 'sit') {
-          const sofa = placedRef.current.get('sofa') ?? placedRef.current.get('cushions' as string);
-          face = sofa ? sofa.ry : Math.PI;
-          pos = new THREE.Vector3(p.x + 0.5, 0, p.y + 0.5 + (sofa ? Math.cos(sofa.ry) * -0.05 : 0));
-          poseId = n % 2 ? 'chat' : 'sit';
-          if (poseId === 'chat') poseId = 'sit';
-          seatH = sofa ? 0.48 : 0.2;
+          // Round 7: a chair or seat with a seat of its own (the dining table, the
+          // cinema seats); else the sofa (or the floor cushions) where you are.
+          const own = p.seat && p.seat !== 'sofa' && p.seat !== 'cushions' ? seatOf(p.seat) : null;
+          if (own) {
+            pos = own.pos.clone();
+            pos.y = 0;
+            face = own.ry;
+            poseId = 'sit';
+            seatH = own.h;
+          } else {
+            const sofa =
+              placedRef.current.get('sofa') ?? placedRef.current.get('cushions' as string);
+            face = sofa ? sofa.ry : Math.PI;
+            pos = new THREE.Vector3(
+              p.x + 0.5,
+              0,
+              p.y + 0.5 + (sofa ? Math.cos(sofa.ry) * -0.05 : 0),
+            );
+            poseId = n % 2 ? 'chat' : 'sit';
+            if (poseId === 'chat') poseId = 'sit';
+            seatH =
+              sofa && sofa.obj.owned !== false && modelIdOf(sofa.obj) !== 'cushions' ? 0.48 : 0.2;
+          }
         }
         // Your act, played out.
         if (isMe && acting && !walking) {

@@ -17,10 +17,11 @@ import { Portrait } from '../avatar/Portrait';
 import { money, pct } from '../format';
 import { t, tx } from '../i18n';
 import { useView, type Company } from '../store';
+import { openCompanyTab } from './Company';
 import { Button, Card, Sheet, Stat } from '../ui';
 import { ScoreRing, markIcon, useLine } from './Interview';
 import { HoldingBack, LossReason, lossLabel } from './SalesReasons';
-import { DelegateTalk, TeamTip } from './SalesTeam';
+import { DelegateTalk, SitsIn, TeamTip } from './SalesTeam';
 import './convo.css';
 
 type DealV = NonNullable<Company['sales']>['deals'][number];
@@ -141,55 +142,81 @@ export function SalesTalkSheet({
       ? t('Sales conversation · {name}', { name })
       : t('Sales conversation');
 
+  // Where and who, under the title (round 7: one centred panel on a laptop).
+  const sub = d
+    ? [
+        t('with {name}', { name: d.contact }),
+        whoKind(d),
+        d.owner ? t('{name} (sales) with you', { name: d.owner.name.split(' ')[0]! }) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : business
+      ? t('with {name}', { name: business.owner })
+      : undefined;
+
   return (
-    <Sheet title={title} onClose={onClose}>
+    <Sheet title={title} sub={sub} className="sheet-convo" onClose={onClose}>
       <div className="convo" data-talk={talk?.result ? 'result' : started ? talk!.step : 'intro'}>
         {talk?.result && d ? (
-          <ResultView d={d} talk={talk} cur={cur} onClose={onClose} />
+          <ResultView d={d} talk={talk} cur={cur} companyId={companyId} onClose={onClose} />
         ) : (
           <>
-            <Prospect d={d} business={business} cur={cur} />
-            {!started ? (
-              <Card>
-                <p className="small muted">
-                  {t(
-                    'Sit down with them: what you lead with, your price and your terms decide it.',
-                  )}
-                </p>
-                <Button
-                  onClick={start}
-                  disabled={
-                    busy || (!!d && !talk?.canStart) || view.me.hours.left < (talk?.hours ?? 2)
-                  }
-                  data-talk-start
-                >
-                  {t('Sit down and talk ({h}h)', { h: talk?.hours ?? 2 })}
-                </Button>
-                {d?.stage === 'lead' && (
+            <div className="convo-main">
+              {!started ? (
+                <Card>
                   <p className="small muted">
-                    {t('Call them first: then you can sit down and talk.')}
+                    {t(
+                      'Sit down with them: what you lead with, your price and your terms decide it.',
+                    )}
                   </p>
-                )}
-                {d && talk?.canStart && <DelegateTalk d={d} talk={talk} busy={busy} go={go} />}
-              </Card>
-            ) : (
-              d &&
-              talk && (
-                <Turns
+                  <Button
+                    onClick={start}
+                    disabled={
+                      busy || (!!d && !talk?.canStart) || view.me.hours.left < (talk?.hours ?? 2)
+                    }
+                    data-talk-start
+                  >
+                    {t('Sit down and talk ({h}h)', { h: talk?.hours ?? 2 })}
+                  </Button>
+                  {d?.stage === 'lead' && (
+                    <p className="small muted">
+                      {t('Call them first: then you can sit down and talk.')}
+                    </p>
+                  )}
+                  {d && talk?.canStart && <DelegateTalk d={d} talk={talk} busy={busy} go={go} />}
+                </Card>
+              ) : (
+                d &&
+                talk && (
+                  <Turns
+                    d={d}
+                    talk={talk}
+                    cur={cur}
+                    busy={busy}
+                    discount={discount}
+                    setDiscount={setDiscount}
+                    priceOpt={priceOpt}
+                    setPriceOpt={setPriceOpt}
+                    ln={ln}
+                    go={go}
+                  />
+                )
+              )}
+            </div>
+            <aside className="convo-side" aria-label={t('Who they are')}>
+              <Prospect d={d} business={business} cur={cur} />
+              {started && d && talk && (
+                <Meter
                   d={d}
                   talk={talk}
-                  cur={cur}
                   busy={busy}
-                  discount={discount}
-                  setDiscount={setDiscount}
-                  priceOpt={priceOpt}
-                  setPriceOpt={setPriceOpt}
-                  ln={ln}
                   go={go}
                   hoursLeft={view.me.hours.left}
+                  brings={c.teamBrings}
                 />
-              )
-            )}
+              )}
+            </aside>
           </>
         )}
       </div>
@@ -210,7 +237,11 @@ function Prospect({
   const k = d?.known;
   const hints = d?.talk?.hints ?? [];
   return (
-    <Card title={d?.name ?? business?.name} sub={d ? whoKind(d) : undefined}>
+    <Card
+      title={d?.name ?? business?.name}
+      sub={d ? whoKind(d) : undefined}
+      className="convo-first"
+    >
       <div className="convo-person">
         <Portrait
           id={`deal:${d?.businessId ?? d?.id ?? business?.name ?? ''}`}
@@ -297,7 +328,6 @@ function Turns({
   setPriceOpt,
   ln,
   go,
-  hoursLeft,
 }: {
   d: DealV;
   talk: Talk;
@@ -309,7 +339,6 @@ function Turns({
   setPriceOpt: (s: string | null) => void;
   ln: ReturnType<typeof useLine>;
   go: (cmd: Partial<Extract<Command, { type: 'sales.talk' }>>) => Promise<unknown>;
-  hoursLeft: number;
 }) {
   const step = talk.step;
   const dots = (n: number) => (
@@ -326,7 +355,6 @@ function Turns({
   return (
     <>
       <Card title={t('1 · Lead with')} action={dots(step === 'lead' ? 0 : 1)}>
-        {talk.tip && !talk.lead && <TeamTip d={d} tip={talk.tip} />}
         <ul className="convo-opts" data-turn="lead">
           {talk.leadOptions.map((o, i) => (
             <li key={o.id}>
@@ -348,6 +376,7 @@ function Turns({
             {d.contact.split(' ')[0]}: {ln(talk.lead.reaction)}
           </p>
         )}
+        {talk.tip && !talk.lead && <TeamTip d={d} tip={talk.tip} talk={talk} busy={busy} go={go} />}
       </Card>
       {step !== 'lead' && (
         <Card title={t('Turn 2 · Your price')} action={dots(step === 'price' ? 1 : 2)}>
@@ -470,22 +499,50 @@ function Turns({
           )}
         </Card>
       )}
-      <Card>
-        {talk.chance !== null && <Chance p={talk.chance} guess={talk.chanceGuess} />}
-        {talk.holding && <HoldingBack d={d} holding={talk.holding} />}
-        <p className="small muted">{t('Good answers build trust.')}</p>
-        {step === 'ask' && (
-          <Button
-            disabled={busy || hoursLeft < talk.askHours}
-            onClick={() => void go({ dealId: d.id, action: 'ask' })}
-            data-talk-ask
-          >
-            {t('Ask for the deal ({h}h)', { h: talk.askHours })}
-          </Button>
-        )}
-        <DelegateTalk d={d} talk={talk} busy={busy} go={go} />
-      </Card>
     </>
+  );
+}
+
+/** The win meter, what holds it down, and "Ask for the deal" (the side column on a laptop). */
+function Meter({
+  d,
+  talk,
+  busy,
+  go,
+  hoursLeft,
+  brings,
+}: {
+  d: DealV;
+  talk: Talk;
+  busy: boolean;
+  go: (cmd: Partial<Extract<Command, { type: 'sales.talk' }>>) => Promise<unknown>;
+  hoursLeft: number;
+  brings?: Company['teamBrings'];
+}) {
+  // The tip under the opening offers the take-over while it shows; after it, the meter does.
+  const tipShown = !!talk.tip && !talk.lead;
+  return (
+    <Card className="convo-meter">
+      {talk.chance !== null && <Chance p={talk.chance} guess={talk.chanceGuess} />}
+      {talk.holding ? (
+        <HoldingBack d={d} holding={talk.holding} />
+      ) : (
+        <p className="small muted">{t('Good answers build trust.')}</p>
+      )}
+      {talk.step === 'ask' && (
+        <Button
+          disabled={busy || hoursLeft < talk.askHours}
+          onClick={() => void go({ dealId: d.id, action: 'ask' })}
+          data-talk-ask
+        >
+          {talk.chance !== null
+            ? t('Ask for the deal ({h}h) · {p}', { h: talk.askHours, p: pct(talk.chance) })
+            : t('Ask for the deal ({h}h)', { h: talk.askHours })}
+        </Button>
+      )}
+      <SitsIn d={d} brings={brings} />
+      {!tipShown && <DelegateTalk d={d} talk={talk} busy={busy} go={go} />}
+    </Card>
   );
 }
 
@@ -493,130 +550,157 @@ function ResultView({
   d,
   talk,
   cur,
+  companyId,
   onClose,
 }: {
   d: DealV;
   talk: Talk;
   cur: string;
+  companyId: string;
   onClose: () => void;
 }) {
   const ln = useLine();
+  const { send, busy } = useView();
+  const findLeads = () =>
+    void send<{ leads: { id: string; name: string }[] }>(
+      { type: 'sales.prospect', companyId },
+      (x) =>
+        x.leads.length === 1
+          ? t('New lead: {name}.', { name: x.leads[0]!.name })
+          : t('{n} new leads.', { n: x.leads.length }),
+    );
   const r = talk.result!;
   const first = d.contact.split(' ')[0]!;
   return (
     <>
-      <Card
-        title={
-          r.won ? t('Deal won: {name}', { name: d.name }) : t('Deal lost: {name}', { name: d.name })
-        }
-        tone={r.won ? 'good' : 'bad'}
-        action={
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            {t('Close')}
-          </Button>
-        }
-      >
-        <div
-          className="convo-score"
-          data-talk-result={r.won ? 'won' : 'lost'}
-          data-talk-score={r.score}
+      <div className="convo-main">
+        <Card
+          title={
+            r.won
+              ? t('Deal won: {name}', { name: d.name })
+              : t('Deal lost: {name}', { name: d.name })
+          }
+          tone={r.won ? 'good' : 'bad'}
+          action={
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              {t('Close')}
+            </Button>
+          }
         >
-          <ScoreRing score={r.score} />
-          <div>
-            <strong>
-              {r.score} / 100 · {ln(r.grade)}
-            </strong>
-            <div className="small muted" data-talk-chance={Math.round(r.chance * 100)}>
-              {r.guess !== null && Math.round(r.guess * 100) !== Math.round(r.chance * 100)
-                ? t(
-                    'You guessed {guess}; with their real budget and needs it was {p}. A discovery meeting shows them before you ask.',
-                    { guess: pct(r.guess), p: pct(r.chance) },
-                  )
-                : t('Chance when you asked: {p}', { p: pct(r.chance) })}
+          <div
+            className="convo-score"
+            data-talk-result={r.won ? 'won' : 'lost'}
+            data-talk-score={r.score}
+          >
+            <ScoreRing score={r.score} />
+            <div>
+              <strong>
+                {r.score} / 100 · {ln(r.grade)}
+              </strong>
+              <div className="small muted" data-talk-chance={Math.round(r.chance * 100)}>
+                {r.guess !== null && Math.round(r.guess * 100) !== Math.round(r.chance * 100)
+                  ? t(
+                      'You guessed {guess}; with their real budget and needs it was {p}. A discovery meeting shows them before you ask.',
+                      { guess: pct(r.guess), p: pct(r.chance) },
+                    )
+                  : t('Chance when you asked: {p}', { p: pct(r.chance) })}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="kpis">
-          <Stat
-            label={t('Deal size')}
-            value={t('{amount}/mo', { amount: money(r.monthly, cur) })}
-            hint={t('{amount} a year', { amount: money(r.monthly * 12, cur) })}
-            tone={r.won ? 'money' : undefined}
-          />
-          {!r.won && d.lossReason && (
-            <Stat label={t('Why they said no')} value={lossLabel(d.lossReason)} />
+          <div className="kpis">
+            <Stat
+              label={t('Deal size')}
+              value={t('{amount}/mo', { amount: money(r.monthly, cur) })}
+              hint={t('{amount} a year', { amount: money(r.monthly * 12, cur) })}
+              tone={r.won ? 'money' : undefined}
+            />
+            {!r.won && d.lossReason && !d.loss && (
+              <Stat label={t('Why they said no')} value={lossLabel(d.lossReason)} />
+            )}
+          </div>
+          {!r.won && d.loss && (
+            <LossReason
+              d={d}
+              chance={r.chance}
+              onFindLeads={busy ? undefined : findLeads}
+              onRoadmap={() => {
+                openCompanyTab('roadmap');
+                onClose();
+              }}
+            />
           )}
-        </div>
-        {!r.won && <LossReason d={d} />}
-        <ul className="convo-marks" aria-label={t('Your calls')}>
-          {r.turns.map((x) => (
-            <li key={x.turn} data-turn-mark={x.mark}>
-              <span className={x.mark === 'good' ? 'good' : x.mark === 'ok' ? '' : 'bad'}>
-                {markIcon(x.mark)}
-              </span>{' '}
-              {turnLabel(x.turn)}{' '}
-              <b>
-                {x.option
-                  ? ln(x.option)
-                  : t('{amount} a month', {
-                      amount: money(talk.price?.amount ?? r.monthly, cur),
-                    })}
-              </b>
-              {(x.best || x.bestAmount !== null) && (
-                <span className="muted">
-                  {' '}
-                  {oneStop(
-                    t('Best call: {best}.', {
-                      best: x.best
-                        ? ln(x.best)
-                        : t('about {amount} a month', { amount: money(x.bestAmount ?? 0, cur) }),
-                    }),
-                  )}
+          <ul className="convo-marks" aria-label={t('Your calls')}>
+            {r.turns.map((x) => (
+              <li key={x.turn} data-turn-mark={x.mark}>
+                <span className={x.mark === 'good' ? 'good' : x.mark === 'ok' ? '' : 'bad'}>
+                  {markIcon(x.mark)}
+                </span>{' '}
+                {turnLabel(x.turn)}{' '}
+                <b>
+                  {x.option
+                    ? ln(x.option)
+                    : t('{amount} a month', {
+                        amount: money(talk.price?.amount ?? r.monthly, cur),
+                      })}
+                </b>
+                {(x.best || x.bestAmount !== null) && (
+                  <span className="muted">
+                    {' '}
+                    {oneStop(
+                      t('Best call: {best}.', {
+                        best: x.best
+                          ? ln(x.best)
+                          : t('about {amount} a month', { amount: money(x.bestAmount ?? 0, cur) }),
+                      }),
+                    )}
+                  </span>
+                )}
+                <span className="why">💡 {ln(x.why)}</span>
+                {x.turn === 'price' && talk.price?.guessed && x.score < 1 && (
+                  <span className="why" data-priced-guess>
+                    {t(
+                      'You priced against a guess at their band. A discovery meeting first shows the real one.',
+                    )}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+      <aside className="convo-side" aria-label={t('What they cared about')}>
+        <Card title={t('What {name} cared about', { name: first })} sub={whoKind(d)}>
+          <div className="weights" data-cared>
+            {r.cared.map((w) => (
+              <div key={w.need} className={`w${w.theirs ? ' theirs' : ''}`}>
+                <span>
+                  {needShort(w.need)}
+                  {w.theirs ? ' ★' : ''}
                 </span>
-              )}
-              <span className="why">💡 {ln(x.why)}</span>
-              {x.turn === 'price' && talk.price?.guessed && x.score < 1 && (
-                <span className="why" data-priced-guess>
-                  {t(
-                    'You priced against a guess at their band. A discovery meeting first shows the real one.',
-                  )}
+                <span className="t">
+                  <span style={{ width: `${Math.round(w.weight * 100)}%` }} />
                 </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </Card>
-      <Card title={t('What {name} cared about', { name: first })} sub={whoKind(d)}>
-        <div className="weights" data-cared>
-          {r.cared.map((w) => (
-            <div key={w.need} className={`w${w.theirs ? ' theirs' : ''}`}>
-              <span>
-                {needShort(w.need)}
-                {w.theirs ? ' ★' : ''}
-              </span>
-              <span className="t">
-                <span style={{ width: `${Math.round(w.weight * 100)}%` }} />
-              </span>
-              <b>{pct(w.weight)}</b>
-            </div>
-          ))}
-        </div>
-        <p className="small muted">
-          {t('★ {name} needed this most. Their budget: {band} a month.', {
-            name: first,
-            band: r.bandLabel,
-          })}
-        </p>
-        <p className="small">
-          {r.won
-            ? t('A paying customer: billed every settlement on 30-day terms.')
-            : d.canRecover
-              ? t(
-                  'You can try once more from Sales: answer their objection and get back to the table.',
-                )
-              : null}
-        </p>
-      </Card>
+                <b>{pct(w.weight)}</b>
+              </div>
+            ))}
+          </div>
+          <p className="small muted">
+            {t('★ {name} needed this most. Their budget: {band} a month.', {
+              name: first,
+              band: r.bandLabel,
+            })}
+          </p>
+          <p className="small">
+            {r.won
+              ? t('A paying customer: billed every settlement on 30-day terms.')
+              : d.canRecover
+                ? t(
+                    'You can try once more from Sales: answer their objection and get back to the table.',
+                  )
+                : null}
+          </p>
+        </Card>
+      </aside>
     </>
   );
 }

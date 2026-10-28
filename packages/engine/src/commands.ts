@@ -789,6 +789,13 @@ export const commandSchema = z.discriminatedUnion('type', [
     discountPct: z.number().int().min(0).max(100).optional(),
   }),
   z.object({ type: z.literal('sales.drop'), companyId: id.optional(), dealId: id }),
+  /** Round 7 (gameplay note): hand a deal to a salesperson (`staffId`), or take it back. */
+  z.object({
+    type: z.literal('sales.assign'),
+    companyId: id.optional(),
+    dealId: id,
+    staffId: id.optional(),
+  }),
   /**
    * Feedback note: a sales conversation with a deal (`dealId`) or a business
    * you walk into (`businessId`): start, then lead / price (`discountPct`) /
@@ -923,6 +930,16 @@ export const commandSchema = z.discriminatedUnion('type', [
       'workout',
       'laundry',
     ]),
+  }),
+  /**
+   * Round 7 (gameplay note): sit down on a seat (sofa, chair, armchair) or lie
+   * down on a bed or mat (`start`), then get up (`stop`): stress falls and
+   * energy comes back with the game clock (rest.ts).
+   */
+  z.object({
+    type: z.literal('home.rest'),
+    action: z.enum(['start', 'stop']),
+    spot: z.enum(['seat', 'bed']).optional(),
   }),
   /** Have someone over: a contact chat id, a player id, or a `fund:`/`biz:`/`npc:` id in your city. */
   z.object({ type: z.literal('home.invite'), personId: z.string().min(1).max(100) }),

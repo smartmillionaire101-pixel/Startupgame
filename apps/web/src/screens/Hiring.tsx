@@ -246,7 +246,7 @@ function AiCofounderSheet({ c, onClose }: { c: CompanyT; onClose: () => void }) 
               <Pill tone="info">{cofounderTitle(o.title)}</Pill>
             </div>
             <p className="small">{cofounderPitch(o.id)}</p>
-            <HireBrings b={o.brings} />
+            <HireBrings b={o.brings} name={o.name} />
             <p className="small muted">
               {t('Skill {n} · wants {pct} · salary {amount}/mo', {
                 n: Math.round(o.skill * 100),
@@ -546,6 +546,14 @@ function CandidateCard({
               : t('1 other offer'))
           : ''}
       </p>
+      <HireBrings
+        b={x.brings}
+        name={x.name}
+        skill={{
+          n: Math.round((x.skill ?? x.cvSkill) * 100),
+          checked: x.skill !== null,
+        }}
+      />
       <dl className="hire-cv">
         <dt>{t('Skill')}</dt>
         <dd>
@@ -572,7 +580,6 @@ function CandidateCard({
           {x.personality !== null ? personalityWord(x.personality) : unknown}
         </dd>
       </dl>
-      <HireBrings b={x.brings} />
       {x.keen && <p className="small good">{t('Keen to join you.')}</p>}
       <div className="hire-actions">
         <Button

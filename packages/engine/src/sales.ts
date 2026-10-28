@@ -679,12 +679,8 @@ export function advanceDeal(world: World, me: Player, cmd: SalesAdvanceInput) {
   if (a === 'recover') {
     ensure(!d.recovered, 'sales.recover.used', 'You’ve already tried to win this one back.');
     ensure(!d.expired, 'sales.recover.expired', 'This deal ran out of time.');
-    const wait = Math.max(1, (d.revisit ?? month) - month);
-    ensure(
-      d.revisit === undefined,
-      'sales.recover.later',
-      `They asked you to come back ${wait === 1 ? 'next month' : `in ${wait} months`}: the lead opens again then.`,
-    );
+    // Round 7: "come back in N months" is a reminder, not a lock: you can try
+    // earlier, before their budget is renewed or the need is pressing.
   } else {
     ensure(month <= d.deadline, 'sales.deadline', 'This deal has run out of time.');
   }
@@ -861,7 +857,7 @@ export function closeDeal(
     stage: d.stage,
     won: false,
     lossReason: d.lossReason,
-    canRecover: !d.recovered && d.revisit === undefined,
+    canRecover: !d.recovered,
     ...(d.revisit !== undefined ? { revisit: d.revisit } : {}),
     chance,
   };
@@ -870,6 +866,9 @@ export function closeDeal(
 /** One more try after a loss: you address their objection and get back to the table. */
 function recoverDeal(d: SalesDeal, month: number) {
   const reason = d.lossReason ?? 'price';
+  // Round 7: before the month they named, nothing has changed on their side yet.
+  const early = d.revisit !== undefined && (reason === 'timing' || reason === 'no_budget');
+  delete d.revisit;
   d.recovered = true;
   // A new conversation once you're back at the table (only feedback-note deals
   // have one): the last one's turns are over, and sitting down again draws new
@@ -888,14 +887,16 @@ function recoverDeal(d: SalesDeal, month: number) {
       d.stage = 'negotiation';
       break;
     case 'timing':
-      d.customer.urgency = Math.round(clamp01(d.customer.urgency + 0.25) * 100) / 100;
+      if (!early) d.customer.urgency = Math.round(clamp01(d.customer.urgency + 0.25) * 100) / 100;
       d.deadline += 1;
       d.stage = 'negotiation';
       break;
     case 'no_budget':
     case 'authority':
-      // You get in front of whoever holds the budget (and signs).
-      d.customer.authority = Math.round(clamp01(d.customer.authority + 0.3) * 100) / 100;
+      // You get in front of whoever holds the budget (and signs); trying again
+      // before the budget is renewed changes nothing on their side.
+      if (!(early && reason === 'no_budget'))
+        d.customer.authority = Math.round(clamp01(d.customer.authority + 0.3) * 100) / 100;
       d.stage = 'negotiation';
       break;
     case 'competitor':
@@ -906,7 +907,7 @@ function recoverDeal(d: SalesDeal, month: number) {
       d.stage = 'negotiation';
   }
   d.revealed = true;
-  return { dealId: d.id, stage: d.stage, recovering: reason };
+  return { dealId: d.id, stage: d.stage, recovering: reason, ...(early ? { early } : {}) };
 }
 
 /**
@@ -936,6 +937,22 @@ export function dropDeal(world: World, me: Player, dealId: Id, companyId?: Id) {
   ensure(d.stage !== 'won', 'sales.drop.won', 'This is a customer now, not a deal.');
   c.deals = c.deals!.filter((x) => x.id !== d.id);
   return { dropped: d.id };
+}
+
+/**
+ * Round 7 (gameplay note): hand an open deal to someone on your sales team,
+ * or take it back (no `staffId`). Their skill lifts its chance, and they run
+ * discovery on it at month end (team.ts). No hours, no money.
+ */
+export function assignDeal(world: World, me: Player, dealId: Id, staffId?: Id, companyId?: Id) {
+  const { c, d } = findDeal(world, me, dealId, companyId);
+  ensure(isOpenDeal(d), 'sales.assign.closed', 'This deal is closed.');
+  if (staffId) {
+    const s = c.staff.find((x) => x.id === staffId && x.role === 'sales');
+    ensure(s, 'sales.staff', 'Pick someone from your sales team.');
+    d.owner = s!.id;
+  } else delete d.owner;
+  return { dealId: d.id, owner: d.owner ?? null };
 }
 
 // ---------------------------------------------------------------- Settlement
@@ -1084,11 +1101,7 @@ export function salesView(world: World, c: Company, viewer?: Player) {
     const biz = d.customer.businessId ? businessesOf(m)[d.customer.businessId] : undefined;
     const actions: SalesNextAction[] = (Object.keys(ACTION_FROM) as SalesAction[])
       .filter((a) => ACTION_FROM[a].includes(d.stage))
-      .filter((a) =>
-        a === 'recover'
-          ? !d.recovered && !d.expired && d.revisit === undefined
-          : month <= d.deadline,
-      )
+      .filter((a) => (a === 'recover' ? !d.recovered && !d.expired : month <= d.deadline))
       .filter((a) => a !== 'negotiate' || (d.negotiations ?? 0) < SALES.maxNegotiations)
       .map((a) => ({ action: a, hours: SALES.hours[a], cost: actionCost(m, a) }));
     const open = isOpenDeal(d);
@@ -1142,7 +1155,7 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       warm: !!d.warmBy,
       /** Round 7: the one real reason in their words, and when they'll talk again. */
       loss: d.stage === 'lost' && d.lossReason && gameplayOn(world) ? lossView(d, month) : null,
-      canRecover: d.stage === 'lost' && !d.recovered && !d.expired && d.revisit === undefined,
+      canRecover: d.stage === 'lost' && !d.recovered && !d.expired,
       expired: !!d.expired,
       /** Won, then they stopped buying (feedback note): when and why. */
       churned: d.churned ?? null,

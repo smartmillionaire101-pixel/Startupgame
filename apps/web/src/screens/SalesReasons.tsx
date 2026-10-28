@@ -14,6 +14,7 @@
 import { pct } from '../format';
 import { t, tx } from '../i18n';
 import type { Company } from '../store';
+import { Button } from '../ui';
 import { useLine } from './Interview';
 
 type DealV = NonNullable<Company['sales']>['deals'][number];
@@ -56,9 +57,10 @@ function nextStep(r: LossReason, revisitIn: number | null): string {
     case 'no_budget':
     case 'timing':
       return revisitIn !== null && revisitIn > 0
-        ? t('Come back in {n} months: the lead stays on your board and opens again then.', {
-            n: revisitIn,
-          })
+        ? t(
+            'Come back in {n} months: the lead stays on your board with a reminder. You can try sooner, at a lower chance.',
+            { n: revisitIn },
+          )
         : t('They’re ready to talk again: the lead is open on your board.');
     case 'trust':
       return t('Win a smaller customer like them first: a reference builds trust.');
@@ -71,64 +73,209 @@ function nextStep(r: LossReason, revisitIn: number | null): string {
   }
 }
 
-const holdLabel = (r: string, d: DealV) =>
+/** What holds the chance down, as a row title. */
+const holdTitle = (r: string, d: DealV) =>
   ({
-    missing_feature: t('product fit (weak for {segment})', { segment: tx(d.segment) }),
-    authority: t('they can’t sign alone'),
-    no_budget: t('the price is above what they planned'),
-    timing: t('it isn’t urgent for them'),
+    missing_feature: t('Product fit: weak for {segment}', { segment: tx(d.segment) }),
+    authority: t('Can’t fully sign alone'),
+    no_budget: t('Above what they planned to spend'),
+    timing: t('Not urgent for them'),
     competitor: d.known.currentName
-      ? t('they’re tied in with {rival}', { rival: d.known.currentName })
-      : t('they’re happy with what they use'),
-    trust: t('low trust: they don’t know you yet'),
+      ? t('Tied in with {rival}', { rival: d.known.currentName })
+      : t('Happy with what they use'),
+    trust: t('Low trust: they don’t know you yet'),
   })[r] ?? r;
+
+const HOLD_ICON: Record<string, string> = {
+  missing_feature: '🧩',
+  authority: '✍️',
+  no_budget: '💷',
+  timing: '⏳',
+  competitor: '🔒',
+  trust: '🤝',
+  luck: '🎲',
+  price: '🏷️',
+};
+
+const lvl = (v: number | null) =>
+  v === null ? null : v >= 0.67 ? t('high') : v >= 0.34 ? t('medium') : t('low');
+
+/** The line under a row: what you know that makes it so (a guess before discovery). */
+function holdWhy(r: string, d: DealV): string {
+  const k = d.known;
+  switch (r) {
+    case 'missing_feature':
+      return t('Build what {segment} ask for on the Roadmap', { segment: tx(d.segment) });
+    case 'authority':
+      return lvl(k.authority)
+        ? t('Can sign alone: {level}. Someone else has a say', { level: lvl(k.authority)! })
+        : t('A guess until discovery: who signs?');
+    case 'timing':
+      return lvl(k.urgency)
+        ? t('Urgency: {level}', { level: lvl(k.urgency)! })
+        : t('A guess until discovery: how urgent is it?');
+    case 'no_budget':
+      return k.budgetMax === null
+        ? t('A guess until discovery: what can they spend?')
+        : t('Your price is high for what they planned');
+    case 'competitor':
+      return t('Switching costs them time and effort');
+    case 'trust':
+      return t('Stars, uptime and a reference build trust');
+    default:
+      return '';
+  }
+}
 
 const talkLabel = (score: number) =>
   score >= 80 ? t('excellent') : score >= 60 ? t('good') : score >= 40 ? t('shaky') : t('weak');
 
+/** Chance points, signed ("−14"). */
+const pts = (cost: number) => `−${Math.round(cost * 100)}`;
+
 /** Before you ask: your talk so far, what's holding the chance down, and the best chance today. */
 export function HoldingBack({ d, holding }: { d: DealV; holding: Holding }) {
   const items = holding.items.slice(0, 3);
+  const turns = d.talk ? [d.talk.lead, d.talk.price, d.talk.terms].filter(Boolean).length : 0;
   return (
-    <div className="sales-holding small" data-holding={items.map((i) => i.reason).join(' ')}>
+    <div className="sales-holding" data-holding={items.map((i) => i.reason).join(' ')}>
       {holding.talk !== null && (
-        <p>
-          <b>{t('Your talk:')}</b> {talkLabel(holding.talk)}
-        </p>
+        <div className={`hold-row${holding.talk >= 60 ? ' ok' : ''}`} data-hold-talk>
+          <span className="hold-ic" aria-hidden="true">
+            💬
+          </span>
+          <span>
+            <b>{t('Your talk: {grade}', { grade: talkLabel(holding.talk) })}</b>
+            <span className="hold-why">{t('{n} of 3 turns so far', { n: turns })}</span>
+          </span>
+          <span className="hold-pts">{t('{n}/100', { n: holding.talk })}</span>
+        </div>
       )}
-      <p>
-        <b>{t('Holding you back:')}</b>{' '}
+      <h4>{t('Holding you back')}</h4>
+      {items.length ? (
+        items.map((i) => (
+          <div key={i.reason} className="hold-row" data-hold={i.reason}>
+            <span className="hold-ic" aria-hidden="true">
+              {HOLD_ICON[i.reason] ?? '•'}
+            </span>
+            <span>
+              <b>{holdTitle(i.reason, d)}</b>
+              <span className="hold-why">{holdWhy(i.reason, d)}</span>
+            </span>
+            <span
+              className="hold-pts"
+              aria-label={t('{n} points of chance', { n: Math.round(i.cost * 100) })}
+            >
+              {pts(i.cost)}
+            </span>
+          </div>
+        ))
+      ) : (
+        <p className="hold-none">{t('Nothing big: what’s left is luck.')}</p>
+      )}
+      <div className="hold-best" data-best-chance={Math.round(holding.best * 100)}>
+        {t('Best chance today:')} <b>{pct(holding.best)}</b>.{' '}
         {items.length
-          ? items.map((i) => holdLabel(i.reason, d)).join(', ')
-          : t('nothing big: what’s left is luck')}
-      </p>
-      <p data-best-chance={Math.round(holding.best * 100)}>
-        <b>{t('Best chance today:')}</b> {pct(holding.best)}
-      </p>
+          ? items.length === 1
+            ? t('A better talk can’t move it higher; the one above can.')
+            : t('A better talk can’t move it higher; the {n} above can.', { n: items.length })
+          : t('A good talk gets you there.')}
+      </div>
     </div>
   );
 }
 
-/** After a loss: the one real reason in their words, and what to do next. */
-export function LossReason({ d, heading = true }: { d: DealV; heading?: boolean }) {
+/** What a lost deal was lost on, as a chip. */
+export function LossChip({ reason }: { reason: LossReason }) {
+  return (
+    <span className="loss-chip" data-loss-chip={reason}>
+      <span aria-hidden="true">{HOLD_ICON[reason] ?? '•'}</span> {lossLabel(reason)}
+    </span>
+  );
+}
+
+/**
+ * After a loss: the one real reason in their words, and what to do next
+ * (with the buttons that do it), then a plain line about luck. `chance`: the
+ * chance when you asked (the conversation's result), for the luck line.
+ */
+export function LossReason({
+  d,
+  heading = true,
+  chance,
+  onRetry,
+  onFindLeads,
+  onRoadmap,
+}: {
+  d: DealV;
+  heading?: boolean;
+  chance?: number;
+  onRetry?: () => void;
+  onFindLeads?: () => void;
+  onRoadmap?: () => void;
+}) {
   const ln = useLine();
   if (!d.loss) return null;
-  const first = d.contact.split(' ')[0]!;
+  const r = d.loss.reason;
+  const later = (r === 'no_budget' || r === 'timing') && (d.loss.revisitIn ?? 0) > 0;
   return (
-    <div className="sales-loss-reason" data-loss-reason={d.loss.reason} role="status">
-      {heading && (
-        <div className="small muted">
+    <div className="sales-loss-reason" data-loss-reason={r} role="status">
+      {heading && <LossChip reason={r} />}
+      <blockquote className="loss-quote">
+        {ln(d.loss.words)}
+        <cite>
+          {d.contact}, {d.name}
+        </cite>
+      </blockquote>
+      <div className="loss-next" data-loss-next>
+        <h4>{t('What to do next')}</h4>
+        <p>{nextStep(r, d.loss.revisitIn)}</p>
+        {(later || onRetry || onFindLeads || onRoadmap) && (
+          <div className="loss-btns">
+            {later && (
+              <span className="loss-date" data-revisit={d.loss.revisitIn}>
+                📅 {t('Back on your board in {n} months', { n: d.loss.revisitIn! })}
+              </span>
+            )}
+            {r === 'missing_feature' && onRoadmap && (
+              <Button size="sm" onClick={onRoadmap}>
+                {t('Open the Roadmap')}
+              </Button>
+            )}
+            {onRetry && d.canRecover && r !== 'trust' && (
+              <Button
+                size="sm"
+                variant={r === 'missing_feature' || later ? 'subtle' : 'primary'}
+                onClick={onRetry}
+                data-action="recover"
+              >
+                {later
+                  ? t('Try now (a lower chance)')
+                  : r === 'authority'
+                    ? t('Try again with who signs')
+                    : t('Try again')}
+              </Button>
+            )}
+            {onFindLeads && (r === 'trust' || r === 'competitor' || later) && (
+              <Button size="sm" variant="subtle" onClick={onFindLeads}>
+                {later ? t('Find new leads') : t('Find a smaller customer like them')}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+      {chance !== undefined && (
+        <p className="loss-luck" data-luck={d.loss.luck ? 'yes' : 'no'}>
           {d.loss.luck
-            ? t('It was luck')
-            : t('Why they said no: {reason}', { reason: lossLabel(d.loss.reason) })}
-        </div>
+            ? t('It really was luck: {p} was a good chance, and it went the other way.', {
+                p: pct(chance),
+              })
+            : t(
+                'Luck had nothing to do with it: {p} was the real chance, and the reason above decided it.',
+                { p: pct(chance) },
+              )}
+        </p>
       )}
-      <p className="bubble them">
-        {first}: {ln(d.loss.words)}
-      </p>
-      <p className="small">
-        <b>{t('Next:')}</b> {nextStep(d.loss.reason, d.loss.revisitIn)}
-      </p>
     </div>
   );
 }
