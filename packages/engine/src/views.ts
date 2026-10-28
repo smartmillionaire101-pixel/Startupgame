@@ -20,6 +20,7 @@ import { cityPlacesView } from './places.js';
 import { errandsView } from './errands.js';
 import { anyJobView, workView } from './work.js';
 import { pitchQuestionsNow } from './fundraising.js';
+import { meetingView } from './pitchmeeting.js';
 import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
 import { stockExchangesView } from './stocks.js';
@@ -1117,6 +1118,8 @@ export function playerView(
       )
       .sort((a, b) => b.createdMonth - a.createdMonth)
       .slice(0, 40),
+    /** Round 7: a pitch is a meeting with the investor (gameplay note). */
+    pitchMeetings: gameplayOn(world),
     pitches: Object.values(world.pitches)
       .filter((x) => x.founderId === p.id || x.investorPlayerId === p.id)
       .map((x) => ({
@@ -1133,6 +1136,8 @@ export function playerView(
           ...q,
           options: q.options.map(({ truth: _t, claim: _c, ...o }) => o),
         })),
+        /** Round 7: the pitch meeting, as this viewer sees it (the raw state stays on the server). */
+        meeting: meetingView(world, x, p.id),
       }))
       .sort((a, b) => b.month - a.month)
       .slice(0, 30),

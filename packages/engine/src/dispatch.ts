@@ -80,6 +80,7 @@ import {
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
 import { advanceDeal, dropDeal, prospect } from './sales.js';
 import { salesTalk } from './salestalk.js';
+import { beginMeeting, pitchMeet, pitchReply } from './pitchmeeting.js';
 import { askInterview, leaveInterview, startInterview } from './customer-interviews.js';
 import { chooseDecision } from './decisions.js';
 import {
@@ -1061,11 +1062,20 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         investorPlayerId: cmd.investorId,
         slides: cmd.slides,
         ask: cmd.ask,
+        meeting: gameplayOn(world),
       });
+      // Round 7: the pitch is a meeting with the investor (pitchmeeting.ts).
+      if (p.status === 'meeting') beginMeeting(world, p, cmd.preMoney);
       me.skills.fundraising = Math.min(100, me.skills.fundraising + 1);
       me.skills.publicSpeaking = Math.min(100, me.skills.publicSpeaking + 0.5);
       return { pitchId: p.id, status: p.status, reason: p.reason };
     }
+    case 'pitch.meet':
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return pitchMeet(world, me, cmd);
+    case 'pitch.reply':
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return pitchReply(world, me, cmd);
     case 'pitch.answer': {
       const p = answerPitch(world, cmd.pitchId, me.id, cmd.answers, cmd.figures);
       return { pitchId: p.id, status: p.status, reason: p.reason, dealId: p.dealId };

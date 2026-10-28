@@ -33,6 +33,7 @@ import { FundPitch, LastPanel, dealflowOf } from './DealFlow';
 import { Legacy } from './Legacy';
 import { ProRataOffers, StakeConsents, positionStatusText } from './FundOps';
 import { SimpleLink } from './SimpleLink';
+import { PitchMeetingSheet } from './PitchMeeting';
 
 const companyStatusLabel = (x: string) =>
   (({ shutdown: t('shut down'), acquired: t('acquired') }) as Record<string, string>)[x] ?? x;
@@ -59,10 +60,41 @@ export function DealFlow() {
         b.stars - a.stars,
     );
   const myTurn = view.deals.filter((d) => d.yourTurn).length;
+  // Round 7: founders' pitch meetings sent to you, with their answers, waiting for yours.
+  const [pitchId, setPitchId] = useState<string | null>(null);
+  const toAnswer = view.pitches.filter(
+    (p) => p.investorPlayerId === view.me.id && p.meeting?.canReply,
+  );
   return (
     <>
       <h1>{t('Deal offers')}</h1>
       <FriendsBacking />
+      {toAnswer.length > 0 && (
+        <Card title={t('Pitches waiting for your answer')} tone="warn" className="pm-inbox">
+          <ul className="list">
+            {toAnswer.map((p) => (
+              <li key={p.id} className="spread" data-pitch-to-me={p.id}>
+                <div>
+                  <div className="item-title">{p.companyName}</div>
+                  <div className="small muted">
+                    {t('Deck and answers from the meeting · asking {amount}', {
+                      amount: money(
+                        p.meeting!.ask?.amount ?? p.ask,
+                        view.directory.find((c) => c.id === p.companyId)?.currency ??
+                          view.market.currency,
+                      ),
+                    })}
+                  </div>
+                </div>
+                <Button size="sm" onClick={() => setPitchId(p.id)} data-pitch-open>
+                  {t('Read the pitch')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+      {pitchId && <PitchMeetingSheet pitchId={pitchId} onClose={() => setPitchId(null)} />}
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'flow'} onClick={() => setTab('flow')}>
           {t('Companies')}

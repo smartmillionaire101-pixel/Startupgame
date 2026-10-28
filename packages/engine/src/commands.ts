@@ -280,6 +280,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     investorId: id.optional(),
     slides: z.array(z.string().max(16)).min(1).max(5),
     ask: money,
+    /** Round 7 (gameplay note): your valuation, pre-money (the meeting's "your number"). */
+    preMoney: money.optional(),
   }),
   z.object({
     type: z.literal('pitch.answer'),
@@ -289,6 +291,27 @@ export const commandSchema = z.discriminatedUnion('type', [
     figures: figures.optional(),
   }),
   z.object({ type: z.literal('pitch.partners'), pitchId: id }),
+  /**
+   * Round 7 (gameplay note): a turn in the pitch meeting (pitchmeeting.ts):
+   * open, answer his question, make the ask; then accept the term sheet,
+   * counter once, or walk away.
+   */
+  z.object({
+    type: z.literal('pitch.meet'),
+    pitchId: id,
+    action: z.enum(['open', 'answer', 'ask', 'accept', 'counter', 'walk']),
+    option: z.string().max(24).optional(),
+    questionId: z.string().max(24).optional(),
+  }),
+  /** Round 7 (gameplay note): a player investor answers a pitch made to them. */
+  z.object({
+    type: z.literal('pitch.reply'),
+    pitchId: id,
+    action: z.enum(['accept', 'counter', 'decline']),
+    amount: money.optional(),
+    preMoney: money.optional(),
+    reason: z.enum(PASS_REASONS).optional(),
+  }),
   // ---- deals
   z.object({ type: z.literal('deal.choose'), dealId: id }),
   z.object({

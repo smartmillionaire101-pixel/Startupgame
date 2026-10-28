@@ -16,6 +16,7 @@ import {
   RunwayExplainer,
 } from './FundCompany';
 import { PitchResult, passWhyCopy } from './FounderGuide';
+import { PitchMeetingSheet } from './PitchMeeting';
 
 type Tab = 'fund' | 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire' | 'exit';
 
@@ -52,6 +53,7 @@ const pitchStatusLabel = (x: string) =>
       passed: t('Declined'),
       'term-sheet': t('Term Sheet'),
       sent: t('Sent'),
+      meeting: t('In the meeting'),
     }) as Record<string, string>
   )[x] ?? titleCase(x);
 
@@ -131,6 +133,15 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
   } | null>(null);
   const pitches = view.pitches.filter((p) => p.companyId === c.id);
   const openPitch = pitches.find((p) => p.status === 'questions' || p.status === 'partner-meeting');
+  // Round 7: a pitch meeting still going, or a term sheet from one waiting on you.
+  const [meetingId, setMeetingId] = useState<string | null>(null);
+  const liveMeeting = pitches.find(
+    (p) =>
+      p.meeting &&
+      (p.meeting.step !== 'result' ||
+        (p.meeting.result?.terms?.awaitingYou && !p.meeting.result.closed) ||
+        p.status === 'partner-meeting'),
+  );
   // Feedback note: the latest answered pitch, scored (the newest of the latest month).
   const scored = pitches
     .filter((p) => p.scores?.length && p.status !== 'questions')
@@ -159,6 +170,7 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
       <Button
         variant="subtle"
         disabled={!!openPitch}
+        data-pitch-fund={f.id}
         onClick={() => setTarget({ fundId: f.id, name: f.name, check: f.check })}
       >
         {t('Pitch')}
@@ -198,7 +210,27 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
           {t('Compare all ways to fund your company')}
         </Button>
       </div>
-      {openPitch && <PitchFlow pitchId={openPitch.id} />}
+      {liveMeeting && (
+        <Card
+          title={t('Your pitch meeting with {name}', {
+            name: liveMeeting.meeting!.investor.name,
+          })}
+          sub={liveMeeting.fundName ?? undefined}
+          tone="good"
+          action={
+            <Button size="sm" onClick={() => setMeetingId(liveMeeting.id)} data-meeting-resume>
+              {liveMeeting.meeting!.step === 'result' ? t('See the term sheet') : t('Continue')}
+            </Button>
+          }
+        >
+          <p className="small muted">
+            {liveMeeting.meeting!.step === 'result'
+              ? t('A term sheet is waiting for your answer.')
+              : t('You left the meeting mid-way: pick up where you were.')}
+          </p>
+        </Card>
+      )}
+      {openPitch && !openPitch.meeting && <PitchFlow pitchId={openPitch.id} />}
       {scored && <PitchResult p={scored} cur={c.currency} />}
       <Card title={t('Investors in town')}>
         <ul className="list">{shown.map(fundRow)}</ul>
@@ -231,9 +263,10 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
                 </div>
                 <Button
                   variant="subtle"
+                  data-pitch-investor={p.id}
                   onClick={() => setTarget({ investorId: p.id, name: p.name })}
                 >
-                  {t('Send deck')}
+                  {view.pitchMeetings ? t('Pitch') : t('Send deck')}
                 </Button>
               </li>
             ))}
@@ -260,6 +293,11 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
                 ) : (
                   p.reason && <div className="small muted">{tx(p.reason)}</div>
                 )}
+                {p.meeting && (
+                  <Button size="sm" variant="ghost" onClick={() => setMeetingId(p.id)}>
+                    {t('See the meeting')}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -267,6 +305,7 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
       )}
       <LoanCard c={c} folded />
       {target && <PitchSheet c={c} target={target} onClose={() => setTarget(null)} />}
+      {meetingId && <PitchMeetingSheet pitchId={meetingId} onClose={() => setMeetingId(null)} />}
     </>
   );
 }
@@ -280,25 +319,32 @@ export function PitchSheet({
   target: { fundId?: string; investorId?: string; name: string; check?: [number, number] };
   onClose: () => void;
 }) {
-  const { send, meta, cur } = useView();
+  const { send, meta, cur, view } = useView();
   const [slides, setSlides] = useState<string[]>(['problem', 'product', 'team']);
   const [ask, setAsk] = useState(
     amountInput(target.check?.[0] ?? Math.round(c.valuation.value * 0.15)),
   );
+  // Round 7: your own valuation, and the meeting the pitch becomes.
+  const meetings = !!view.pitchMeetings;
+  const [pre, setPre] = useState(amountInput(Math.round(c.valuation.value)));
+  const [meetingId, setMeetingId] = useState<string | null>(null);
   const max = meta?.maxSlides ?? 5;
   const toggle = (s: string) =>
     setSlides((x) => (x.includes(s) ? x.filter((y) => y !== s) : x.length < max ? [...x, s] : x));
   const go = async () => {
-    const r = await send<{ status: string; reason: string }>({
+    const r = await send<{ status: string; reason: string; pitchId: string }>({
       type: 'pitch.start',
       companyId: c.id,
       slides,
       ask: parseAmount(ask) ?? 0,
+      ...(meetings && parseAmount(pre) ? { preMoney: parseAmount(pre)! } : {}),
       ...(target.fundId ? { fundId: target.fundId } : { investorId: target.investorId }),
     });
     if (!r) return;
-    onClose();
+    if (r.status === 'meeting') setMeetingId(r.pitchId);
+    else onClose();
   };
+  if (meetingId) return <PitchMeetingSheet pitchId={meetingId} onClose={onClose} />;
   return (
     <Sheet title={t('Pitch {name}', { name: target.name })} onClose={onClose}>
       <p className="small muted">
@@ -350,8 +396,18 @@ export function PitchSheet({
       >
         {(id) => <input id={id} value={ask} onChange={(e) => setAsk(e.target.value)} />}
       </Field>
-      <Button disabled={slides.length === 0} onClick={() => void go()}>
-        {t('Pitch (8h)')}
+      {meetings && (
+        <Field
+          label={t('Your valuation, pre-money ({cur})', { cur })}
+          hint={t('Your number in the meeting. The investor has their own range.')}
+        >
+          {(id) => (
+            <input id={id} value={pre} onChange={(e) => setPre(e.target.value)} data-pitch-pre />
+          )}
+        </Field>
+      )}
+      <Button disabled={slides.length === 0} onClick={() => void go()} data-pitch-go>
+        {meetings ? t('Go to the meeting (8h)') : t('Pitch (8h)')}
       </Button>
     </Sheet>
   );

@@ -2559,7 +2559,7 @@ export interface Pitch {
   fundId: Id | null;
   investorPlayerId: Id | null;
   slides: string[];
-  status: 'questions' | 'partner-meeting' | 'passed' | 'term-sheet' | 'sent';
+  status: 'questions' | 'partner-meeting' | 'passed' | 'term-sheet' | 'sent' | 'meeting';
   questions: PitchQuestion[];
   answers: Record<string, string>;
   /** Figures the founder typed instead of picking an option, by question id (life-bars note). */
@@ -2577,6 +2577,87 @@ export interface Pitch {
   scores?: PitchAnswerScore[];
   /** Feedback note: the real reason an AI fund passed, from the company's numbers. */
   passWhy?: PitchPassWhy;
+  /** Round 7 (gameplay note): the pitch as a meeting (pitchmeeting.ts). */
+  meeting?: PitchMeeting;
+}
+
+/** The company's numbers when the meeting began: what the investor asks about (pitchmeeting.ts). */
+export interface PitchMeetingFacts {
+  customers: number;
+  /** Last month's revenue, local minor units. */
+  revenue: number;
+  /** Monthly revenue growth (0.12 = 12% a month), over the last three months. */
+  growth: number;
+  cash: number;
+  /** Months the money lasts; null = it never runs out. */
+  runway: number | null;
+  /** Open pipeline deals past the first call, and what they'd pay a month. */
+  pipeline: number;
+  pipelineValue: number;
+  topDeal: string | null;
+  topDealValue: number;
+  /** Won customers from sales (accounts), and the biggest. */
+  accounts: number;
+  topAccount: string | null;
+  topAccountMonthly: number;
+  interviews: number;
+  interviewScore: number | null;
+  /** The latest pain note from an interview, and who said it. */
+  pain: { en: string; fr: string } | null;
+  painBy: string | null;
+  rival: string | null;
+}
+
+export type PitchMeetingQuestion = 'traction' | 'runway' | 'competition';
+export type PitchMeetingOpener = 'story' | 'traction' | 'problem' | 'market' | 'tour';
+export type PitchMeetingAnswer = 'true' | 'stretch' | 'vague';
+export type PitchAskOption = 'yours' | 'inside' | 'swing';
+
+/** One thing that moved the investor, in interest points (0–100 scale). */
+export interface PitchMoved {
+  id: string;
+  points: number;
+}
+
+export interface PitchMeeting {
+  /** An AI fund decides at the table; a player investor answers it themselves. */
+  investor: 'fund' | 'player';
+  facts: PitchMeetingFacts;
+  openers: PitchMeetingOpener[];
+  opener?: PitchMeetingOpener;
+  questions: {
+    id: PitchMeetingQuestion;
+    options: PitchMeetingAnswer[];
+    answer?: PitchMeetingAnswer;
+    /** The business co-founder took this one. */
+    cofounder?: boolean;
+  }[];
+  /** The founder's own number: pre-money, local minor units. */
+  preMoney: number;
+  /** Where he prices teams like yours (pre-money). */
+  band: [number, number];
+  /** Interest before a word is said (the fund's view of the company), and what's moved it from the start. */
+  base: number;
+  start: PitchMoved[];
+  cofounder: { name: string; points: number } | null;
+  ask?: { option: PitchAskOption; amount: number; preMoney: number };
+  result?: {
+    score: number;
+    /** Interest when you asked (after the ask). */
+    interest: number;
+    moved: PitchMoved[];
+    outcome: 'term-sheet' | 'passed' | 'caught' | 'partners' | 'sent';
+    /** Answers diligence found out. */
+    caught: PitchMeetingQuestion[];
+    /** The term sheet's pre-money when it came out of the meeting. */
+    offerPre?: number;
+    /** Your one counter, and how it went. */
+    counter?: { preMoney: number; reply: 'agreed' | 'met' | 'walked' | 'waiting' };
+    /** You accepted, or walked away. */
+    closed?: 'accepted' | 'walked';
+  };
+  /** A player investor's answer. */
+  reply?: { action: 'accept' | 'counter' | 'decline'; amount?: number; preMoney?: number };
 }
 
 /** One founder pitch answer, scored 0–100 (feedback note, founderguide.ts). */

@@ -260,6 +260,8 @@ export function startPitch(
     investorPlayerId?: Id;
     slides: string[];
     ask: number;
+    /** Round 7 (gameplay note): the pitch is a meeting (pitchmeeting.ts), not questions. */
+    meeting?: boolean;
   },
 ): Pitch {
   const c = getCompany(world, args.companyId);
@@ -284,7 +286,10 @@ export function startPitch(
     (p) =>
       p.companyId === c.id &&
       (p.fundId ?? p.investorPlayerId) === (args.fundId ?? args.investorPlayerId) &&
-      (p.status === 'questions' || p.status === 'partner-meeting' || p.status === 'sent'),
+      (p.status === 'questions' ||
+        p.status === 'partner-meeting' ||
+        p.status === 'sent' ||
+        p.status === 'meeting'),
   );
   ensure(!open, 'pitch.open', 'You already have an open pitch with them.');
 
@@ -336,6 +341,8 @@ export function startPitch(
     ) {
       pitch.status = 'passed';
       pitch.reason = `${fund.partner}: “Come back when you have more of a track record.”`;
+    } else if (args.meeting) {
+      pitch.status = 'meeting';
     } else {
       pitch.questions = buildQuestions(world, c);
     }
@@ -343,6 +350,12 @@ export function startPitch(
     const inv = getPlayer(world, args.investorPlayerId);
     ensure(inv.role === 'investor' && !inv.ai, 'pitch.investor', 'That player isn’t an investor.');
     ensure(inv.market === c.market, 'pitch.market', 'Pitch investors in your own market.');
+    if (args.meeting) {
+      // Round 7: the deck goes with your answers once the meeting is done (pitchmeeting.ts).
+      pitch.status = 'meeting';
+      world.pitches[pitch.id] = pitch;
+      return pitch;
+    }
     pitch.status = 'sent';
     // Pitching a human investor shares the deck's public-level data and grants diligence depth 1.
     inv.diligence[c.id] = Math.max(inv.diligence[c.id] ?? 0, 1);
@@ -364,8 +377,7 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
   const m = getMarket(world, c.market);
   const s = strengths(world, c);
   const founder = world.players[c.founderIds[0]!];
-  // Emphasis: slides that show real strengths help; showing weaknesses hurts.
-  const deck = slides.reduce((a, sl) => a + ((s[sl as Slide] ?? 0.5) - 0.45) * 0.12, 0);
+  const deck = deckEmphasis(s, slides);
   const pnl = lastPnl(c);
   const gaps = rulesFor(c.market, c.industry).filter((r) => !c.compliance[r.id]).length;
   const keyLoss = c.keyPersonLossMonth !== null && m.month - c.keyPersonLossMonth < 4 ? 0.06 : 0;
@@ -401,8 +413,12 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
   );
 }
 
+/** Emphasis: slides that show real strengths help; showing weaknesses hurts. */
+export const deckEmphasis = (s: Record<Slide, number>, slides: string[]): number =>
+  slides.reduce((a, sl) => a + ((s[sl as Slide] ?? 0.5) - 0.45) * 0.12, 0);
+
 /** Round 7: what a business co-founder adds to a pitch: their score, and a warm intro. */
-function cofounderPitch(world: World, c: Company): { score: number; intro: number } {
+export function cofounderPitch(world: World, c: Company): { score: number; intro: number } {
   const biz = gameplayOn(world) ? businessCofounderOf(c) : undefined;
   return biz
     ? { score: TEAM.pitchScore * biz.skill, intro: TEAM.pitchIntro }

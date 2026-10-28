@@ -481,6 +481,7 @@ export {
   type SalesView,
 } from './sales.js';
 export { TALK, salesWithTalk, talkView, type TalkView } from './salestalk.js';
+export { MEETING, meetingView, type PitchMeetingView } from './pitchmeeting.js';
 export {
   INTERVIEW,
   interviewsView,
