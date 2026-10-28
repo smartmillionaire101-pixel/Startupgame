@@ -4,7 +4,8 @@
  *
  * Logging a note is also a switch (see the engine's releases.ts): this one
  * turns on round 7's gameplay (leads that fit the industry, lost deals with
- * their real reason, one customer count, hires that do their job) and, being
+ * their real reason, one customer count, hires that do their job, investor pitch meetings, resting at home, one van per
+ * order and quiz tables across the city) and, being
  * later, the game-feedback round (a 30-day banking licence review, a
  * bigger quiz bank, tasks at work, named hotels, outfits by role and the Suit
  * Shop, errands in every building, events by role, the banker's reputation,
@@ -34,5 +35,8 @@ export const RELEASE_NOTE = {
     'next. Won customers count everywhere at once. Your hires do their job: a salesperson brings ' +
     'leads from their sector, runs discovery and gives you tips; a technical co-founder lifts ' +
     'demos; a business co-founder brings warmer leads and a better pitch; engineers ship faster. ' +
-    'Interview notes fill in even from weaker questions. Refresh to get it; your game is saved.',
+    'Pitching an investor is now a real meeting with questions about your numbers and a term ' +
+    'sheet you can counter once. Sit on your sofa to lower stress or nap to get energy back, ' +
+    'visit your leased office, order several things in one delivery, find quiz opponents across ' +
+    'the city and invite friends to a game from Messages. Refresh to get it; your game is saved.',
 } as const;
