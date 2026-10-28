@@ -1224,8 +1224,29 @@ export interface TeamWork {
   roadmapWeeks?: number;
   /** Warmer leads a business co-founder's contacts made. */
   warm?: number;
+  /** Investors a business co-founder introduced you to (fund names). */
+  intros?: string[];
   skillFrom: number;
   skillTo: number;
+}
+
+/**
+ * Round 7 (gameplay note): a business co-founder's introduction to an AI fund
+ * that fits the company's stage and sector (intros.ts). Warm until `until`;
+ * a pitch to the fund uses it (`pitchId`).
+ */
+export interface InvestorIntro {
+  fundId: Id;
+  /** The co-founder who made it (staff id), and their name. */
+  by: Id;
+  byName: string;
+  month: number;
+  /** The last month it is warm, if not used. */
+  until: number;
+  /** How strong it is, 0.5–1 (their skill when they made it). */
+  strength: number;
+  /** The pitch it went into. */
+  pitchId?: Id;
 }
 
 /** The vesting record of an AI co-founder's founder shares. */
@@ -1491,6 +1512,8 @@ export interface Company {
   salesChurn?: SalesChurn[];
   /** Round 7 (gameplay note): what each person on the team did at the last settlement. */
   teamMonth?: { month: number; people: TeamWork[] };
+  /** Round 7 (gameplay note): investors a business co-founder introduced (intros.ts). */
+  investorIntros?: InvestorIntro[];
   /** Next deal number (per company, so ids never touch the world counter). */
   salesSeq?: number;
   /**
@@ -2644,6 +2667,8 @@ export interface PitchMeeting {
   base: number;
   start: PitchMoved[];
   cofounder: { name: string; points: number } | null;
+  /** Round 7: the business co-founder who introduced you to this fund, and what it added. */
+  intro?: { name: string; points: number } | null;
   ask?: { option: PitchAskOption; amount: number; preMoney: number };
   result?: {
     score: number;

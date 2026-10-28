@@ -21,9 +21,25 @@ export const TEAM = {
   ownerChance: 0.08,
   /** A business co-founder's contacts make new leads this much warmer (trust), at full skill. */
   warmTrust: 0.12,
-  /** …and add this much to an investor's score of a pitch, plus a warm intro. */
+  /** …and add this much to an investor's score of a pitch. */
   pitchScore: 0.05,
-  pitchIntro: 0.03,
+  /**
+   * …and introduce you to investors who fit your stage and sector (intros.ts):
+   * one a month, two from `twoSkill`, three from `threeSkill`; each stays warm
+   * for `months`, and at most `open` wait at once. An intro's strength is
+   * 0.5–1 by their skill: at full strength it lowers the fund's star bar by
+   * `stars`, adds `score` to its first-meeting score, and starts his interest
+   * in the meeting `interest` points higher.
+   */
+  intro: {
+    twoSkill: 0.6,
+    threeSkill: 0.85,
+    months: 4,
+    open: 6,
+    stars: 1,
+    score: 0.1,
+    interest: 12,
+  },
   /** Leads a salesperson brings each month: one, two from this skill on. */
   leadsSkill: 0.65,
   /** Discovery meetings a salesperson runs a month on their own deals. */

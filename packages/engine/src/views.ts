@@ -92,6 +92,7 @@ import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
 import { customerFacts, payingCustomers } from './traction.js';
 import { bringsOf, teamBringsView } from './team.js';
+import { introsView } from './intros.js';
 import { restView } from './rest.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
@@ -1048,6 +1049,8 @@ export function playerView(
         businessCustomers: businessCustomersOf(world, c),
         /** Round 7 (gameplay note): what each person on the team brings, by staff id. */
         teamBrings: teamBringsView(world, c),
+        /** Round 7: investors a business co-founder introduced (warm leads), by fund. */
+        investorIntros: introsView(world, c),
         /** Round 7: what each candidate in the city's talent pool would bring, by candidate id. */
         talentBrings: gameplayOn(world)
           ? Object.fromEntries(

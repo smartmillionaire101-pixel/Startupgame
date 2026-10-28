@@ -145,32 +145,59 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
     (f.sectors === 'any' || f.sectors.includes(c.industry)) && f.stages.includes(c.nextStage);
   // Human investors take pitches in person; AI angels are pitched through their fund above.
   const investors = view.players.filter((p) => p.role === 'investor' && !p.ai);
-  // The ones that fit your stage and sector first; the rest fold away.
-  const sorted = [...funds].sort((a, b) => Number(fits(b)) - Number(fits(a)));
+  // Round 7: investors your business co-founder introduced you to (warm leads).
+  const intros = c.investorIntros ?? [];
+  const warmIntro = (fundId: string) =>
+    intros.find((x) => x.fundId === fundId && x.pitchId === null);
+  // Warm intros first, then the ones that fit your stage and sector; the rest fold away.
+  const sorted = [...funds].sort(
+    (a, b) =>
+      Number(!!warmIntro(b.id)) - Number(!!warmIntro(a.id)) || Number(fits(b)) - Number(fits(a)),
+  );
   const shown = sorted.slice(0, 3);
   const more = sorted.slice(3);
-  const fundRow = (f: (typeof funds)[number]) => (
-    <li key={f.id} className="spread">
-      <div>
-        <div className="item-title">
-          {f.name} {fits(f) ? <Pill tone="good">{t('Fits')}</Pill> : <Pill>{t('Off-thesis')}</Pill>}
+  const fundRow = (f: (typeof funds)[number]) => {
+    const intro = warmIntro(f.id);
+    return (
+      <li key={f.id} className="spread" {...(intro ? { 'data-fund-intro': intro.by } : {})}>
+        <div>
+          <div className="item-title">
+            {f.name} {intro && <Pill tone="info">{t('Warm intro')}</Pill>}{' '}
+            {fits(f) ? <Pill tone="good">{t('Fits')}</Pill> : <Pill>{t('Off-thesis')}</Pill>}
+          </div>
+          {intro && (
+            <div className="small good" data-intro-by="">
+              {t('Introduced by {name}: +{n} interest in the meeting, and an easier yes to meet', {
+                name: intro.byName,
+                n: intro.interest,
+              })}
+              {intro.monthsLeft !== null &&
+                ` · ${
+                  intro.monthsLeft <= 0
+                    ? t('warm until month end')
+                    : intro.monthsLeft === 1
+                      ? t('warm for one more month')
+                      : t('warm for {n} more months', { n: intro.monthsLeft })
+                }`}
+            </div>
+          )}
+          <div className="small muted">
+            {f.market !== view.me.market ? `${f.marketName} · ` : ''}
+            {f.partner} · {tx(f.thesis)} · {money(f.check[0], f.currency)}–
+            {money(f.check[1], f.currency)} · {moodLabel(f.mood)}
+          </div>
         </div>
-        <div className="small muted">
-          {f.market !== view.me.market ? `${f.marketName} · ` : ''}
-          {f.partner} · {tx(f.thesis)} · {money(f.check[0], f.currency)}–
-          {money(f.check[1], f.currency)} · {moodLabel(f.mood)}
-        </div>
-      </div>
-      <Button
-        variant="subtle"
-        disabled={!!openPitch}
-        data-pitch-fund={f.id}
-        onClick={() => setTarget({ fundId: f.id, name: f.name, check: f.check })}
-      >
-        {t('Pitch')}
-      </Button>
-    </li>
-  );
+        <Button
+          variant="subtle"
+          disabled={!!openPitch}
+          data-pitch-fund={f.id}
+          onClick={() => setTarget({ fundId: f.id, name: f.name, check: f.check })}
+        >
+          {t('Pitch')}
+        </Button>
+      </li>
+    );
+  };
   return (
     <>
       <div className="kpis">
@@ -263,6 +290,13 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
                     {p.meeting?.left ? t('Left the meeting') : pitchStatusLabel(p.status)}
                   </Pill>
                 </div>
+                {intros.some((x) => x.pitchId === p.id) && (
+                  <div className="small muted" data-intro-by="">
+                    {t('Introduced by {name}', {
+                      name: intros.find((x) => x.pitchId === p.id)!.byName,
+                    })}
+                  </div>
+                )}
                 {p.passWhy ? (
                   <div className="small muted">{passWhyCopy(p.passWhy, c.currency).why}</div>
                 ) : (

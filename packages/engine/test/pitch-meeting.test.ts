@@ -257,7 +257,7 @@ describe('#13 the investor pitch meeting', () => {
     const m = duo.p.meeting!;
     expect(m.cofounder).toEqual({
       name: 'Sidi Kamara',
-      points: Math.round((0.05 * 0.8 + 0.03) * 100),
+      points: Math.round(0.05 * 0.8 * 100),
     });
     expect(m.start.find((x) => x.id === 'cofounder')!.points).toBe(m.cofounder!.points);
     const comp = m.questions.find((q) => q.id === 'competition')!;

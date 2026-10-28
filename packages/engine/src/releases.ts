@@ -123,8 +123,10 @@ export const FEEDBACK_NOTE = 'release-2026-10-25-game-feedback';
  * when it was luck), budget and timing losses come back on a date, every
  * customer counts the same everywhere, and hires do their job (a salesperson
  * brings leads from their sector, runs discovery and lifts the chance; a
- * technical co-founder lifts demos; a business co-founder brings warmer leads
- * and a better pitch; everyone gets better with the months). Worlds without
+ * technical co-founder lifts demos; a business co-founder brings warmer leads,
+ * a better pitch and introductions to investors who fit your round, who then
+ * meet you more readily and start warmer; everyone gets better with the
+ * months). Worlds without
  * this note play exactly as before.
  */
 export const GAMEPLAY_NOTE = 'release-2026-10-28-gameplay';
