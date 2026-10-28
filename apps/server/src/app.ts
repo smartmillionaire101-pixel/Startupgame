@@ -1682,6 +1682,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       maxAge: prod ? '1h' : 0,
       setHeaders: (reply, path) => {
         if (path.endsWith('.html')) reply.header('Cache-Control', 'no-store');
+        // Round 7 (city load time), as netlify.toml: the 3D city's tiles change
+        // only when the map data is rebuilt (a day fresh, then revalidated in
+        // the background), and hashed assets never change.
+        else if (/[\\/]geo[\\/]/.test(path.slice(dist.length)))
+          reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+        else if (prod && /[\\/]assets[\\/]/.test(path.slice(dist.length)))
+          reply.header('Cache-Control', 'public, max-age=31536000, immutable');
       },
     });
     app.setNotFoundHandler((req, reply) => {

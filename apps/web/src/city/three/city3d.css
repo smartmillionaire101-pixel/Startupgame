@@ -267,6 +267,35 @@ button.c3-pill {
   white-space: nowrap;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
 }
+/* Round 7: the buildings coming in, your area first (TileStrip). */
+.c3-tiles {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 4px 10px 6px;
+  border-radius: 10px;
+  background: rgb(15 23 42 / 0.62);
+  color: #fff;
+  font-size: 11px;
+  pointer-events: none;
+  display: grid;
+  gap: 3px;
+  white-space: nowrap;
+}
+.c3-tiles span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.c3-tiles i {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background:
+    linear-gradient(#5eead4, #5eead4) left / calc(var(--done) * 100%) 100% no-repeat,
+    rgb(255 255 255 / 0.25);
+}
 .c3-loading {
   position: absolute;
   left: 50%;

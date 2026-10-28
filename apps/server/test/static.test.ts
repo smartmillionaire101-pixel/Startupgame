@@ -61,3 +61,27 @@ it('never turns away the app’s own files, however many one address loads; the 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+it('round 7: the 3D city’s tiles are cached by the browser (a day fresh, then revalidated)', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'runway-static-'));
+  mkdirSync(join(dir, 'geo', 'london'), { recursive: true });
+  writeFileSync(join(dir, 'index.html'), '<!doctype html><div id="root"></div>');
+  writeFileSync(join(dir, 'geo', 'london', 'index.json'), '{"format":1,"tiles":[]}');
+  writeFileSync(join(dir, 'geo', 'london', 'b-0_0.bin'), Buffer.from([1, 2, 3]));
+  const { app, store } = await makeApp({ env: { WEB_DIST: dir } });
+  try {
+    await app.ready();
+    for (const path of ['/geo/london/index.json', '/geo/london/b-0_0.bin']) {
+      const r = await app.inject(path);
+      expect(r.statusCode, path).toBe(200);
+      expect(r.headers['cache-control'], path).toBe(
+        'public, max-age=86400, stale-while-revalidate=604800',
+      );
+    }
+    expect((await app.inject('/')).headers['cache-control']).toBe('no-store');
+  } finally {
+    await app.close();
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

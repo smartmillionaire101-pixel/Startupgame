@@ -49,7 +49,7 @@ import {
   towerCrowns,
 } from './lights';
 import { Actors } from './actors';
-import { loadTiles, type TileSet } from './tiles';
+import { loadTiles, type TileProgress, type TileSet } from './tiles';
 import {
   TerrainPatcher,
   heightAt,
@@ -1319,6 +1319,16 @@ export class CityScene {
   /** Full-density tiles standing now. */
   get tileCount() {
     return this.tiles?.loaded() ?? 0;
+  }
+
+  /**
+   * Round 7: where the building tiles are, for the map's loading strip:
+   * the index on its way, your area, then the rest (done: all in, or a city
+   * without tiles).
+   */
+  get tileProgress(): TileProgress | { stage: 'index' } {
+    if (!this.tilesKnown) return { stage: 'index' };
+    return this.tiles?.progress() ?? { stage: 'done', area: [0, 0], rest: [0, 0] };
   }
 
   /** Wave 12: the terrain's height at (x, y) in a sky view (0 when flat). */
