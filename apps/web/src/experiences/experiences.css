@@ -492,6 +492,15 @@
   box-shadow: 0 4px 20px #0003;
   font-size: 12px;
 }
+.home-delivery-banner[data-van] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.home-delivery-text {
+  flex: 1;
+  min-width: 0;
+}
 .home-delivery-banner button {
   background: none;
   border: 0;

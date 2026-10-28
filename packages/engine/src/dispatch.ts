@@ -1,3 +1,4 @@
+import { shopOrder, type OrderLine } from './basket.js';
 import { livingCommand, orderFurniture, queueDelivery } from './living.js';
 import {
   buyWall,
@@ -153,6 +154,7 @@ import {
   bankersOn,
   exitsOn,
   feedbackOn,
+  gameplayOn,
   investorOn,
   jobsOn,
   lifeBarsOn,
@@ -1694,6 +1696,19 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         ? orderFurnitureOnline(world, me, cmd.itemId, cmd.delivery, ctx.now, options)
         : orderFurniture(world, me, cmd.itemId, ctx.now, cmd.businessId, options);
     }
+    // Round 7: a basket is one order, in one van. Unknown before the note.
+    case 'shop.order':
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return shopOrder(
+        world,
+        me,
+        cmd.lines as OrderLine[],
+        {
+          ...(cmd.delivery ? { speed: cmd.delivery } : {}),
+          ...(cmd.businessId ? { businessId: cmd.businessId } : {}),
+        },
+        ctx.now,
+      );
     case 'home.buy':
       if (cmd.options && !shopOn(world)) return fail('command.unknown', 'Unknown command.');
       return buyFurniture(

@@ -367,3 +367,36 @@
   align-items: center;
   gap: 6px;
 }
+
+/* Round 7: how many (− 1 +), and "+ Another" of a thing you have. */
+.cat-qty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+.cat-qty .buy-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.cat-qty .buy-qty button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cat-qty .buy-qty button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.cat-qty .buy-qty b {
+  min-width: 1.4em;
+  text-align: center;
+}

@@ -671,3 +671,65 @@
 [data-hud-labels] .buy-sheet {
   padding-bottom: calc(1.6rem + env(safe-area-inset-bottom));
 }
+
+/* Round 7: the basket's lines, each with how many (− 1 +). */
+.buy-basket-lines {
+  flex: 0 0 auto;
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0.25rem 0.5rem;
+  max-height: 9.5rem;
+  overflow-y: auto;
+  border-radius: 14px;
+  border: 1px solid var(--buy-line);
+  background: var(--buy-card);
+}
+.buy-basket-lines li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+.buy-basket-lines img {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: #dbe3ee;
+}
+.buy-basket-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+.buy-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.buy-qty button {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--buy-line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.buy-qty button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.buy-qty b {
+  min-width: 1.2em;
+  text-align: center;
+}
+.buy-basket-price {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}

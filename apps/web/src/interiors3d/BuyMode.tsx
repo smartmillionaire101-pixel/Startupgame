@@ -41,6 +41,7 @@ import {
   BUY_ROOMS,
   basketTotal,
   boostLines,
+  maxInBasket,
   buyCards,
   footprint,
   isNew,
@@ -156,6 +157,9 @@ export function BuySheet({
   const [search, setSearch] = useState('');
   const [picking, setPicking] = useState(false);
   const [basket, setBasket] = useState<string[]>([]);
+  // Round 7: how many of each (− 1 +), and one order for the lot: one van.
+  const [qty, setQty] = useState<Record<string, number>>({});
+  const basketOn = !!view.me.shop?.basket;
   const [armed, setArmed] = useState<string | null>(null);
   const [buying, setBuying] = useState(false);
   const [height, setHeight] = useState(LOW);
@@ -186,11 +190,28 @@ export function BuySheet({
           name: (f) => tx(f.label),
           ...(floorSlots ? { floorSlots } : {}),
         });
-  const bag = basketTotal(basket, items);
+  const bag = basketTotal(basket, items, qty);
   // More than one: the kinds of thing a home can have more of, and how many.
   const extraSlots = new Set(style?.extraSlots ?? []);
   const perSlot = style?.extrasPerSlot ?? 0;
   const extrasOf = (slot: string) => extras.filter((x) => x.slot === slot).length;
+  /** More of a kind on their way (in a van). */
+  const comingExtras = (slot: string) =>
+    view.living.deliveries.filter(
+      (d) =>
+        d.owner === view.me.id &&
+        !d.complete &&
+        (d.order as { extra?: { slot: string } } | undefined)?.extra?.slot === slot,
+    ).length;
+  /** How many more of a kind the home can still take, in a basket (0 before round 7). */
+  const moreRoom = (slot: string) =>
+    basketOn && extraSlots.has(slot)
+      ? Math.max(0, perSlot - extrasOf(slot) - comingExtras(slot))
+      : 0;
+  const isMine = (f: BuyItem) => owned.get(f.slot) === f.tier;
+  const lineMax = (f: BuyItem) => maxInBasket(isMine(f), moreRoom(f.slot));
+  const setLine = (f: BuyItem, n: number) =>
+    setQty((q) => ({ ...q, [f.id]: Math.max(1, Math.min(lineMax(f), n)) }));
   const buyAnother = async (f: BuyItem) => {
     setArmed(null);
     const res = await send(
@@ -221,6 +242,34 @@ export function BuySheet({
   const buyAll = async () => {
     setBuying(true);
     const done: BuyItem[] = [];
+    if (basketOn) {
+      // Round 7: the basket is one order, in one van; more of a thing comes in it too.
+      const n = bag.count;
+      const res = await send(
+        looseCmd({
+          type: 'shop.order',
+          lines: bag.items.map((f) => ({
+            kind: 'furniture',
+            itemId: f.id,
+            qty: Math.max(1, Math.min(lineMax(f), qty[f.id] ?? 1)),
+          })),
+        }),
+        n === 1
+          ? t('{item} is on its way to your flat.', { item: tx(bag.items[0]!.label) })
+          : t('{n} things are on their way to your home, in one van.', { n }),
+      ).finally(() => setBuying(false));
+      if (res === null) return;
+      setBasket([]);
+      setQty({});
+      onClose();
+      // Place the new ones now (the spot is kept for the van); more of a thing when unpacked.
+      onPlaceAll?.(
+        bag.items
+          .filter((f) => !isMine(f) && MOVABLE.has(f.slot))
+          .map((f) => ({ slot: f.slot, label: slotLabel(f.slot), tier: f.tier })),
+      );
+      return;
+    }
     try {
       for (const f of bag.items) {
         const last = done.length === bag.items.length - 1;
@@ -487,9 +536,11 @@ export function BuySheet({
                 const isArmed = armed === f.id;
                 const fresh = !mine && isNew(f, owned);
                 const boosts = style ? boostLines(style.boosts[f.id]) : [];
-                const canPick = !mine && !wait;
+                // Round 7: more of a thing you have can go in the basket too.
+                const canPick = (!mine || moreRoom(f.slot) > 0) && !wait;
                 // More than one: another of a thing you have (a speaker, plants, art).
                 const more = mine && !picking && extraSlots.has(f.slot);
+                const pickMine = picking && mine && canPick;
                 const have = (mine ? 1 : 0) + extras.filter((x) => x.itemId === f.id).length;
                 const moreArmed = armed === `more:${f.id}`;
                 return (
@@ -511,7 +562,10 @@ export function BuySheet({
                           : wait || (!mine && pocket < f.price) || (mine && !MOVABLE.has(f.slot)))
                       }
                       onClick={() => {
-                        if (picking) return setBasket((b) => toggleBasket(b, f, items, owned));
+                        if (picking)
+                          return setBasket((b) =>
+                            toggleBasket(b, f, items, owned, (x) => moreRoom(x.slot) > 0),
+                          );
                         if (mine) return onPlace(f.slot, slotLabel(f.slot));
                         if (isArmed) return void buyOne(f);
                         setArmed(f.id);
@@ -541,17 +595,19 @@ export function BuySheet({
                       </span>
                       <span className="buy-name">{tx(f.label)}</span>
                       <span className={`buy-price${mine ? ' is-yours' : ''}`}>
-                        {mine
-                          ? MOVABLE.has(f.slot)
-                            ? placed[f.slot]
-                              ? t('Yours · tap to move again')
-                              : t('Yours · tap to move')
-                            : t('Yours')
-                          : wait
-                            ? t('On its way')
-                            : isArmed
-                              ? t('Tap again to buy')
-                              : money(f.price, cur)}
+                        {pickMine
+                          ? t('+ Another · {price}', { price: money(f.price, cur) })
+                          : mine
+                            ? MOVABLE.has(f.slot)
+                              ? placed[f.slot]
+                                ? t('Yours · tap to move again')
+                                : t('Yours · tap to move')
+                              : t('Yours')
+                            : wait
+                              ? t('On its way')
+                              : isArmed
+                                ? t('Tap again to buy')
+                                : money(f.price, cur)}
                       </span>
                       {boosts.length > 0 && (
                         <span className="buy-boost">
@@ -581,8 +637,50 @@ export function BuySheet({
                 );
               })}
             </div>
+            {picking && basketOn && bag.items.length > 0 && (
+              <ul className="buy-basket-lines" aria-label={t('Basket')}>
+                {bag.items.map((f) => {
+                  const n = Math.max(1, Math.min(lineMax(f), qty[f.id] ?? 1));
+                  return (
+                    <li key={f.id} data-basket-line={f.id} data-qty={n}>
+                      <img src={furnitureThumb(f.id)} alt="" />
+                      <span className="buy-basket-name">
+                        {isMine(f) ? t('Another {item}', { item: tx(f.label) }) : tx(f.label)}
+                      </span>
+                      <span className="buy-qty" role="group" aria-label={t('How many')}>
+                        <button
+                          type="button"
+                          aria-label={t('One fewer')}
+                          data-action="qty-down"
+                          disabled={n <= 1}
+                          onClick={() => setLine(f, n - 1)}
+                        >
+                          −
+                        </button>
+                        <b>{n}</b>
+                        <button
+                          type="button"
+                          aria-label={t('One more')}
+                          data-action="qty-up"
+                          disabled={n >= lineMax(f)}
+                          onClick={() => setLine(f, n + 1)}
+                        >
+                          +
+                        </button>
+                      </span>
+                      <b className="buy-basket-price">{money(f.price * n, cur)}</b>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
             {picking && (
-              <div className="buy-basket" data-basket={bag.items.length} data-total={bag.total}>
+              <div
+                className="buy-basket"
+                data-basket={bag.items.length}
+                data-count={bag.count}
+                data-total={bag.total}
+              >
                 <span className="buy-basket-pics" aria-hidden="true">
                   {bag.items.slice(0, 4).map((f) => (
                     <img key={f.id} src={furnitureThumb(f.id)} alt="" />
@@ -595,7 +693,7 @@ export function BuySheet({
                     </>
                   ) : (
                     <>
-                      <b>{t('{n} in basket', { n: bag.items.length })}</b> · {money(bag.total, cur)}
+                      <b>{t('{n} in basket', { n: bag.count })}</b> · {money(bag.total, cur)}
                     </>
                   )}
                 </span>

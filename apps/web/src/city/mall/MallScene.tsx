@@ -52,6 +52,7 @@ import {
   isWearable,
   itemIcon,
   itemNote,
+  anotherOk,
   ownsIt,
   shopBlurb,
   shopName,
@@ -589,6 +590,22 @@ export function MallScene(props: SceneProps) {
                           onClick={() => void wearOwned(it)}
                         >
                           {t('Yours · wear')}
+                        </button>
+                      ) : anotherOk(view.me.homeStyle, it) ? (
+                        // Round 7: more of a thing you have (a second speaker).
+                        <button
+                          type="button"
+                          className="btn mall-buy"
+                          data-buy-another={it.id}
+                          disabled={busy || !purse.canPay(it.price)}
+                          onClick={() =>
+                            void send(
+                              looseCmd({ type: 'home.extra.buy', itemId: it.furniture }),
+                              t('Another {item}: put it where you like.', { item: tx(it.label) }),
+                            )
+                          }
+                        >
+                          {t('+ Another')}
                         </button>
                       ) : (
                         <button

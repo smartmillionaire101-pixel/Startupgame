@@ -2,6 +2,9 @@ import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react
 import { skyViewsIn } from '@runway/engine';
 import { t, tx } from '../i18n';
 import { deliveryLabel } from '../shop/catalog';
+import { placingHere, vansOf } from '../shop/vans';
+import { useUnpack } from '../shop/useUnpack';
+import { visitPlace } from '../city/goto';
 import { useView } from '../store';
 import { openPhone } from '../phone/bus';
 import { closeLiving, livingPlace, onLiving } from './living-bus';
@@ -57,7 +60,9 @@ function LivingRoom({ host }: { host: string }) {
     (d) => d.status !== 'ended' && now - d.createdAt < 3_600_000,
   );
   const date = dates[dates.length - 1];
-  const deliveries = view.living.deliveries.filter((d) => d.owner === host && !d.complete);
+  const rooms = view.playRooms.filter((r) => r.status === 'waiting' || r.status === 'playing');
+  const vans = vansOf(view.living.deliveries, host);
+  const unpack = useUnpack();
   return (
     <div className="experience-backdrop">
       <section
@@ -109,50 +114,76 @@ function LivingRoom({ host }: { host: string }) {
             Homes & mortgages
           </button>
         </div>
-        <h2>Games with other players</h2>
+        {/* Round 7: no empty heading when nobody's playing. */}
+        {rooms.length > 0 && <h2>{t('Games with other players')}</h2>}
         <div className="experience-rooms">
-          {view.playRooms
-            .filter((r) => r.status === 'waiting' || r.status === 'playing')
-            .map((r) => (
-              <button
-                key={r.id}
-                onClick={() => {
-                  closeLiving();
-                  openPlay({ venue: r.venue, name: r.title, roomId: r.id });
-                }}
-              >
-                <strong>{r.title}</strong>
-                <small>
-                  {r.game} · {r.members.length} players · {r.status}
-                </small>
-              </button>
-            ))}
+          {rooms.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => {
+                closeLiving();
+                openPlay({ venue: r.venue, name: r.title, roomId: r.id });
+              }}
+            >
+              <strong>{r.title}</strong>
+              <small>
+                {r.game} · {r.members.length} players · {r.status}
+              </small>
+            </button>
+          ))}
         </div>
         <h2>At your door</h2>
-        {deliveries.length === 0 ? (
+        {vans.length === 0 ? (
           <p>No deliveries on the way.</p>
         ) : (
-          deliveries.map((d) => (
-            <article className="living-delivery" key={d.id}>
-              <div className="living-van" data-arrived={now >= d.arrivesAt}>
-                🚚
-              </div>
-              <div>
-                <strong>{tx(deliveryLabel(d))}</strong>
-                <p>
-                  {now < d.arrivesAt
-                    ? `Van arriving in ${Math.ceil((d.arrivesAt - now) / 1000)}s`
-                    : 'Your van is outside. Ready to unpack.'}
-                </p>
-              </div>
-              <button
-                disabled={busy || now < d.arrivesAt}
-                onClick={() => void send({ type: 'living.collect', deliveryId: d.id })}
+          // Round 7: one van per order, unpacked at once.
+          vans.map((van) => {
+            const here = now >= van.arrivesAt;
+            const n = van.items.length;
+            return (
+              <article
+                className="living-delivery"
+                key={van.id}
+                data-van={van.id}
+                data-van-items={n}
               >
-                {host === me ? 'Unpack delivery' : 'Help carry it inside'}
-              </button>
-            </article>
-          ))
+                <div className="living-van" data-arrived={here}>
+                  🚚
+                </div>
+                <div>
+                  <strong>
+                    {here
+                      ? n === 1
+                        ? t('Your delivery is outside: 1 item')
+                        : t('Your delivery is outside: {n} items', { n })
+                      : t('Van arriving in {s}s', {
+                          s: Math.ceil((van.arrivesAt - now) / 1000),
+                        })}
+                  </strong>
+                  <p>{van.items.map((d) => tx(deliveryLabel(d))).join(' · ')}</p>
+                </div>
+                <button
+                  data-action="unpack-all"
+                  disabled={busy || !here}
+                  onClick={() =>
+                    void unpack(van).then((r) => {
+                      // What you place yourself: straight to placing, at home.
+                      if (r.toPlace > 0) {
+                        closeLiving();
+                        if (!placingHere()) visitPlace('home');
+                      }
+                    })
+                  }
+                >
+                  {host === me
+                    ? n === 1
+                      ? t('Unpack delivery')
+                      : t('Unpack all')
+                    : t('Help carry it inside')}
+                </button>
+              </article>
+            );
+          })
         )}
         {host === me && (
           <>

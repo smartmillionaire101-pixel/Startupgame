@@ -382,7 +382,44 @@ export const commandSchema = z.discriminatedUnion('type', [
     options: shopOptions,
     delivery,
   }),
-  z.object({ type: z.literal('living.collect'), deliveryId: id }),
+  z.object({
+    type: z.literal('living.collect'),
+    deliveryId: id,
+    /** Round 7: unpack the whole van this delivery rides in. */
+    all: z.boolean().optional(),
+  }),
+  /** Round 7: a basket bought at once, delivered in one van (basket.ts). */
+  z.object({
+    type: z.literal('shop.order'),
+    lines: z
+      .array(
+        z.discriminatedUnion('kind', [
+          z.object({
+            kind: z.literal('furniture'),
+            itemId: id,
+            qty: z.number().int().min(1).max(6),
+            options: shopOptions,
+          }),
+          z.object({
+            kind: z.literal('mall'),
+            itemId: id,
+            colour: z.string().max(9).optional(),
+            options: shopOptions,
+          }),
+          z.object({
+            kind: z.literal('wall'),
+            wall: z.enum(['full', 'half', 'glass', 'sliding', 'bookshelf']),
+            length: z.number().int().min(1).max(4),
+            qty: z.number().int().min(1).max(6),
+            options: shopOptions,
+          }),
+        ]),
+      )
+      .min(1)
+      .max(12),
+    businessId: id.optional(),
+    delivery,
+  }),
   z.object({
     type: z.literal('living.date.invite'),
     playerId: id,

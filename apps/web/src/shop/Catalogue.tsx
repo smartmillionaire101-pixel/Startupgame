@@ -182,7 +182,7 @@ export function Catalogue(p: CatalogueProps) {
 function ItemPage(
   p: CatalogueProps & { entry: CatEntry; look: ReturnType<typeof avatarLook>; onBack: () => void },
 ) {
-  const { view, send, busy } = useView();
+  const { view, send, busy, toast } = useView();
   const e = p.entry;
   const shop = view.me.shop;
   // Abroad, your money at this city's prices (as paying here converts it).
@@ -201,7 +201,6 @@ function ItemPage(
   const wearsColour = !!e.mall?.topStyle;
   const online = p.mode === 'online';
   const quote = online && shop ? deliveryQuote(shop, e, price, speed) : null;
-  const total = price + (quote?.fee ?? 0);
   // One furniture delivery per slot at a time; a phone or car you have.
   const coming = view.living.deliveries.some(
     (d) =>
@@ -211,10 +210,106 @@ function ItemPage(
         (d.order?.car && d.order.car.modelId === v.ref) ||
         (d.order?.mall && d.order.mall.item === v.ref && e.id === 'mall:phone')),
   );
-  const ownedNote = v.owned ? t('Yours ✓') : coming ? t('On its way') : null;
+  // Round 7: how many (− 1 +), "+ Another" of a thing you have (data/home-style EXTRA_SLOTS).
+  const basketOn = !!shop?.basket;
+  const style = view.me.homeStyle;
+  const extraKind = e.source === 'furniture' && !!e.slot && !!style?.extraSlots.includes(e.slot);
+  const comingMore = view.living.deliveries.filter(
+    (d) =>
+      d.owner === view.me.id &&
+      !d.complete &&
+      (d.order as { extra?: { slot: string } } | undefined)?.extra?.slot === e.slot,
+  ).length;
+  const room = extraKind
+    ? Math.max(
+        0,
+        (style?.extrasPerSlot ?? 0) -
+          (style?.extras ?? []).filter((x) => x.slot === e.slot).length -
+          comingMore,
+      )
+    : 0;
+  // More of it after the first: online in one van (round 7); in a shop, bought there.
+  const moreOk = online ? basketOn : !!p.inMall || basketOn || !!v.owned;
+  const maxQty =
+    e.source === 'wall' && (basketOn || !online)
+      ? 6
+      : v.owned
+        ? moreOk
+          ? room
+          : 0
+        : 1 + (moreOk && !coming ? room : 0);
+  const another = !!v.owned && maxQty > 0;
+  const [qty, setQty] = useState(1);
+  const n = Math.max(1, Math.min(qty, Math.max(1, maxQty)));
+  const lineTotal = price * n;
+  const ownedNote = v.owned && !another ? t('Yours ✓') : coming ? t('On its way') : null;
+  const total = lineTotal + (quote?.fee ?? 0);
   const short = !purse.canPay(total);
 
+  /** Round 7: this item as a line of an order (one van for all of it). */
+  const line = () =>
+    e.source === 'wall'
+      ? { kind: 'wall', wall: e.wall, length: Number(v.ref), qty: n, options: chosen }
+      : e.source === 'furniture'
+        ? { kind: 'furniture', itemId: v.ref, qty: n, options: chosen }
+        : {
+            kind: 'mall',
+            itemId: v.ref,
+            options: chosen,
+            ...(wearsColour ? { colour } : {}),
+          };
+
+  const buyMany = async () => {
+    const label = entryName(e);
+    let ok = false;
+    if (online || (basketOn && !p.inMall && e.source === 'furniture' && !v.owned)) {
+      // One order: online in one van, or the showroom's van home.
+      const r = await send<Record<string, unknown>>(
+        looseCmd({
+          type: 'shop.order',
+          lines: [line()],
+          ...(online ? { delivery: speed } : {}),
+          ...(p.businessId ? { businessId: p.businessId } : {}),
+        }),
+        () => (online ? null : t('{n} × {item}: on their way to your home.', { n, item: label })),
+      );
+      if (!r) return;
+      p.onBought?.(e, r);
+      ok = true;
+    } else {
+      // In a shop: the first here (unless it's yours), then more of it, each at once.
+      let left = n;
+      if (e.source === 'wall' || !v.owned) {
+        const reps = e.source === 'wall' ? n : 1;
+        for (let k = 0; k < reps; k++) {
+          const r = await send<Record<string, unknown>>(looseCmd(storeCmd()));
+          if (!r) return;
+          p.onBought?.(e, r);
+          left--;
+        }
+      }
+      for (; left > 0; left--) {
+        const r = await send(looseCmd({ type: 'home.extra.buy', itemId: v.ref }));
+        if (!r) return;
+      }
+      ok = true;
+      toast(t('{n} × {item}: yours.', { n, item: label }), 'ok');
+    }
+    if (!ok) return;
+    if (online) {
+      setPlaced({ seconds: quote?.seconds ?? 0, message: '' });
+      setStep('placed');
+    } else p.onBack();
+  };
+  const storeCmd = () =>
+    buyCommand(e, v, chosen, {
+      ...(p.businessId ? { businessId: p.businessId } : {}),
+      ...(wearsColour ? { colour } : {}),
+      ...(p.inMall ? { inMall: true } : {}),
+    });
+
   const buy = async () => {
+    if (n > 1 || another) return buyMany();
     const cmd = buyCommand(e, v, chosen, {
       ...(online ? { delivery: speed } : {}),
       ...(p.businessId ? { businessId: p.businessId } : {}),
@@ -294,7 +389,10 @@ function ItemPage(
                 .join(' · ')}
             </span>
           </div>
-          <b className="cat-line-price">{moneyExact(price, p.currency)}</b>
+          <b className="cat-line-price" data-qty={n}>
+            {n > 1 ? `${n} × ` : ''}
+            {moneyExact(price, p.currency)}
+          </b>
         </div>
         <fieldset className="cat-group" data-group="delivery">
           <legend>{t('Delivery')}</legend>
@@ -323,8 +421,8 @@ function ItemPage(
           })}
         </p>
         <dl className="cat-sum">
-          <dt>{t('Item')}</dt>
-          <dd>{moneyExact(price, p.currency)}</dd>
+          <dt>{n > 1 ? t('{n} items', { n }) : t('Item')}</dt>
+          <dd>{moneyExact(lineTotal, p.currency)}</dd>
           <dt>{t('Delivery')}</dt>
           <dd data-fee={quote.fee}>{moneyExact(quote.fee, p.currency)}</dd>
           <dt className="cat-total">{t('Total')}</dt>
@@ -460,6 +558,32 @@ function ItemPage(
       ) : (
         <p className="small muted">{t('Bought here: free and at once.')}</p>
       )}
+      {maxQty > 1 && !ownedNote && (
+        <div className="cat-qty" data-cat-qty={n}>
+          <span>{another ? t('How many more') : t('How many')}</span>
+          <span className="buy-qty" role="group" aria-label={t('How many')}>
+            <button
+              type="button"
+              aria-label={t('One fewer')}
+              data-action="qty-down"
+              disabled={n <= 1}
+              onClick={() => setQty(n - 1)}
+            >
+              −
+            </button>
+            <b>{n}</b>
+            <button
+              type="button"
+              aria-label={t('One more')}
+              data-action="qty-up"
+              disabled={n >= maxQty}
+              onClick={() => setQty(n + 1)}
+            >
+              +
+            </button>
+          </span>
+        </div>
+      )}
       <div className="cat-actions">
         {ownedNote ? (
           <span className="cat-owned">{ownedNote}</span>
@@ -471,17 +595,21 @@ function ItemPage(
             disabled={!shop}
             onClick={() => setStep('checkout')}
           >
-            {t('Checkout · {price}', { price: moneyExact(price, p.currency) })}
+            {another
+              ? t('+ Another · {price}', { price: moneyExact(lineTotal, p.currency) })
+              : t('Checkout · {price}', { price: moneyExact(lineTotal, p.currency) })}
           </button>
         ) : (
           <button
             type="button"
             className="btn btn-primary cat-go"
-            data-action="buy-here"
-            disabled={busy || !purse.canPay(price)}
+            data-action={another ? 'buy-another' : 'buy-here'}
+            disabled={busy || !purse.canPay(lineTotal)}
             onClick={() => void buy()}
           >
-            {t('Buy · {price}', { price: moneyExact(price, p.currency) })}
+            {another
+              ? t('+ Another · {price}', { price: moneyExact(lineTotal, p.currency) })
+              : t('Buy · {price}', { price: moneyExact(lineTotal, p.currency) })}
           </button>
         )}
       </div>
