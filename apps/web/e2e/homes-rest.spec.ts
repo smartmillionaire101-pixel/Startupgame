@@ -44,6 +44,8 @@ async function founder(page: Page) {
 // The 3D checks draw with software WebGL.
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
+/** Run against a deploy preview (E2E_BASE_URL) rather than a local server. */
+const DEPLOYED = !!process.env.E2E_BASE_URL;
 const SHOTS = process.env.REST_SHOTS;
 const shot = async (page: Page, name: string) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
@@ -81,9 +83,14 @@ test('sit on the cushions until you get up (stress falls), nap lying on the mat'
   await expect.poll(async () => (await me(page)).rest?.resting?.spot).toBe('seat');
   // Still sat a while later (not a 2-second act): a block of game time goes by.
   // (Counted in blocks: a player with no stress yet has nothing to take off.)
-  await expect(chip.locator('[data-rest-blocks]')).not.toHaveAttribute('data-rest-blocks', '0', {
-    timeout: 75_000,
-  });
+  // On a deploy preview the game clock can't be relied on to move (a shared
+  // world with no scheduled clock): there only sitting and getting up are
+  // checked; the timing is checked against a local server.
+  if (!DEPLOYED)
+    await expect(chip.locator('[data-rest-blocks]')).not.toHaveAttribute('data-rest-blocks', '0', {
+      timeout: 75_000,
+    });
+  else await page.waitForTimeout(3000);
   await expect(avatar).toHaveAttribute('data-pose', 'sit');
   await chip.getByRole('button', { name: 'Get up' }).click();
   await expect(chip).toBeHidden();
@@ -91,9 +98,11 @@ test('sit on the cushions until you get up (stress falls), nap lying on the mat'
   const up = await me(page);
   expect(up.rest?.resting ?? null).toBeNull();
   // Stress fell (from where it was) and resting spent game hours.
-  if (before.bars && before.bars.stress > 0)
-    expect(up.bars!.stress).toBeLessThan(before.bars.stress);
-  expect(up.hours.left).toBeLessThan(before.hours.left);
+  if (!DEPLOYED) {
+    if (before.bars && before.bars.stress > 0)
+      expect(up.bars!.stress).toBeLessThan(before.bars.stress);
+    expect(up.hours.left).toBeLessThan(before.hours.left);
+  }
 
   // Nap on the sleeping mat: you lie on it until you wake up.
   await scene.locator('[data-obj="bed"]').click();
