@@ -361,9 +361,16 @@ test('a penalty shootout against the AI on a phone, to sudden death if need be',
         );
       if (flying) {
         // The run-up and the strike: the kicker moves and stays in the picture.
-        await page.waitForTimeout(350);
+        // (Playing starts when the kick reaches the page, a moment before the
+        // run-up's first frame on a slow host: wait for the run-up itself.)
+        await expect
+          .poll(async () => (await pitchKicker(page))!.T, {
+            message: 'the kicker runs up',
+            timeout: 5000,
+            intervals: [50],
+          })
+          .toBeGreaterThan(0);
         const run = (await pitchKicker(page))!;
-        expect(run.T, 'the kicker runs up').toBeGreaterThan(0);
         expect(inFrame(run.kicker), 'the kicker in the picture on the run-up').toBe(true);
         await snap(page, 'shootout-runup', info);
         await page.waitForTimeout(450);

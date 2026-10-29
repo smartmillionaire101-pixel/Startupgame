@@ -378,3 +378,24 @@ describe('catching up', () => {
     expect(cold.current).toEqual(g.current);
   });
 });
+
+describe('a late clock, caught up by requests', () => {
+  it('is overdue only past the grace, and each catch-up settles the oldest month', async () => {
+    const clock = { now: T0 };
+    const g = await setup(new MemoryKv(), clock);
+    const start = g.current.markets.lagos!.month;
+    expect(g.overdue(clock.now, 10_000)).toBe(false);
+    // Just past the boundary: the scheduled clock still has its grace.
+    clock.now = T0 + MONTH + 5_000;
+    expect(g.overdue(clock.now, 10_000)).toBe(false);
+    clock.now = T0 + MONTH + 20_000;
+    expect(g.overdue(clock.now, 10_000)).toBe(true);
+    // One settlement per request: one city a time, oldest first.
+    expect(await g.tick(1)).toBe(1);
+    const settled = MARKETS.filter((m) => g.current.markets[m]!.month > start);
+    expect(settled).toHaveLength(1);
+    while (g.overdue(clock.now, 10_000)) await g.tick(1);
+    for (const m of MARKETS) expect(g.current.markets[m]!.month).toBe(start + 1);
+    expect(await g.tick(1)).toBe(0);
+  });
+});

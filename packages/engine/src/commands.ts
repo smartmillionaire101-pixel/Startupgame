@@ -126,6 +126,16 @@ export const commandSchema = z.discriminatedUnion('type', [
     baseRateBps: z.number().int().min(0).max(10_000).optional(),
     multiples: z.partialRecord(industry, z.number().positive().max(100)).optional(),
   }),
+  /** Dev tools only: move a market's game clock on (test worlds; see `gameMinute`). */
+  z.object({
+    type: z.literal('market.devClock'),
+    market,
+    minutes: z
+      .number()
+      .int()
+      .min(1)
+      .max(30 * 24 * 60),
+  }),
   z.object({ type: z.literal('player.anonymize'), playerId: id }),
   /**
    * A one-off message to every human player's inbox (e.g. "a new version is out"); repeats are ignored.
@@ -1555,6 +1565,7 @@ export const SYSTEM_COMMANDS: ReadonlySet<CommandType> = new Set([
   'market.settle',
   'market.settleBatch',
   'market.data',
+  'market.devClock',
   'player.anonymize',
   'system.announce',
 ]);

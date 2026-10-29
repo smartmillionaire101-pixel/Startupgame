@@ -1668,6 +1668,30 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       if (!r.ok) return reply.code(422).send({ error: r.error });
       return { ok: true, month: game.current.markets[market]!.month };
     });
+
+    /**
+     * Dev only: move a market's game clock on by some game minutes, up to the
+     * month's last minute (resting, flights and hours in tests without waiting).
+     */
+    app.post('/api/dev/clock', { preHandler: requireUser }, async (req, reply) => {
+      const { market, minutes } = z
+        .object({
+          market: z.enum(Object.keys(MARKET_DATA) as [MarketId, ...MarketId[]]),
+          minutes: z
+            .number()
+            .int()
+            .min(1)
+            .max(30 * 24 * 60),
+        })
+        .parse(req.body);
+      if (!game.current.markets[market])
+        return reply
+          .code(404)
+          .send({ error: { code: 'market', message: 'That market isn’t open yet.' } });
+      const r = await game.execute(null, { type: 'market.devClock', market, minutes });
+      if (!r.ok) return reply.code(422).send({ error: r.error });
+      return { ok: true, ...(r.result as { minute: number }) };
+    });
   }
 
   // ---------------------------------------------------------------- web client
