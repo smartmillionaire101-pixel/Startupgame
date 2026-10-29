@@ -26,9 +26,11 @@ test('the overhaul: one row of pills, small avatar, a What-to-do button, four ta
   const box = (await bar.boundingBox())!;
   expect(box.height).toBeLessThanOrEqual(56);
   // The game day stays readable under the time, beside the hours (play-test #14, #24).
-  const city = (await page.locator('.hud-city').boundingBox())!;
-  expect(city.width).toBeGreaterThan(30);
-  await expect(page.locator('.hud-city')).toHaveText(/^Day \d+$/);
+  const city = page.locator('.hud-city');
+  await expect(city).toHaveText(/^Day \d+$/);
+  // Shown whole, not cut to an ellipsis.
+  expect(await city.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  expect((await city.boundingBox())!.width).toBeGreaterThan(20);
   const when = page.locator('.hud-when');
   expect(await when.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   // The phone is a round button beside the nav pill.
