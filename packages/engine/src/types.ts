@@ -2866,6 +2866,11 @@ export interface MarketState {
    * opened. Missing on saves from the day-based clock (see clock.ts).
    */
   settledAt?: number;
+  /**
+   * Dev tools only (test worlds): game minutes this market's clock has been
+   * moved on this month (`market.devClock`). Cleared when the month settles.
+   */
+  devClockMin?: number;
   /** Current sector multiples (live, before country discount). */
   multiples: Record<Industry, number>;
   /** Funding climate index; 1 = normal. */

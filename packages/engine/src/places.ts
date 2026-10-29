@@ -89,7 +89,9 @@ export function gameMinute(m: MarketState, now: number): number {
   // `settledAt` is the opening time, so the clock starts at that period's start).
   const start = periodStart(periodOf(m.settledAt ?? now, monthMs), monthMs);
   const into = Math.min(Math.max((now - start) / monthMs, 0), 1 - 1e-9);
-  return m.month * MONTH_MIN + Math.floor(into * MONTH_MIN);
+  // Dev tools can run a test world's clock ahead, up to the month's last minute.
+  const min = Math.min(Math.floor(into * MONTH_MIN) + (m.devClockMin ?? 0), MONTH_MIN - 1);
+  return m.month * MONTH_MIN + min;
 }
 
 /** A game minute as the client shows it (market month, day 1–30, hour, minute). */
