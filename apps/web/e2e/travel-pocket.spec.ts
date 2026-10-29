@@ -132,6 +132,45 @@ async function clockOn(page: Page, min: number) {
   });
 }
 
+/**
+ * A deploy preview has no scheduled clock: once its month's time is up the
+ * game clock waits at the month's last minute until something settles it.
+ * This test moves the clock on by hours, so close a month that's nearly over,
+ * but only in a world of its own (E2E_WORLD: this test worker's), where no
+ * other test's money moves with it.
+ */
+async function monthWithTimeLeft(page: Page) {
+  if (!process.env.E2E_WORLD) return;
+  // Game minutes left in the city's month (the test moves it on by up to a day and a bit); at 23:59 on day 30 it waits.
+  const left = async () =>
+    page.evaluate(async () => {
+      const r = await fetch('/api/state', { headers: { 'x-runway': '1' }, cache: 'no-store' });
+      const v = (await r.json()) as {
+        view?: {
+          market?: { cityPlaces?: { now?: { day: number; hour: number; minute: number } } | null };
+        };
+      };
+      const n = v.view?.market?.cityPlaces?.now;
+      return n ? 30 * 1440 - ((n.day - 1) * 1440 + n.hour * 60 + n.minute) : null;
+    });
+  for (let i = 0; i < 3; i++) {
+    const l = await left();
+    if (l === null || l > 2 * 1440) return;
+    for (let j = 0; j < 3; j++) {
+      const status = await page.evaluate(async () => {
+        const r = await fetch('/api/dev/settle', {
+          method: 'POST',
+          headers: { 'x-runway': '1', 'content-type': 'application/json' },
+          body: JSON.stringify({ market: 'lagos' }),
+        });
+        return r.status;
+      });
+      if (status !== 504) break;
+    }
+    await page.reload();
+  }
+}
+
 test('a booked flight waits for you: past its time, check in and board', async ({ page }) => {
   test.setTimeout(180_000);
   await playAsGuest(page);
@@ -141,6 +180,7 @@ test('a booked flight waits for you: past its time, check in and board', async (
     company: `Late ${letters(5)}`,
     idea: 'Payments for travellers',
   });
+  await monthWithTimeLeft(page);
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
     timeout: 60_000,
   });

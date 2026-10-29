@@ -12,6 +12,17 @@ const PORT = Number(process.env.E2E_PORT ?? 8799);
  * runs only the smoke test that is safe for the live game.
  */
 const REMOTE = process.env.E2E_BASE_URL;
+/**
+ * E2E_WORLD (set by CI against a preview) gives each test worker its own fresh
+ * world there: the `rw_world` cookie picks the preview's store, so runs and
+ * parallel tests never meet each other's players, open games or month (the
+ * preview's own world is shared by every run and has no scheduled clock).
+ * Every browser context a test opens starts with the cookie.
+ */
+const WORLD =
+  REMOTE && process.env.E2E_WORLD
+    ? `${process.env.E2E_WORLD}-w${process.env.TEST_WORKER_INDEX ?? '0'}`.toLowerCase()
+    : null;
 export default defineConfig({
   testDir: './e2e',
   ...(process.env.E2E_SUITE === 'live' ? { testMatch: 'live.spec.ts' } : {}),
@@ -28,6 +39,25 @@ export default defineConfig({
     baseURL: REMOTE ?? `http://127.0.0.1:${PORT}`,
     ...devices['Pixel 7'],
     trace: 'retain-on-failure',
+    ...(WORLD
+      ? {
+          storageState: {
+            cookies: [
+              {
+                name: 'rw_world',
+                value: WORLD,
+                domain: new URL(REMOTE!).hostname,
+                path: '/',
+                expires: -1,
+                httpOnly: false,
+                secure: true,
+                sameSite: 'Lax' as const,
+              },
+            ],
+            origins: [],
+          },
+        }
+      : {}),
   },
   webServer: REMOTE
     ? undefined

@@ -10,6 +10,7 @@ import {
   modeFor,
   runClock,
   storeFor,
+  worldOf,
 } from '../src/serverless/netlify.js';
 import {
   jobsOn,
@@ -339,6 +340,23 @@ describe('Netlify runtime', () => {
       perDeploy: true,
     });
     expect(storeFor('preview')).toEqual({ name: 'runway', perDeploy: true });
+  });
+
+  it('gives an end-to-end run on a preview its own fresh store, never in production', () => {
+    const pr = 'https://deploy-preview-5--runwaystartup.netlify.app/api/state';
+    const cookie = 'rw_session=abc; rw_world=r123-1-s2-w0';
+    expect(worldOf('preview', cookie)).toBe('r123-1-s2-w0');
+    expect(worldOf('production', cookie)).toBeNull();
+    expect(worldOf('preview', 'rw_session=abc')).toBeNull();
+    expect(worldOf('preview', 'rw_world=../../etc')).toBeNull();
+    const a = storeFor('preview', pr, 'r123-1-s2-w0');
+    expect(a.name).toMatch(/^runway-test-[0-9a-f]{20}$/);
+    expect(a.perDeploy).toBe(false);
+    // Another run, another world; no world, the preview's own.
+    expect(storeFor('preview', pr, 'r123-1-s2-w1').name).not.toBe(a.name);
+    expect(storeFor('preview', pr, null).name).toBe('runway-preview-deploy-preview-5');
+    // Production ignores it.
+    expect(storeFor('production', 'https://runwaystartup.netlify.app/', 'x').name).toBe('runway');
   });
 
   it('keeps one generated session secret per store and turns dev tools on only in previews', async () => {

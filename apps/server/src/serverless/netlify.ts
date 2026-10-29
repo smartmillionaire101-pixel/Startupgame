@@ -10,7 +10,8 @@
  * - Production uses the site-wide store, which survives redeploys. Each deploy
  *   preview or branch deploy gets its own store (shared by that preview's
  *   deploys, see `storeFor`) and dev tools, so tests there never touch the
- *   live world.
+ *   live world. An end-to-end run there can ask for a fresh world of its own
+ *   (the `rw_world` cookie, see `worldOf`).
  * - The settlement clock and data feeds run in a scheduled function.
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
@@ -56,7 +57,11 @@ export function modeFor(deploy: DeployInfo | undefined, url?: string): Mode {
  * a session made in one would be unknown in the other. Anything else that
  * isn't production (no "--" address) keeps a store of its own deploy.
  */
-export function storeFor(mode: Mode, url?: string): { name: string; perDeploy: boolean } {
+export function storeFor(
+  mode: Mode,
+  url?: string,
+  world?: string | null,
+): { name: string; perDeploy: boolean } {
   if (mode === 'production') return { name: 'runway', perDeploy: false };
   const host = url ? new URL(url).hostname : '';
   const alias = host.includes('--')
@@ -66,13 +71,39 @@ export function storeFor(mode: Mode, url?: string): { name: string; perDeploy: b
         .replace(/[^a-z0-9-]/g, '-')
         .slice(0, 40)
     : '';
+  // A test run's own world on a preview (see `worldOf`): a fresh store, so
+  // runs never meet each other's players, games or month.
+  if (alias && world)
+    return {
+      name: `runway-test-${createHash('sha256').update(`${alias}:${world}`).digest('hex').slice(0, 20)}`,
+      perDeploy: false,
+    };
   return alias
     ? { name: `runway-preview-${alias}`, perDeploy: false }
     : { name: 'runway', perDeploy: true };
 }
 
-export function kvFor(mode: Mode, url?: string): Kv {
-  const { name, perDeploy } = storeFor(mode, url);
+/** The `rw_world` cookie an end-to-end run sets on a preview (`E2E_WORLD`). */
+export const WORLD_COOKIE = 'rw_world';
+
+/**
+ * The test world a preview request asks for: the `rw_world` cookie (a cookie,
+ * so the page's own requests and its event stream carry it too). Never in
+ * production, and only a short safe name.
+ */
+export function worldOf(mode: Mode, cookie: string | null | undefined): string | null {
+  if (mode === 'production' || !cookie) return null;
+  for (const part of cookie.split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k !== WORLD_COOKIE) continue;
+    const value = decodeURIComponent(v.join('='));
+    return /^[a-z0-9-]{1,40}$/i.test(value) ? value.toLowerCase() : null;
+  }
+  return null;
+}
+
+export function kvFor(mode: Mode, url?: string, world?: string | null): Kv {
+  const { name, perDeploy } = storeFor(mode, url, world);
   const opts = { name, consistency: 'strong' as const };
   return new NetlifyKv(() => (perDeploy ? getDeployStore(opts) : getStore(opts)));
 }
