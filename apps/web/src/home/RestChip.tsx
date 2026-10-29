@@ -39,7 +39,7 @@ export function RestChip({
       </span>
       <span className="rest-text">
         <span>{label}</span>
-        <span className="rest-sub" data-rest-sofar={sofar}>
+        <span className="rest-sub" data-rest-sofar={sofar} data-rest-blocks={blocks}>
           {capped
             ? t('Rested enough for this month')
             : sofar > 0

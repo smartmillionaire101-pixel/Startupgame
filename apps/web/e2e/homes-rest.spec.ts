@@ -80,7 +80,8 @@ test('sit on the cushions until you get up (stress falls), nap lying on the mat'
   await expect(avatar).toHaveAttribute('data-pose', 'sit');
   await expect.poll(async () => (await me(page)).rest?.resting?.spot).toBe('seat');
   // Still sat a while later (not a 2-second act): a block of game time goes by.
-  await expect(chip.locator('[data-rest-sofar]')).not.toHaveAttribute('data-rest-sofar', '0', {
+  // (Counted in blocks: a player with no stress yet has nothing to take off.)
+  await expect(chip.locator('[data-rest-blocks]')).not.toHaveAttribute('data-rest-blocks', '0', {
     timeout: 75_000,
   });
   await expect(avatar).toHaveAttribute('data-pose', 'sit');
