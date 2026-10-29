@@ -139,6 +139,8 @@ export {
   FEEDBACK_NOTE,
   bankersOn,
   feedbackOn,
+  GAMEPLAY_NOTE,
+  gameplayOn,
   SHOP_NOTE,
   shopOn,
   RELEASES,
@@ -200,7 +202,7 @@ export {
 export type { Bars, BarEffect, WalkMode } from './lifebars.js';
 export { EXITS, ipoChecks } from './exits.js';
 export type { IpoCheck } from './exits.js';
-export { STOCKS } from './stocks.js';
+export { STOCKS, stockAnalysisFor } from './stocks.js';
 export type { RiskReason, RiskReasonKind, StockAnalysis } from './stocks.js';
 export { ALLOCATOR, CAUSES } from './allocator.js';
 // The jobs rework: professional careers.
@@ -262,6 +264,10 @@ export { GIGS_PER_MONTH } from './personal.js';
 export {
   FURNITURE,
   FURNITURE_SLOTS,
+  BATHROOM_SLOTS,
+  HALLWAY_SLOTS,
+  ROOM_SLOTS,
+  isRoomSlot,
   CAR_MODEL_IDS,
   SELL_BACK,
   carsFor,
@@ -352,6 +358,9 @@ export {
   autoQuiz,
   QUIZ_LENGTH,
   QUIZ_AI_AFTER,
+  QUIZ_AI_SEAT_AFTER,
+  QUIZ_TAKEOVER_MS,
+  PLAY_IDLE_MS,
   AI_SHOT_AFTER,
   drawQuiz,
   GOLF_SHOT_MS,
@@ -476,6 +485,7 @@ export {
   type SalesView,
 } from './sales.js';
 export { TALK, salesWithTalk, talkView, type TalkView } from './salestalk.js';
+export { MEETING, meetingView, type PitchMeetingView } from './pitchmeeting.js';
 export {
   INTERVIEW,
   interviewsView,

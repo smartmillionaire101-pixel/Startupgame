@@ -5,6 +5,7 @@
  * thesis, stage, recent results and mood. Claims made in answers are checked
  * in due diligence.
  */
+import { payingCustomers } from './traction.js';
 import { barEdgeIn } from './lifebars.js';
 import { checkAngelCheque } from './career.js';
 import { fundCanInvest } from './lpfunds.js';
@@ -22,7 +23,6 @@ import {
   localToUsdMajor,
   nextStage,
   notify,
-  totalCustomers,
 } from './helpers.js';
 import { newId } from './ids.js';
 import { clamp, clamp01, logistic } from './math.js';
@@ -37,7 +37,9 @@ import { monthlyGrowth, valueCompany } from './valuation.js';
 import { rulesFor } from './data/rules.js';
 import { INCORPORATION } from './world.js';
 import { companyRunway } from './company.js';
-import { feedbackOn, lifeBarsOn } from './releases.js';
+import { feedbackOn, gameplayOn, lifeBarsOn } from './releases.js';
+import { TEAM, businessCofounderOf } from './cofounders.js';
+import { introFor, useIntro } from './intros.js';
 import { passWhyText, pitchPassWhy, scorePitch } from './founderguide.js';
 import type {
   Company,
@@ -86,7 +88,7 @@ export function strengths(world: World, c: Company): Record<Slide, number> {
     // Growth only counts once there is real revenue behind it (growth from ₦0 to ₦1 is not traction).
     traction: clamp01(
       Math.min(growth, 0.3) * 1.5 * Math.min(1, (pnl?.revenue ?? 0) / Math.max(1, col(m) * 5)) +
-        Math.min(totalCustomers(c), 2000) / 4000,
+        Math.min(payingCustomers(world, c), 2000) / 4000,
     ),
     team: clamp01(
       0.2 +
@@ -148,7 +150,7 @@ function figureSlack(kind: PitchFigure, truth: number): number {
 function buildQuestions(world: World, c: Company, plain = lifeBarsOn(world)): PitchQuestion[] {
   const m = getMarket(world, c.market);
   const cur = m.data.currency;
-  const customers = totalCustomers(c);
+  const customers = payingCustomers(world, c);
   const pnl = lastPnl(c);
   const revenue = pnl?.revenue ?? 0;
   const rawRunway = companyRunway(world, c);
@@ -259,6 +261,8 @@ export function startPitch(
     investorPlayerId?: Id;
     slides: string[];
     ask: number;
+    /** Round 7 (gameplay note): the pitch is a meeting (pitchmeeting.ts), not questions. */
+    meeting?: boolean;
   },
 ): Pitch {
   const c = getCompany(world, args.companyId);
@@ -283,7 +287,10 @@ export function startPitch(
     (p) =>
       p.companyId === c.id &&
       (p.fundId ?? p.investorPlayerId) === (args.fundId ?? args.investorPlayerId) &&
-      (p.status === 'questions' || p.status === 'partner-meeting' || p.status === 'sent'),
+      (p.status === 'questions' ||
+        p.status === 'partner-meeting' ||
+        p.status === 'sent' ||
+        p.status === 'meeting'),
   );
   ensure(!open, 'pitch.open', 'You already have an open pitch with them.');
 
@@ -317,6 +324,7 @@ export function startPitch(
         p.companyId === c.id &&
         p.fundId === fund.id &&
         p.status === 'passed' &&
+        !p.meeting?.left &&
         m.month - p.month < 3,
     );
     if (recentPass)
@@ -328,20 +336,32 @@ export function startPitch(
       pitch.status = 'passed';
       pitch.reason = `${fund.partner}: “You’re raising ${stage}; we do ${fund.stages.join(', ')}.”`;
     } else if (
-      // A warm intro (Wave 2) relaxes the bar by up to one star.
+      // A warm intro (Wave 2) relaxes the bar by up to one star; so does a
+      // business co-founder's introduction (round 7, intros.ts).
       Math.max(c.stars.value, getPlayer(world, args.founderId).stars.value) +
-        warmIntro(world, getPlayer(world, args.founderId), fund.id, m.month).starRelief <
+        warmIntro(world, getPlayer(world, args.founderId), fund.id, m.month).starRelief +
+        (introFor(world, c, fund.id)?.strength ?? 0) * TEAM.intro.stars <
       fund.minStars
     ) {
       pitch.status = 'passed';
       pitch.reason = `${fund.partner}: “Come back when you have more of a track record.”`;
+    } else if (args.meeting) {
+      pitch.status = 'meeting';
     } else {
       pitch.questions = buildQuestions(world, c);
     }
+    // The pitch uses the co-founder's introduction (it counts again in the meeting).
+    useIntro(world, c, fund.id, pitch.id);
   } else if (args.investorPlayerId) {
     const inv = getPlayer(world, args.investorPlayerId);
     ensure(inv.role === 'investor' && !inv.ai, 'pitch.investor', 'That player isn’t an investor.');
     ensure(inv.market === c.market, 'pitch.market', 'Pitch investors in your own market.');
+    if (args.meeting) {
+      // Round 7: the deck goes with your answers once the meeting is done (pitchmeeting.ts).
+      pitch.status = 'meeting';
+      world.pitches[pitch.id] = pitch;
+      return pitch;
+    }
     pitch.status = 'sent';
     // Pitching a human investor shares the deck's public-level data and grants diligence depth 1.
     inv.diligence[c.id] = Math.max(inv.diligence[c.id] ?? 0, 1);
@@ -363,8 +383,7 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
   const m = getMarket(world, c.market);
   const s = strengths(world, c);
   const founder = world.players[c.founderIds[0]!];
-  // Emphasis: slides that show real strengths help; showing weaknesses hurts.
-  const deck = slides.reduce((a, sl) => a + ((s[sl as Slide] ?? 0.5) - 0.45) * 0.12, 0);
+  const deck = deckEmphasis(s, slides);
   const pnl = lastPnl(c);
   const gaps = rulesFor(c.market, c.industry).filter((r) => !c.compliance[r.id]).length;
   const keyLoss = c.keyPersonLossMonth !== null && m.month - c.keyPersonLossMonth < 4 ? 0.06 : 0;
@@ -394,19 +413,37 @@ export function fundScore(world: World, fund: Fund, c: Company, slides: string[]
         : 0) +
       // Phase 3: how the founder feels (life bars), on the same scale as the other
       // nudges here (±0.02–0.06); zero before that release note.
-      barEdgeIn(world, founder),
+      barEdgeIn(world, founder) +
+      // Round 7: a business co-founder in the pitch (zero before the gameplay note).
+      cofounderPitch(world, c).score,
   );
 }
 
+/** Emphasis: slides that show real strengths help; showing weaknesses hurts. */
+export const deckEmphasis = (s: Record<Slide, number>, slides: string[]): number =>
+  slides.reduce((a, sl) => a + ((s[sl as Slide] ?? 0.5) - 0.45) * 0.12, 0);
+
+/** Round 7: what a business co-founder in the room adds to a pitch. */
+export function cofounderPitch(world: World, c: Company): { score: number } {
+  const biz = gameplayOn(world) ? businessCofounderOf(c) : undefined;
+  return { score: biz ? TEAM.pitchScore * biz.skill : 0 };
+}
+
+/** Round 7: what a business co-founder's introduction to this fund adds to its first-meeting score. */
+export const introScore = (world: World, c: Company, fundId: Id, pitchId?: Id): number =>
+  (introFor(world, c, fundId, pitchId)?.strength ?? 0) * TEAM.intro.score;
+
 /**
  * The partner's view at the first meeting: the fund's score, plus a warm
- * intro from a contact and the founder's network (Wave 2).
+ * intro from a contact and the founder's network (Wave 2), and a business
+ * co-founder's introduction (round 7).
  */
 export function firstMeetingScore(world: World, fund: Fund, c: Company, p: Pitch): number {
   const founder = getPlayer(world, p.founderId);
   return (
     fundScore(world, fund, c, p.slides) +
-    warmIntro(world, founder, fund.id, getMarket(world, c.market).month).scoreBonus
+    warmIntro(world, founder, fund.id, getMarket(world, c.market).month).scoreBonus +
+    introScore(world, c, fund.id, p.id)
   );
 }
 

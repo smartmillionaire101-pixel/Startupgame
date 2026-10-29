@@ -1,11 +1,19 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CATALOG_ENTRIES, FLOOR_FINISHES, FURNITURE } from '@runway/engine';
+import {
+  BATHROOM_SLOTS,
+  CATALOG_ENTRIES,
+  FLOOR_FINISHES,
+  FURNITURE,
+  HALLWAY_SLOTS,
+} from '@runway/engine';
 import {
   basketTotal,
   boostLines,
+  maxInBasket,
   buyCards,
+  buyRooms,
   footprint,
   isNew,
   ownedCount,
@@ -27,7 +35,7 @@ describe('catalogue pictures (public/thumbs, scripts/furniture-thumbs.ts)', () =
         e.variants.map((v) => v.ref),
       ),
     ]);
-    expect(ids.size).toBe(63);
+    expect(ids.size).toBe(93);
     const missing = [...ids].filter((id) => !existsSync(file(furnitureThumb(id))));
     expect(missing).toEqual([]);
   });
@@ -89,6 +97,38 @@ describe('Buy mode: the cards', () => {
     expect(buyCards(items, owned, { ...q, search: 'TV 3' }).map((f) => f.id)).toEqual(['tv-3']);
   });
 
+  it('round 7: Bathroom and Hallway tabs, once their things are sold (and on this floor)', () => {
+    const base = FURNITURE.filter(
+      (f) => ![...BATHROOM_SLOTS, ...HALLWAY_SLOTS].includes(f.slot as never),
+    );
+    const ids = (xs: { id: string }[]) => xs.map((r) => r.id);
+    expect(ids(buyRooms(base))).toEqual(['living', 'bedroom', 'kitchen', 'utility']);
+    expect(ids(buyRooms(FURNITURE))).toEqual([
+      'living',
+      'bedroom',
+      'kitchen',
+      'utility',
+      'bathroom',
+      'hallway',
+    ]);
+    // Upstairs (the bedroom things only): no Bathroom or Hallway tab there.
+    expect(ids(buyRooms(FURNITURE, new Set(['bed', 'wardrobe'])))).toEqual(['bedroom']);
+    const all = FURNITURE.map((f) => ({ ...f, price: f.priceCol * 1000 }));
+    const bath = buyCards(all, new Map(), { ...q, room: 'bathroom' });
+    expect(new Set(bath.map((f) => f.slot))).toEqual(new Set(BATHROOM_SLOTS));
+    expect(bath).toHaveLength(15);
+    const hall = buyCards(all, new Map(), { ...q, room: 'hallway', tab: 'new' });
+    expect(hall.map((f) => f.id)).toEqual([
+      'shoes-1',
+      'coats-1',
+      'console-1',
+      'hallmirror-1',
+      'runner-1',
+    ]);
+    for (const s of [...BATHROOM_SLOTS, ...HALLWAY_SLOTS])
+      expect(['wall', '1×1', '2×1']).toContain(footprint(planFor(3).slots[s]));
+  });
+
   it('footprints and boosts read like the cards', () => {
     expect(footprint(planFor(3).slots.sofa)).toBe('3×1');
     expect(footprint(planFor(3).slots.art)).toBe('wall');
@@ -108,10 +148,30 @@ describe('Buy mode: the basket', () => {
     expect(b).toEqual(['sofa-2', 'tv-1']);
     b = toggleBasket(b, items[2]!, items, owned); // sofa-3 swaps sofa-2
     expect(b).toEqual(['tv-1', 'sofa-3']);
-    expect(basketTotal(b, items)).toEqual({ items: [items[3], items[2]], total: 200 + 300 });
+    expect(basketTotal(b, items)).toEqual({
+      items: [items[3], items[2]],
+      total: 200 + 300,
+      count: 2,
+    });
     b = toggleBasket(b, items[3]!, items, owned);
     expect(basketTotal(b, items).total).toBe(300);
-    expect(basketTotal([], items)).toEqual({ items: [], total: 0 });
+    expect(basketTotal([], items)).toEqual({ items: [], total: 0, count: 0 });
+  });
+
+  it('round 7: how many of each (− 1 +), and more of a thing you have', () => {
+    // Three of the TV, one sofa: the total and the count follow.
+    const bag = basketTotal(['tv-1', 'sofa-3'], items, { 'tv-1': 3 });
+    expect(bag.total).toBe(3 * 200 + 300);
+    expect(bag.count).toBe(4);
+    // A line can't go under one.
+    expect(basketTotal(['tv-1'], items, { 'tv-1': 0 }).count).toBe(1);
+    // Yours can go in as more of it when the home can take more.
+    expect(toggleBasket([], items[0]!, items, owned)).toEqual([]);
+    expect(toggleBasket([], items[0]!, items, owned, () => true)).toEqual(['sofa-1']);
+    // One in the slot plus the room for more; yours: only the more.
+    expect(maxInBasket(false, 5)).toBe(6);
+    expect(maxInBasket(true, 2)).toBe(2);
+    expect(maxInBasket(false, 0)).toBe(1);
   });
 });
 

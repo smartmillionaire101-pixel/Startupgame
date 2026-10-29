@@ -5,6 +5,7 @@
  * `home.order` / `car.buy` with this `businessId`, so the money lands in this
  * business's till.
  */
+import { anotherOk } from './mall/shops';
 import { useState } from 'react';
 import { money } from '../format';
 import { t, tx } from '../i18n';
@@ -12,6 +13,7 @@ import { useView } from '../store';
 import { Card, Empty, Pill } from '../ui';
 import type { BusinessView } from './contract';
 import { pocketOf, pocketText } from './pocket';
+import { isRoomSlot } from '@runway/engine';
 import { HOME_SLOTS, carOf, homeOf, looseCmd, sellsOf, shopOf, type HomeItemView } from './life';
 import { CatalogueButton, CatalogueSheet } from '../shop/CatalogueSheet';
 import { showroomCatalog } from '../shop/catalog';
@@ -41,14 +43,32 @@ export function slotLabel(slot: string): string {
     coffee: t('Coffee machine'),
     wifi: t('Home wifi'),
     laptop: t('Laptop'),
+    towels: t('Towel rail'),
+    bathmat: t('Bath mat'),
+    cabinet: t('Bathroom cabinet'),
+    hamper: t('Laundry basket'),
+    bathplant: t('Bathroom plant'),
+    shoes: t('Shoe rack'),
+    coats: t('Coat stand'),
+    console: t('Console table'),
+    hallmirror: t('Hallway mirror'),
+    runner: t('Runner rug'),
   };
   return known[slot] ?? slot.charAt(0).toUpperCase() + slot.slice(1).replace(/-/g, ' ');
 }
 
-/** How many of the flat's slots you've filled, of all the slots there are. */
-export function slotsOwned(items: HomeItemView[]): { owned: number; total: number } {
+/**
+ * How many of the flat's slots you've filled, of all the slots there are
+ * (`sold`: the shop's things; round 7's bathroom and hallway only once sold).
+ */
+export function slotsOwned(
+  items: HomeItemView[],
+  sold: readonly { slot: string }[] = [],
+): { owned: number; total: number } {
   const slots = new Set(items.map((i) => i.slot));
-  const total = new Set<string>([...HOME_SLOTS, ...slots]).size;
+  const rooms = sold.some((f) => isRoomSlot(f.slot));
+  const base = HOME_SLOTS.filter((s) => rooms || !isRoomSlot(s));
+  const total = new Set<string>([...base, ...slots]).size;
   return { owned: slots.size, total };
 }
 
@@ -210,7 +230,20 @@ export function Showroom({ business: b }: { business: BusinessView }) {
                       )}
                     </span>
                     <b className="shop-price">{money(f.price, cur)}</b>
-                    {mine ? (
+                    {mine &&
+                    anotherOk(view.me.homeStyle, { owned: true, furniture: f.id, slot: f.slot }) ? (
+                      // Round 7: more of a thing you have (a second speaker), bought here.
+                      <BuyButton
+                        label={t('+ Another')}
+                        disabled={busy || pocket < f.price}
+                        onBuy={() =>
+                          void send(
+                            looseCmd({ type: 'home.extra.buy', itemId: f.id }),
+                            t('Another {item}: put it where you like.', { item: tx(f.label) }),
+                          )
+                        }
+                      />
+                    ) : mine ? (
                       <Pill tone="good">{t('Yours ✓')}</Pill>
                     ) : pending ? (
                       <Pill>Delivery on the way</Pill>

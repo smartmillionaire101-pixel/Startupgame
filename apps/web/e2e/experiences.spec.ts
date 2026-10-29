@@ -100,7 +100,7 @@ test('two players discover a home game, play football and share a consenting sky
     await gameA.getByRole('button', { name: 'Close games' }).click();
     await gameA
       .getByRole('alertdialog', { name: 'Leave the game?' })
-      .getByRole('button', { name: 'Leave the game' })
+      .getByRole('button', { name: 'Leave game' })
       .click();
     await expect(gameA).toBeHidden();
     await expect(gameB.locator('[data-forfeit]')).toBeVisible({ timeout: 10000 });
@@ -153,8 +153,10 @@ test('a paid home order arrives and can be unpacked, and paid flight bookings su
     timeout: 40000,
   });
   await home.getByRole('button', { name: 'Unpack delivery' }).click();
-  await expect(home.getByText('No deliveries on the way.')).toBeVisible();
-  expect((await state(page)).me.home.items.some((i) => i.itemId === furniture.id)).toBeTruthy();
+  // Round 7: unpacking takes you home; a TV goes into its spot.
+  await expect
+    .poll(async () => (await state(page)).me.home.items.some((i) => i.itemId === furniture.id))
+    .toBeTruthy();
   const before = (await state(page)).accounts.local!.balance;
   await command(page, { type: 'travel.book', to: 'lagos' });
   const booked = await state(page);
@@ -238,10 +240,10 @@ test('quiz night on mobile: questions come from the bank, three players are matc
     const questionOn = async (p: Page) => {
       const text = await p
         .getByRole('dialog', { name: 'Play together' })
-        .getByText(/^QUESTION \d+ OF 10$/)
+        .locator('[data-quiz-round]')
         .textContent({ timeout: 1000 })
         .catch(() => null);
-      return Number(/QUESTION (\d+)/.exec(text ?? '')?.[1] ?? 0);
+      return Number(/^Question (\d+) of 10\b/.exec(text ?? '')?.[1] ?? 0);
     };
     const over = alice!.getByRole('heading', { name: /wins!|tie/ });
     for (let n = 1; n <= 10; n++) {

@@ -1,12 +1,14 @@
 import { expect, letters, playAsGuest, setupFounder, tab, test, openMoney } from './fixtures';
 
 /**
- * A founder answers an AI fund's questions with their own numbers: under
- * each numeric question, "Or type your own:" takes a figure. Typing clears
- * the picked choice, picking a choice clears the box, and the typed figure
- * reaches the engine (whole customers; money in minor units).
+ * The investor asks about your real numbers (round 7: the pitch meeting
+ * replaced the questions form, where you could type your own figures). His
+ * questions and the side column show the company's own figures; a stretch
+ * is tagged as something he will check in diligence, and the claim is kept
+ * for diligence. A meeting left half-way can be picked up from the Money
+ * screen, or left: that ends it without putting the fund off.
  */
-test('a founder types their own figures when a fund has questions', async ({ page }) => {
+test('a pitch meeting asks about your real numbers, and can be left half-way', async ({ page }) => {
   const tag = letters(5);
   await playAsGuest(page);
   await setupFounder(page, {
@@ -17,7 +19,7 @@ test('a founder types their own figures when a fund has questions', async ({ pag
   });
   await expect(tab(page, 'Today')).toBeVisible();
 
-  // Pitch AI funds (through the API) until one asks questions.
+  // Pitch AI funds (through the API) until one takes the meeting.
   const opened = await page.evaluate(async () => {
     const h = { 'x-runway': '1', 'content-type': 'application/json' };
     const s = await (await fetch('/api/state', { headers: h })).json();
@@ -38,55 +40,73 @@ test('a founder types their own figures when a fund has questions', async ({ pag
       });
       if (!r.ok) continue;
       const out = await r.json();
-      if (out.result.status === 'questions') return out.result.pitchId as string;
+      if (out.result.status === 'meeting') return { pitchId: out.result.pitchId, fundId: f.id };
     }
     return null;
   });
-  test.skip(!opened, 'No fund in this world asked questions of a brand-new founder.');
+  expect(opened, 'an AI fund that fits takes the meeting').not.toBeNull();
+  const pitchOf = () =>
+    page.evaluate(async (id) => {
+      const s = await (await fetch('/api/state', { headers: { 'x-runway': '1' } })).json();
+      return s.view.pitches.find((p: { id: string }) => p.id === id);
+    }, opened!.pitchId);
+  const facts = (await pitchOf()).meeting.facts;
   await page.reload();
 
+  // Mid-way: the Money screen offers to pick it up.
   await openMoney(page);
-  const card = page.locator('section.card').filter({ hasText: /has questions/ });
-  await expect(card).toBeVisible();
-  const traction = card.locator('[data-figure="traction"]');
-  const revenue = card.locator('[data-figure="revenue"]');
-  await expect(traction).toBeVisible();
-  await expect(revenue).toBeVisible();
-  await expect(card.locator('[data-figure="runway"]')).toBeVisible();
-  await expect(card.getByText('How many months will your company’s money last?')).toBeVisible();
+  await page.locator('[data-meeting-resume]').click();
+  const sheet = page.getByRole('dialog', { name: /^Pitch meeting/ });
+  // His side has your numbers.
+  await expect(sheet.locator('[data-fact="customers"]')).toHaveText(String(facts.customers));
+  await expect(sheet.locator('[data-fact="runway"]')).toContainText(
+    facts.runway === null ? 'never runs out' : `${Math.round(facts.runway)} months`,
+  );
+  await sheet.locator('[data-opener]').first().click();
+  // His first question is about them, from your numbers.
+  const q = sheet.locator('[data-question="traction"]');
+  await expect(q).toContainText(
+    facts.customers === 0
+      ? 'no paying customers'
+      : facts.customers === 1
+        ? 'one paying customer'
+        : `${facts.customers} paying customers`,
+  );
+  await expect(q.locator('.pm-from.num')).toHaveText('from your numbers');
+  // A stretch: tagged, and kept for diligence.
+  const stretch = sheet.locator('[data-turn="q-traction"] [data-answer="stretch"]');
+  await expect(stretch.locator('.pm-from.check')).toContainText('will check this in diligence');
+  await stretch.click();
+  await expect(sheet.locator('[data-reaction="traction"]')).toContainText('We’ll check');
+  expect((await pitchOf()).meeting.questions[0].answer.id).toBe('stretch');
 
-  // Picking a choice, then typing: the choice is cleared.
-  const tractionField = card
-    .locator('.field')
-    .filter({ has: page.locator('[data-figure="traction"]') });
-  const firstChoice = tractionField.locator('button.choice').first();
-  await firstChoice.click();
-  await expect(firstChoice).toHaveAttribute('aria-pressed', 'true');
-  await traction.fill('2.5');
-  await expect(firstChoice).toHaveAttribute('aria-pressed', 'false');
-  await expect(tractionField.getByText('A whole number, please')).toBeVisible();
-  await traction.fill('3');
-
-  // Typing, then picking a choice: the box is cleared.
-  const revenueField = card
-    .locator('.field')
-    .filter({ has: page.locator('[data-figure="revenue"]') });
-  await revenue.fill('12');
-  await revenueField.locator('button.choice').first().click();
-  await expect(revenue).toHaveValue('');
-  await revenue.fill('0');
-
-  const runwayField = card
-    .locator('.field')
-    .filter({ has: page.locator('[data-figure="runway"]') });
-  await runwayField.locator('button.choice').first().click();
-  await card.getByRole('button', { name: 'Answer' }).click();
-  await expect(card).toHaveCount(0);
-
-  const pitch = await page.evaluate(async (id) => {
-    const s = await (await fetch('/api/state', { headers: { 'x-runway': '1' } })).json();
-    return s.view.pitches.find((p: { id: string }) => p.id === id);
-  }, opened);
-  expect(pitch.figures).toEqual({ traction: 3, revenue: 0 });
-  expect(pitch.status).not.toBe('questions');
+  // Leave it half-way: no verdict, and the fund can be pitched again.
+  await sheet.locator('[data-pitch-leave]').click();
+  await expect(sheet.getByRole('heading', { name: 'You left the meeting' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-meeting-resume]')).toHaveCount(0);
+  const left = await pitchOf();
+  expect(left.meeting.left).toBe(true);
+  expect(left.meeting.result).toBeNull();
+  await page.locator('summary').filter({ hasText: 'Pitch history' }).click();
+  await expect(page.getByText('Left the meeting').first()).toBeVisible();
+  const again = await page.evaluate(async (fundId) => {
+    const h = { 'x-runway': '1', 'content-type': 'application/json' };
+    const s = await (await fetch('/api/state', { headers: h })).json();
+    const r = await fetch('/api/commands', {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({
+        command: {
+          type: 'pitch.start',
+          companyId: s.view.companies[0].id,
+          fundId,
+          slides: ['problem'],
+          ask: s.view.market.funds.find((f: { id: string }) => f.id === fundId).check[0],
+        },
+      }),
+    });
+    return (await r.json()).result?.status;
+  }, opened!.fundId);
+  expect(again).toBe('meeting');
 });

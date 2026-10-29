@@ -13,14 +13,13 @@ import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
 import { openLiving } from '../../experiences/living-bus';
-import { openPlay } from '../../experiences/play-bus';
-import { showGolfInvite } from '../../city/golf/invite-bus';
 import { StakeChips } from '../../city/golf/parts';
 import { golfOf } from '../../city/leisure';
 import { techEventsOf } from '../friends';
 import { openVisit } from '../Visit';
 import type { PhoneCtx } from '../shared';
 import { SendMoney } from './Friends';
+import { PlayCard, PlayPanel } from './ChatPlay';
 import './chat.css';
 
 // ---------------------------------------------------------------- Emoji
@@ -431,12 +430,6 @@ const STATUS_LABEL: Record<string, () => string> = {
   playing: () => t('Game on'),
   finished: () => t('Game over'),
 };
-const PLAY_GAME: Record<string, () => string> = {
-  quiz: () => t('a quiz'),
-  snooker: () => t('snooker'),
-  football: () => t('a penalty shootout'),
-  golf: () => t('golf'),
-};
 
 function CardShell({
   icon,
@@ -771,65 +764,8 @@ function ChatCardView({
         </CardShell>
       );
     }
-    case 'play': {
-      const game = PLAY_GAME[card.game]?.() ?? card.game;
-      const sameCity = (view.here?.id ?? view.market.id) === card.market;
-      const open = card.roomId && card.venue && card.status === 'waiting';
-      return (
-        <CardShell
-          type="play"
-          icon="🎮"
-          status={card.status === 'open' || card.status === 'waiting' ? undefined : card.status}
-          title={
-            mine
-              ? t('You asked {name} to play {game}', { name: first, game })
-              : t('{name} wants to play {game}', { name: first, game })
-          }
-        >
-          <span className="small">
-            {card.title ? `${card.title} · ${card.city}` : card.city}
-            {card.stake
-              ? ` · ${t('{stake} entry', { stake: money(card.stake, card.currency ?? '') })}`
-              : ''}
-          </span>
-          {!open && card.status === 'open' && (
-            <span className="small muted">
-              {mine
-                ? t('Host a table at a venue or at home and invite them again to bring them to it.')
-                : t('Reply to agree where to meet, or host a table and invite them.')}
-            </span>
-          )}
-          {open && !mine && (
-            <div className="row">
-              {sameCity ? (
-                card.game === 'golf' ? (
-                  <Button onClick={() => showGolfInvite(card.roomId!)}>
-                    {t('See the invitation')}
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() =>
-                      openPlay({
-                        venue: card.venue!,
-                        name: card.title ?? card.city,
-                        roomId: card.roomId!,
-                        game: card.game === 'golf' ? undefined : card.game,
-                      })
-                    }
-                  >
-                    {t('Go to the table')}
-                  </Button>
-                )
-              ) : (
-                <span className="small muted">
-                  {t('Travel to {city} to join this table.', { city: card.city })}
-                </span>
-              )}
-            </div>
-          )}
-        </CardShell>
-      );
-    }
+    case 'play':
+      return <PlayCard card={card} mine={mine} first={first} ctx={ctx} onChanged={onChanged} />;
   }
 }
 
@@ -875,7 +811,7 @@ export function PlayerMessage({
 // ---------------------------------------------------------------- Doing things together
 
 export type ActBody = { command: Command } | { techEventId: string };
-type Panel = 'money' | 'date' | 'event' | 'gift' | 'golf' | null;
+type Panel = 'money' | 'date' | 'event' | 'gift' | 'golf' | 'play' | null;
 
 /**
  * The "+" menu of a player chat: send money, plan a date, invite them over,
@@ -888,12 +824,15 @@ export function ChatActions({
   busy,
   children,
   goPlace,
+  close,
 }: {
   partner: { id: string; name: string };
   act: <R = unknown>(body: ActBody, ok?: string) => Promise<R | null>;
   busy: boolean;
   /** Go to a place in the city (the phone closes): golf with a friend waits at the club. */
   goPlace?: (place: string) => void;
+  /** Close the phone (a game from the chat: to go to the table). */
+  close?: () => void;
   /** The composer, given the "+" button to put first in its row. */
   children: (plus: ReactNode) => ReactNode;
 }) {
@@ -947,6 +886,9 @@ export function ChatActions({
           <button type="button" role="menuitem" onClick={() => pick('gift')}>
             🎁 {t('Give a home')}
           </button>
+          <button type="button" role="menuitem" onClick={() => pick('play')}>
+            🎮 {t('Play a game')}
+          </button>
           <button type="button" role="menuitem" onClick={() => pick('golf')}>
             ⛳ {t('Golf for money')}
           </button>
@@ -974,6 +916,16 @@ export function ChatActions({
           busy={busy}
           onDone={() => setPanel(null)}
           goPlace={goPlace}
+        />
+      )}
+      {panel === 'play' && (
+        <PlayPanel
+          partner={partner}
+          act={act}
+          busy={busy}
+          onDone={() => setPanel(null)}
+          golf={() => setPanel('golf')}
+          close={close}
         />
       )}
       {panel === 'gift' && (

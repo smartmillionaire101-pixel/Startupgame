@@ -19,6 +19,7 @@ export const onAir = (f: () => void) => {
   };
 };
 export function openAir(req: AirRequest) {
+  preloadAir();
   open = req;
   listeners.forEach((f) => f());
 }
@@ -33,3 +34,22 @@ export function airOf(item: { id: string }): AirRequest['kind'] | null {
   if (/^heli-/.test(item.id)) return 'heli';
   return null;
 }
+
+/**
+ * Start loading the flight while you get there (the ride to the airfield or
+ * the heliport, the booking): its code and three.js, and the city's terrain
+ * and buildings index, so the flight opens on a short wait. Safe to call
+ * often: everything is fetched once.
+ */
+export function preloadAir(city?: string) {
+  void import('./AirFlight').catch(() => undefined);
+  if (!city) return;
+  void import('../../city/three/terrain')
+    .then((m) => m.loadTerrainField(city))
+    .catch(() => undefined);
+  if (!warmed.has(city) && typeof fetch !== 'undefined') {
+    warmed.add(city);
+    void fetch(`/geo/${encodeURIComponent(city)}/index.json`).catch(() => undefined);
+  }
+}
+const warmed = new Set<string>();

@@ -13,13 +13,14 @@ import { bankWorkView } from './bankwork.js';
 import { acceleratorView, hallOfFame } from './institutions.js';
 import { positionStatus, proRataView } from './fundops.js';
 import { barEffects, barsOf } from './lifebars.js';
-import { feedbackOn, investorOn, lifeBarsOn, placesOn, shopOn } from './releases.js';
+import { feedbackOn, gameplayOn, investorOn, lifeBarsOn, placesOn, shopOn } from './releases.js';
 import { homeStyleView } from './homestyle.js';
 import { shopCatalogView } from './catalog.js';
 import { cityPlacesView } from './places.js';
 import { errandsView } from './errands.js';
 import { anyJobView, workView } from './work.js';
 import { pitchQuestionsNow } from './fundraising.js';
+import { meetingView } from './pitchmeeting.js';
 import { journeyView } from './journey.js';
 import { exitOptionsView, publicMarketView, secondaryOffersView } from './exits.js';
 import { stockExchangesView } from './stocks.js';
@@ -36,7 +37,7 @@ import { founderGuide, founderPlanBase } from './founderguide.js';
 import { hiringView, teamView } from './hiring.js';
 import { founderFinanceView, friendsRoundsView } from './founderfinance.js';
 import { livingView } from './living.js';
-import { bowlingOptions, golfMatchOptions, myPlayRoom, playView } from './play.js';
+import { bowlingOptions, golfMatchOptions, myPlayRoom, playInvites, playView } from './play.js';
 import { gamesView } from './games.js';
 /**
  * Read models. The world holds everything; a player only ever sees:
@@ -89,7 +90,10 @@ import {
 import { chatIdOf } from './people.js';
 import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
-import { customerFacts } from './traction.js';
+import { customerFacts, payingCustomers } from './traction.js';
+import { bringsOf, teamBringsView } from './team.js';
+import { introsView } from './intros.js';
+import { restView } from './rest.js';
 import { carView, homeView as myHomeView, shopView, statusOf } from './shop.js';
 import { golfView, mallView } from './leisure.js';
 import { mallTripView } from './malltrips.js';
@@ -123,7 +127,6 @@ import {
   lastPnl,
   locationOf,
   nextStage,
-  totalCustomers,
   isEstablished,
 } from './helpers.js';
 import { floorGigPay, lifestyleCost, tierOf } from './personal.js';
@@ -176,7 +179,7 @@ function diligenceView(world: World, c: Company, depth: number) {
   const pnl = lastPnl(c);
   const base = {
     revenue: pnl?.revenue ?? 0,
-    customers: totalCustomers(c),
+    customers: payingCustomers(world, c),
     growth: Math.round(monthlyGrowth(c) * 1000) / 10,
     burn: burn(c),
     runwayMonths: finite(companyRunway(world, c)),
@@ -280,6 +283,8 @@ export function companyDetail(world: World, c: Company) {
         budget: seg.budget,
         ...pos,
         pipeline: pos.pipeline.reduce((a, p) => a + p.count, 0),
+        /** Customers won in the Sales pipeline in this segment (paying, beside the funnel's). */
+        accounts: (c.salesAccounts ?? []).filter((a) => a.segmentKey === key).length,
       };
     }),
     staff: c.staff,
@@ -686,7 +691,7 @@ function marketView(
     /** Part-time jobs at open businesses (Wave 5): 40 hours a month, paid monthly. */
     jobs: jobsView(p, m),
     /** Furniture and cars with prices in this city's currency (Wave 5). */
-    shop: shopView(m),
+    shop: shopView(world, m),
     /** Wave 7: food delivery (the Chop app): open food businesses, cheapest first (up to 20). */
     delivery: deliveryView(world, m),
     /** Wave 8: the city's tech events: this month's ("on") and next month's ("soon"). */
@@ -795,7 +800,7 @@ export function playerView(
     /** Bankers note: the negotiation, the licence tracker and checklist, and the first session. */
     banker: bankerView(world, p, clock?.now ?? p.lastActiveAt),
     /** Investor career Phase 2: every city's exchange, the index fund, your holdings and orders. */
-    exchange: exchangeView(world, p, clock?.now),
+    exchange: exchangeView(world, p),
     /** Investor career Phase 3: syndicates you lead, backed, or can back. */
     syndicates: syndicatesView(world, p),
     /** Investor career Phase 4: funds you run (LP book), funds you can join, your calls. */
@@ -832,7 +837,7 @@ export function playerView(
       ? null
       : {
           exits: exitOptionsView(world, p),
-          market: publicMarketView(world, p),
+          market: publicMarketView(world, p, clock?.now),
           /** Cities with a stock market, the player's own first (stock analysis). */
           exchanges: stockExchangesView(world, p),
           offers: secondaryOffersView(world, p),
@@ -851,6 +856,8 @@ export function playerView(
     playRooms: playView(world, p),
     /** The game you're in (open or under way), wherever it is: leave it from anywhere. */
     myPlayRoom: myPlayRoom(world, p),
+    /** Invitations to a table waiting for your answer, wherever they are (the gameplay round). */
+    playInvites: playInvites(world, p),
     living: livingView(world, p),
     /** The month clock (Wave 4): when the next settlement is due, for a countdown. */
     clock: clock ? clockView(clock.now, clock.monthMs) : null,
@@ -885,6 +892,8 @@ export function playerView(
       mood: moodOf(p),
       /** Wave 7: home acts (and 'invite') this month: used, cap and left. */
       homeActs: homeActsView(p, m.month),
+      /** Round 7 (gameplay note): resting at home: the rest under way and the rates; null before. */
+      rest: gameplayOn(world) && !p.ai ? restView(world, p) : null,
       /**
        * Phase 3 life bars (only after the release note, so clients can hide them):
        * energy, health, happiness and stress, 0–100 rounded, and what they're
@@ -1038,6 +1047,16 @@ export function playerView(
         officeDownsized: !!c.officeDownsized,
         /** Local businesses buying from this company (Wave 3), with last month's amount. */
         businessCustomers: businessCustomersOf(world, c),
+        /** Round 7 (gameplay note): what each person on the team brings, by staff id. */
+        teamBrings: teamBringsView(world, c),
+        /** Round 7: investors a business co-founder introduced (warm leads), by fund. */
+        investorIntros: introsView(world, c),
+        /** Round 7: what each candidate in the city's talent pool would bring, by candidate id. */
+        talentBrings: gameplayOn(world)
+          ? Object.fromEntries(
+              getMarket(world, c.market).talent.map((x) => [x.id, bringsOf(world, c, x)]),
+            )
+          : null,
         /** Wave 10: head office, branches, and what opening one costs in each city. */
         expansion: companyBranchesView(world, c, playerId),
       };
@@ -1105,6 +1124,8 @@ export function playerView(
       )
       .sort((a, b) => b.createdMonth - a.createdMonth)
       .slice(0, 40),
+    /** Round 7: a pitch is a meeting with the investor (gameplay note). */
+    pitchMeetings: gameplayOn(world),
     pitches: Object.values(world.pitches)
       .filter((x) => x.founderId === p.id || x.investorPlayerId === p.id)
       .map((x) => ({
@@ -1121,6 +1142,8 @@ export function playerView(
           ...q,
           options: q.options.map(({ truth: _t, claim: _c, ...o }) => o),
         })),
+        /** Round 7: the pitch meeting, as this viewer sees it (the raw state stays on the server). */
+        meeting: meetingView(world, x, p.id),
       }))
       .sort((a, b) => b.month - a.month)
       .slice(0, 30),

@@ -100,6 +100,8 @@ describe('interviews in each industry’s words', () => {
       ),
       ...kit.weak.flatMap((r) => Object.values(r)),
       kit.vague,
+      kit.vaguePays,
+      kit.vagueSwitch,
     ];
   };
 
@@ -275,6 +277,55 @@ describe('an interview', () => {
       segmentKey: 'saas.solo',
     });
     expect(!r.ok && r.error.code).toBe('interview.segment');
+  });
+});
+
+/**
+ * Round 7 (#5): "Pays now" and "Would switch if" only filled on the best
+ * question of their round. A weaker question leaves a vague note, marked so,
+ * and the summary says what you missed and which question would have got it.
+ */
+describe('notes from weaker questions', () => {
+  const weakest = (ids: string[]) => ids.find((i) => kindOf(i) !== 'best')!;
+
+  it('fills every note, vague, from weaker questions', () => {
+    const { w, result } = interview(world(), weakest);
+    const sum = interviewsView(w, companyOf(w, F)).last!;
+    expect(sum.notes.pain && sum.notes.paysNow && sum.notes.switchIf).toBeTruthy();
+    expect(sum.vague).toMatchObject({ pain: true, paysNow: true, switchIf: true });
+    // Every round left a vague note for its own line.
+    expect(result.notes.some((n: { key: string; vague?: boolean }) => n.vague)).toBe(true);
+    // The summary names each gap and the question on offer that would have filled it.
+    expect(sum.gaps.map((g) => g.key)).toEqual(['pain', 'paysNow', 'switchIf']);
+    for (const g of sum.gaps) {
+      expect(g.vague).toBe(true);
+      const round = ['pain', 'paysNow', 'switchIf'].indexOf(g.key);
+      const bestId = companyOf(w, F).interviews!.last!.offers[round]!.find(
+        (i) => kindOf(i) === 'best',
+      )!;
+      expect(bestId).toBeTruthy();
+      expect(g.question.en.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('a real answer replaces a vague one, and a perfect interview has no gaps', () => {
+    const good = interview(world(), best);
+    const sum = interviewsView(good.w, companyOf(good.w, F)).last!;
+    expect(sum.vague).toEqual({});
+    expect(sum.gaps).toEqual([]);
+    // Mixed: weak first round, best after it: only Pain is a gap.
+    const mixed = interview(world(), (ids, r) => (r === 0 ? weakest(ids) : best(ids)));
+    const sm = interviewsView(mixed.w, companyOf(mixed.w, F)).last!;
+    expect(sm.gaps.map((g) => g.key)).toEqual(['pain']);
+    expect(sm.vague.paysNow).toBeUndefined();
+  });
+
+  it('has a vague note for each round in every industry, in English and French', () => {
+    for (const i of INDUSTRIES) {
+      const kit = INDUSTRY_INTERVIEWS[i];
+      for (const l of [kit.vague, kit.vaguePays, kit.vagueSwitch])
+        expect(l.en.length > 0 && l.fr.length > 0, `${i} ${l.en}`).toBe(true);
+    }
   });
 });
 

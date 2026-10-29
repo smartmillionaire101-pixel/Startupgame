@@ -3,6 +3,7 @@ import { produce } from 'immer';
 import { EXITS } from '../src/exits.js';
 import { listedIn } from '../src/exchange.js';
 import { EXITS_NOTE, FEEDBACK_NOTE } from '../src/releases.js';
+import { stockAnalysisFor } from '../src/stocks.js';
 import { playerView } from '../src/views.js';
 import type { World } from '../src/types.js';
 import { addInvestor, careerWorld, makeWorld, moneyByCurrency, run, settle } from './helpers.js';
@@ -16,6 +17,9 @@ const I = 'u_investor';
 const CITIES = ['lagos', 'nairobi', 'london'] as const;
 const announce = (w: World, id: string) =>
   run(w, null, { type: 'system.announce', id, text: 'Release.' }).world;
+
+/** A listing's analysis, as its page fetches it (round 7: not in the state). */
+const analysisOf = (w: World, companyId: string) => stockAnalysisFor(w, I, companyId)!;
 
 /** A London investor in a world whose stock market is open (Founder Journey 5). */
 const londoner = (seed = 5) =>
@@ -68,7 +72,7 @@ describe('stock market: the company analysis', () => {
     const w = careerLondoner();
     const v = playerView(w, I)!;
     const x = v.capital!.market.find((m) => m.market === 'london')!;
-    const a = x.analysis;
+    const a = analysisOf(w, x.companyId);
     expect(a.idea.length).toBeGreaterThan(0);
     expect(a.marketCap).toBe(x.marketCap);
     expect(a.shares).toBeGreaterThan(0);
@@ -85,14 +89,28 @@ describe('stock market: the company analysis', () => {
     expect(a.yourCash).toBe(w.accounts[w.players[I]!.accounts.local]!.balance);
     expect(a.maxBuyShares).toBeGreaterThan(0);
     expect(a.limitOrders).toBe(true);
-    // The exchange view carries the same analysis.
-    const listing = v.exchange!.markets[0]!.listings.find((l) => l.companyId === x.companyId)!;
-    expect(listing.analysis.marketCap).toBe(a.marketCap);
+    // Round 7: one list; the exchange adds its trading facts to the same row.
+    expect(x.marketCap).toBe(a.marketCap);
+    expect(x.trade!.maxBuyShares).toBe(a.maxBuyShares);
+    expect('listings' in v.exchange!.markets[0]!).toBe(false);
+  });
+
+  it('round 7: the state carries no analysis (fetched when a company opens), nothing for a stranger', () => {
+    const w = careerLondoner();
+    const v = playerView(w, I)!;
+    for (const x of v.capital!.market) expect('analysis' in x).toBe(false);
+    const x = v.capital!.market[0]!;
+    expect(typeof x.recentNews).toBe('boolean');
+    expect(stockAnalysisFor(w, 'nobody', x.companyId)).toBeNull();
+    expect(stockAnalysisFor(w, I, 'co_nothing')).toBeNull();
   });
 
   it('a Lagos company is analysed in naira, with the London buyer’s money converted', () => {
     const w = londoner();
-    const a = playerView(w, I)!.capital!.market.find((m) => m.market === 'lagos')!.analysis;
+    const a = analysisOf(
+      w,
+      playerView(w, I)!.capital!.market.find((m) => m.market === 'lagos')!.companyId,
+    );
     const pounds = w.accounts[w.players[I]!.accounts.local]!.balance;
     expect(a.yourCurrency).toBe('GBP');
     expect(a.yourCash).toBeGreaterThan(pounds * 100);
@@ -104,10 +122,11 @@ describe('stock market: the company analysis', () => {
     let w = careerLondoner();
     const total = moneyByCurrency(w);
     const x = playerView(w, I)!.capital!.market[0]!;
+    const max = analysisOf(w, x.companyId).maxBuyShares;
     const r = run(w, I, { type: 'shares.buy', companyId: x.companyId, amount: 50_000_00 });
     w = r.world;
     expect(r.result.shares).toBeGreaterThan(0);
-    expect(r.result.shares).toBeLessThanOrEqual(x.analysis.maxBuyShares);
+    expect(r.result.shares).toBeLessThanOrEqual(max);
     expect(moneyByCurrency(w)).toEqual(total);
     const after = playerView(w, I)!.capital!.market.find((m) => m.companyId === x.companyId)!;
     expect(after.yourShares).toBe(r.result.shares);

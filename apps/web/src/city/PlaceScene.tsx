@@ -1,6 +1,6 @@
 import { useDaylight } from './useDaylight';
 import { openPlay } from '../experiences/play-bus';
-import { airOf, openAir } from '../experiences/air/air-bus';
+import { airOf, openAir, preloadAir } from '../experiences/air/air-bus';
 /**
  * Places you walk into (docs/WAVE5-FUN-LIFE-AND-CAPITAL.md §D): going into
  * any place opens a full-screen scene, not a card. An illustrated room for
@@ -17,6 +17,7 @@ import {
   createContext,
   lazy,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -67,6 +68,7 @@ import {
   myJobOf,
   nearest,
   sellsOf,
+  shopOf,
   storeForSlot,
   venueItemsOf,
   type AngelHere,
@@ -783,8 +785,16 @@ function RoomScene({
   const hotel =
     place.kind === 'hotel' ? cityHotelsOf(view).find((h) => h.id === place.ref) : undefined;
   const company = activeCompany(view);
+  // The office leased in the founder setup (co-working desks are a co-working room).
+  const lease = view.companies.find((c) => c.status === 'active')?.setup?.office?.id;
   const business =
     place.kind === 'business' ? businessesOf(view).find((b) => b.id === place.ref) : undefined;
+  // At the skydive centre or the heliport: the flight loads while you look round.
+  const airVenue = business?.kind === 'skydive-centre' || business?.kind === 'heliport';
+  const hereId = view.here?.id ?? view.market.id;
+  useEffect(() => {
+    if (airVenue) preloadAir(hereId);
+  }, [airVenue, hereId]);
   const capitalKind =
     (place.kind as string) === 'capital'
       ? acceleratorsOf(view).some((a) => a.id === place.ref)
@@ -795,6 +805,7 @@ function RoomScene({
       : undefined;
   const room = roomOf(place, {
     abroad,
+    lease,
     businessKind: business?.kind,
     businessShape: business?.look.shape,
     capital: capitalKind,
@@ -1974,7 +1985,7 @@ function RoomScene({
             <p className="small muted tray-pocket" data-comfort={home.comfort}>
               {t('Comfort {n} · {owned} of {total} things for your flat', {
                 n: home.comfort,
-                ...slotsOwned(home.items),
+                ...slotsOwned(home.items, shopOf(view).furniture),
               })}
             </p>
           )}

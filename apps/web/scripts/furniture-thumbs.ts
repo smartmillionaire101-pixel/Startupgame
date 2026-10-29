@@ -1,6 +1,6 @@
 /**
  * Renders the catalogue's pictures into public/thumbs/ (committed): every
- * furniture item (21 slots × 3 tiers) from the game's own 3D models
+ * furniture item (31 slots × 3 tiers) from the game's own 3D models
  * (src/shop/thumbs3d.ts → src/interiors3d/furniture.ts buildModel), and a
  * swatch of every floor finish from the 3D floor textures (kit.ts
  * floorTexture). Buy mode, the furniture shops and the Shop app show these;

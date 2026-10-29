@@ -35,10 +35,6 @@
   align-content: start;
   min-width: 0;
 }
-/* On a phone, empty stages take no room. */
-.sales-col-empty {
-  display: none;
-}
 .sales-col-head {
   margin: 4px 0 0;
   font-size: 0.85rem;
@@ -148,33 +144,441 @@
   justify-self: end;
 }
 
-/* Wide screens (not inside the phone): one column per stage. */
+/* Wide screens (not inside the phone): the KPIs in a row. */
 @media (min-width: 900px) {
   .sales:not(.sales-compact) .sales-kpis {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+/* Round 7: the stage chips (player feedback: empty stages collapsed to thin
+   strips with turned labels and looked broken). One row of chips with
+   counts, empty ones dimmed, never a turned label; it sticks under the HUD
+   and scrolls sideways on a phone. Below it the deal cards are grouped
+   under a heading with a rule: groups side by side on a laptop, stacked on
+   a phone. */
+.sales-stages {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 2px 8px;
+  position: sticky;
+  top: var(--hud-top-h, 64px);
+  z-index: 2;
+  background: linear-gradient(var(--bg) 70%, transparent);
+}
+.sales-compact .sales-stages {
+  top: 0;
+}
+.sales-stages::-webkit-scrollbar {
+  display: none;
+}
+.sales-stage {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 2.25rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sales-stage .n {
+  min-width: 1.35rem;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+}
+.sales-stage.is-empty {
+  color: var(--muted);
+  font-weight: 500;
+}
+.sales-stage.is-empty:not(.is-on) {
+  border-style: dashed;
+}
+.sales-stage.is-on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.sales-stage.is-on .n {
+  background: rgb(0 0 0 / 0.18);
+}
+.sales-stage.won .n {
+  background: color-mix(in srgb, var(--good) 28%, transparent);
+}
+.sales-stage.lost .n {
+  background: color-mix(in srgb, var(--bad) 24%, transparent);
+}
+.sales-stage.owner.is-on {
+  background: #a78bfa;
+  border-color: #a78bfa;
+  color: #1e1338;
+}
+.sales-stage:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.sales-stage-sep {
+  flex: 0 0 1px;
+  background: var(--line);
+  margin: 6px 2px;
+}
+.sales-board {
+  gap: 18px;
+}
+.sales-col {
+  gap: 10px;
+}
+.sales-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.8rem;
+}
+.sales-col-head::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.sales-none {
+  margin: 0;
+}
+/* What you don't know yet folds into one line until discovery. */
+.sales-known > div {
+  display: contents;
+}
+.sales-known > .is-unknown {
+  display: none;
+}
+.sales-tofind {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+/* Drop sits in the card's corner. */
+.sales-deal {
+  position: relative;
+}
+.sales-deal .sales-drop {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+.sales-deal .sales-drop .btn {
+  min-height: 0;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+.sales-deal-head {
+  padding-right: 4.5rem;
+}
+@media (min-width: 900px) {
+  /* Groups flow side by side (only stages that have deals), three to a row. */
   .sales:not(.sales-compact) .sales-board {
-    display: flex;
-    align-items: stretch;
-    overflow-x: auto;
-    padding-bottom: 6px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    align-items: start;
   }
-  .sales:not(.sales-compact) .sales-col {
-    flex: 1 0 220px;
+}
+
+/* Round 7: what holds the chance down (before you ask), and a lost deal
+   explained: the reason chip, their words, what to do next, and luck. */
+.sales-holding {
+  margin-top: var(--sp-3, 12px);
+  display: grid;
+  gap: 6px;
+  font-size: var(--fs-sm, 0.875rem);
+}
+.sales-holding h4 {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hold-row {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 6px;
+}
+.hold-ic {
+  font-size: 0.95rem;
+  line-height: 1.25rem;
+  text-align: center;
+}
+.hold-row b {
+  font-weight: 650;
+}
+.hold-why {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.hold-pts {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--bad);
+  white-space: nowrap;
+}
+.hold-row.ok .hold-pts {
+  color: var(--good);
+}
+.hold-none {
+  margin: 0;
+  color: var(--muted);
+}
+.hold-best {
+  margin-top: var(--sp-2, 8px);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.hold-best b {
+  font-size: 1.05rem;
+}
+.sales-loss-reason {
+  margin-top: 8px;
+  display: grid;
+  gap: var(--sp-3, 12px);
+  justify-items: start;
+}
+.loss-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--bad) 16%, transparent);
+  color: var(--bad);
+}
+.loss-quote {
+  margin: 0;
+  justify-self: stretch;
+  padding: 12px 14px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--surface-2);
+  border-left: 3px solid var(--bad);
+  font-size: var(--fs-md, 1rem);
+  line-height: 1.45;
+}
+.loss-quote cite {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.loss-next {
+  justify-self: stretch;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  display: grid;
+  gap: 8px;
+}
+.loss-next h4 {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.loss-next p {
+  margin: 0;
+  font-size: var(--fs-sm, 0.875rem);
+}
+.loss-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.loss-date {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.loss-luck {
+  margin: 0 0 var(--sp-2, 8px);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  .loss-next h4 {
+    color: #5eead4;
   }
-  /* An empty stage collapses to a slim header strip, so busy stages get the room. */
-  .sales:not(.sales-compact) .sales-col-empty {
-    display: grid;
-    flex: 0 0 40px;
-    overflow: hidden;
+}
+
+/* Round 7: the team, visible (SalesTeam.tsx): who handles a deal, a tip in
+   the conversation, the take-over, and what a hire will bring. */
+.team-av {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.72rem;
+  background: #a78bfa;
+  color: #1e1338;
+}
+.team-av.you {
+  flex: none;
+  width: auto;
+  min-width: 26px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.team-av.eng,
+.team-person.eng .team-av {
+  background: #60a5fa;
+  color: #0b2545;
+}
+.team-av.cof,
+.team-person.cof .team-av {
+  background: #fbbf24;
+  color: #3b2600;
+}
+.deal-owner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, #a78bfa 14%, transparent);
+  font-size: 0.82rem;
+}
+.deal-owner.mine {
+  background: var(--surface-2);
+}
+.deal-owner-text {
+  display: grid;
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.deal-owner-text .muted {
+  font-size: 0.76rem;
+}
+.deal-owner-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.deal-owner .btn-sm {
+  min-height: 0;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+}
+.sits-in {
+  margin-top: 8px;
+}
+.team-tip {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #a78bfa 14%, transparent);
+  border: 1px solid color-mix(in srgb, #a78bfa 40%, transparent);
+  font-size: var(--fs-sm, 0.875rem);
+}
+.team-handoff {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.team-handoff .btn-sm {
+  min-height: 0;
+  padding: 2px 8px;
+}
+.team-delegate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.hire-brings {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.hire-brings h4 {
+  margin: 0 0 6px;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.hire-brings ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 5px;
+  font-size: var(--fs-sm, 0.875rem);
+}
+.hire-brings li {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr);
+}
+.hire-sector {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: color-mix(in srgb, #db2777 16%, transparent);
+  color: #be185d;
+}
+.hire-grow {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  .team-tip b {
+    color: #ddd6fe;
   }
-  .sales:not(.sales-compact) .sales-col-empty .sales-col-head {
-    writing-mode: vertical-rl;
-    white-space: nowrap;
+  .hire-brings h4 {
+    color: #5eead4;
   }
-  .sales:not(.sales-compact) .sales-col {
-    padding: 8px;
-    border-radius: 12px;
-    background: var(--surface-2);
+  .hire-sector {
+    color: #f9a8d4;
   }
+}
+.sales-deal .sales-drop .row {
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--sh-1);
 }

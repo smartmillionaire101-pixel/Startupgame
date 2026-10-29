@@ -6,7 +6,9 @@
  * harder, and a swipe that bows hooks the ball once it leaves the oil (or
  * set it with the sliders and Bowl). The engine rolls the ball and the pins
  * fall as it decided (`play.bowl`); every screen replays the same roll from
- * its launch, the camera riding behind the ball into the crash.
+ * its launch, the camera riding behind the ball into the crash. Whoever is
+ * up stands at the lane holding the ball (you, in your outfit) and bowls it:
+ * a few steps, the swing back, the slide and the release, the follow-through.
  *
  * Without WebGL (or in Lite) the lane is drawn from above.
  */
@@ -27,6 +29,11 @@ import {
 } from '@runway/engine';
 import { useView } from '../store';
 import { t } from '../i18n';
+import { avatarLook, type AvatarLook } from '../city/art';
+import { genderOf } from '../city/life';
+import { makeCharacter, pose, type Character } from '../interiors3d/character';
+import { disposeTree } from '../interiors3d/kit';
+import { screenBoxOf } from '../three-kit/screen-box';
 import { softwareGl, useQuality, webglAvailable } from '../three-kit/quality';
 import {
   dashQuads,
@@ -44,6 +51,8 @@ type Room = PlayerView['playRooms'][number];
 
 /** The roll is shown a little slower than real time (≈3 s to the pins). */
 const SLOW = 1.25;
+/** The bowler's throw: from the first step to letting the ball go at the foul line (ms). */
+const RELEASE_MS = 650;
 
 const CALL_TEXT: Record<RollCall, string> = {
   strike: 'STRIKE!',
@@ -70,7 +79,7 @@ export default function Bowling({
   /** The server's clock (the pins settle by it; a phone's own clock can be seconds out). */
   serverNow?: () => number;
 }) {
-  const { send, busy } = useView();
+  const { view, send, busy } = useView();
   const quality = useQuality();
   const gl = quality === '3d' && webglAvailable();
   const g = room.bowling!;
@@ -97,6 +106,17 @@ export default function Bowling({
   const canAct = mine && !roll && ready && !busy;
   const up = g.bowler ? g.players[g.bowler] : undefined;
   const standing = useMemo(() => up?.standing ?? [...FULL_RACK], [up]);
+  // Who stands at the lane: you in your own look, or the one who's up.
+  const bowlerId = g.bowler ?? me;
+  const bowlerLook = useMemo(
+    () =>
+      bowlerId === view.me.id
+        ? avatarLook(view.me.background?.id, view.me.id, genderOf(view.me))
+        : avatarLook(undefined, bowlerId),
+    [bowlerId, view.me],
+  );
+  // A throw by hand: the bowler's animation runs until the roll takes over.
+  const [throwN, setThrowN] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => setNow(clock.current()), 250);
@@ -164,6 +184,23 @@ export default function Bowling({
   useEffect(() => {
     lane.current?.resize(size.w, size.h);
   }, [size]);
+  useEffect(() => {
+    lane.current?.setBowler(bowlerId, bowlerLook);
+    lane.current?.render();
+  }, [bowlerId, bowlerLook, gl]);
+  // Your throw, from the swipe until the roll comes back from the server.
+  useEffect(() => {
+    const l = lane.current;
+    if (!throwN || roll || !l) return;
+    let raf = 0;
+    const end = performance.now() + 2000;
+    const step = () => {
+      l.render();
+      if (performance.now() < end) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [throwN, roll]);
 
   // A new ball: replay it from its launch (not the ones already rolled when we arrived).
   const last = g.last;
@@ -182,7 +219,9 @@ export default function Bowling({
     }
     sfx.roll(Math.max(0.5, sim.impact > 0 ? sim.impact * SLOW : 2));
     if (sim.impact > 0) sfx.pins(last.knocked.length, sim.impact * SLOW);
-    const started = performance.now();
+    // The bowler steps up and lets it go first (yours started with your swipe).
+    const lead = lane.current?.throwLead(performance.now()) ?? 0;
+    const started = performance.now() + lead;
     const id = requestAnimationFrame(() => {
       setBanner(null);
       setRoll({ sim, n: g.balls, started });
@@ -192,7 +231,7 @@ export default function Bowling({
         setRoll(null);
         setBanner({ text, good });
       },
-      Math.min(sim.time, 6) * SLOW * 1000 + 200,
+      lead + Math.min(sim.time, 6) * SLOW * 1000 + 200,
     );
     return () => {
       cancelAnimationFrame(id);
@@ -215,7 +254,8 @@ export default function Bowling({
       let raf = 0;
       const step = () => {
         const s = (performance.now() - roll.started) / 1000 / SLOW;
-        l.show(roll.sim, s);
+        // Until the bowler lets go, the throw (the ball in their hand).
+        if (s >= 0) l.show(roll.sim, s);
         l.render();
         if (s < roll.sim.time + 0.2) raf = requestAnimationFrame(step);
       };
@@ -282,6 +322,10 @@ export default function Bowling({
       return;
     }
     setInput(b);
+    if (!reduceMotion() && lane.current) {
+      lane.current.throwBall(performance.now());
+      setThrowN((n) => n + 1);
+    }
     bowl(b);
   };
 
@@ -677,6 +721,16 @@ export class Lane {
   private spin = 0;
   private lastZ = 0;
   private disposables: { dispose(): void }[] = [];
+  /** The bowlers who've stood at the lane (one is shown: whoever is up). */
+  private bowlers = new Map<string, Character>();
+  private bowler: Character | null = null;
+  /** Where the bowler stands across the approach (the ball's line). */
+  private stanceX = 0;
+  /** When the throw began (performance.now, ms), or null: standing ready with the ball. */
+  private throwAt: number | null = null;
+  /** The roll is on the lane (the ball is the roll's, not in a hand). */
+  private rolling = false;
+  private hand = new THREE.Vector3();
 
   constructor(canvas: HTMLCanvasElement, soft: boolean) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !soft, alpha: false });
@@ -815,23 +869,117 @@ export class Lane {
   }
 
   /**
-   * Waiting for a ball: low behind the bowler, the ball at the foul line in
-   * the lower part of the picture (where your finger starts the swipe) and
-   * the rack and the masking unit up top. The ball spans the lane's width
-   * on screen as it does on the swipe: let go at ±0.45 m is near either edge.
+   * Waiting for a ball: over the bowler's right shoulder, the bowler on the
+   * left holding the ball in the lower part of the picture (where your
+   * finger starts the swipe), the guide down the boards and the rack and the
+   * masking unit up top, clear of the bowler.
    */
   private idleCamera() {
-    this.camera.fov = 22;
-    this.camera.position.set(0, 0.85, 3.75);
-    this.camera.lookAt(0, 0, -4.92);
+    this.camera.fov = 34;
+    this.camera.position.set(0.6, 2.4, 7.8);
+    this.camera.lookAt(0, 0.9, -6);
     this.camera.updateProjectionMatrix();
   }
 
-  /** Where the ball is on screen (−1 … 1 each way) and whether the guide shows, for tests. */
+  /** Whoever is up stands at the lane (built once each, in their own look). */
+  setBowler(id: string, look: AvatarLook) {
+    let c = this.bowlers.get(id);
+    if (!c) {
+      c = makeCharacter(look, id);
+      c.root.rotation.y = Math.PI;
+      this.scene.add(c.root);
+      this.bowlers.set(id, c);
+    }
+    for (const b of this.bowlers.values()) b.root.visible = b === c;
+    this.bowler = c;
+  }
+
+  /** Your swipe: the bowler starts the approach now. */
+  throwBall(now: number) {
+    this.throwAt = now;
+  }
+
+  /**
+   * A ball was bowled: how long until the bowler lets it go (ms). Your own
+   * throw is already on its way; anyone else's starts now.
+   */
+  throwLead(now: number) {
+    if (!this.bowler) return 0;
+    if (this.throwAt !== null && now - this.throwAt < RELEASE_MS + 250)
+      return Math.max(0, this.throwAt + RELEASE_MS - now);
+    this.throwAt = now;
+    return RELEASE_MS;
+  }
+
+  /**
+   * The bowler at `now`: ready with the ball at the chest, or (thrown) the
+   * push-away, the steps and the swing back, the slide and the release at
+   * the foul line, the follow-through. Until the release the ball is in the
+   * right hand.
+   */
+  private poseBowler(now: number) {
+    const c = this.bowler;
+    if (!c) return;
+    const T = this.throwAt === null ? -1 : (now - this.throwAt) / 1000;
+    if (T > 3) this.throwAt = null;
+    const R = RELEASE_MS / 1000;
+    const lerp = (a: number, b: number, u: number) => a + (b - a) * Math.max(0, Math.min(1, u));
+    let z = 1.05;
+    if (T < 0 || T > 3) {
+      // Ready: the ball held at the right side, the left hand out a little, eyes on the pins.
+      pose(c, 'stand', 0);
+      c.armR.rotation.set(-0.3, 0, 0.12);
+      c.foreR.rotation.set(-0.55, 0, 0);
+      c.armL.rotation.set(-0.25, 0, -0.2);
+      c.foreL.rotation.set(-0.7, 0, 0);
+      c.torso.rotation.x = 0.06;
+    } else if (T < R * 0.75) {
+      // The push-away and the steps, the ball swinging down and back.
+      const u = T / (R * 0.75);
+      pose(c, 'walk', T * 1.6);
+      c.armR.rotation.set(lerp(-0.3, 1.15, u * 1.2), 0, 0.12);
+      c.foreR.rotation.set(lerp(-0.55, 0, u * 2), 0, 0);
+      c.armL.rotation.set(-0.3, 0, lerp(-0.35, 1.0, u));
+      c.torso.rotation.x = lerp(0.03, 0.3, u);
+      z = lerp(1.05, 0.62, u);
+    } else {
+      // The slide on the left foot, the swing through, and the follow-through.
+      const u = Math.min(1, (T - R * 0.75) / (R * 0.25));
+      const f = Math.min(1, Math.max(0, (T - R) / 0.5));
+      pose(c, 'stand', 0);
+      c.thighL.rotation.x = -0.75;
+      c.shinL.rotation.x = 0.95;
+      c.thighR.rotation.set(0.6, 0, -0.15);
+      c.shinR.rotation.x = 0.5;
+      c.body.position.y = -0.14;
+      c.torso.rotation.x = 0.42 - f * 0.12;
+      c.armR.rotation.set(lerp(1.15, -0.5, u) - f * 1.7, 0, 0.1);
+      c.foreR.rotation.set(-0.2 * f, 0, 0);
+      c.armL.rotation.set(-0.2, 0, 1.15);
+      z = lerp(0.62, 0.45, u);
+    }
+    c.shadow.visible = false;
+    c.root.position.set(this.stanceX - 0.36, 0, z);
+    // The ball in the right hand until it's let go.
+    if (!this.rolling && (T < 0 || T > 3 || T < R)) {
+      c.root.updateMatrixWorld(true);
+      c.handR.getWorldPosition(this.hand);
+      this.ball.visible = true;
+      this.ball.position.set(this.hand.x, Math.max(BALL_R, this.hand.y - 0.07), this.hand.z - 0.04);
+    } else if (!this.rolling) this.ball.visible = false;
+  }
+
+  /** Where the ball (and the bowler) are on screen (−1 … 1 each way), whether the guide shows, for tests. */
   onScreen() {
+    this.poseBowler(performance.now());
     this.camera.updateMatrixWorld();
     const v = this.ball.position.clone().project(this.camera);
-    return { ball: { x: v.x, y: v.y, visible: this.ball.visible }, guide: this.guide.visible };
+    const bowler = this.bowler?.root.visible ? screenBoxOf(this.bowler.root, this.camera) : null;
+    return {
+      ball: { x: v.x, y: v.y, visible: this.ball.visible },
+      guide: this.guide.visible,
+      bowler,
+    };
   }
 
   /** The pins standing, the ball where you stand, and the guide down the oil. */
@@ -845,6 +993,9 @@ export class Lane {
     this.ball.material = this.ballMats[color] ?? this.ballMats[MY_BALL]!;
     this.ball.visible = true;
     this.ball.position.set(x, BALL_R, 0.35);
+    this.stanceX = x;
+    this.rolling = false;
+    if (this.bowler) this.bowler.root.visible = true;
     this.lastZ = 0;
     this.guide.visible = guide.length > 1;
     if (guide !== this.guideOf) {
@@ -862,6 +1013,7 @@ export class Lane {
   show(sim: BowlSim, s: number) {
     const f = frameAt(sim.frames, s);
     if (!f) return;
+    this.rolling = true;
     this.guide.visible = false;
     const b = f.ball;
     this.ball.visible = b.z < PIT_Z + 0.4;
@@ -883,7 +1035,15 @@ export class Lane {
       this.q.setFromAxisAngle(this.axis, tilt);
       g.quaternion.copy(this.q);
     }
-    // The camera: behind the ball down the lane, then holding at the pin deck.
+    // The ball's first moments from where the bowler stands (their follow-through in the
+    // picture), then the camera behind the ball down the lane (the bowler out of its way),
+    // holding at the pin deck.
+    const watch = s < 0.4 && !!this.bowler;
+    if (this.bowler) this.bowler.root.visible = watch;
+    if (watch) {
+      this.idleCamera();
+      return;
+    }
     const follow = Math.min(b.z, 14.2);
     this.camera.fov = 34 - Math.min(1, follow / 14) * 6;
     this.camera.position.set(b.x * 0.4, 1.05 - Math.min(1, follow / 14) * 0.35, -follow + 2.4);
@@ -892,6 +1052,7 @@ export class Lane {
   }
 
   render() {
+    this.poseBowler(performance.now());
     try {
       this.renderer.render(this.scene, this.camera);
     } catch {
@@ -907,6 +1068,7 @@ export class Lane {
 
   dispose() {
     this.guide.geometry.dispose();
+    for (const b of this.bowlers.values()) disposeTree(b.root);
     for (const d of this.disposables) d.dispose();
     this.renderer.dispose();
   }

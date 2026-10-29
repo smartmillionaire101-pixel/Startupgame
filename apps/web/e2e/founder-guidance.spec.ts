@@ -3,7 +3,8 @@ import { expect, letters, playAsGuest, setupFounder, tab, test, openMoney } from
 /**
  * Founder guidance: the Company screen opens on the founder's stage (Idea,
  * its checklist and the next step), Pricing and spend checks the price as
- * it is typed, and a pitch to an AI fund comes back scored, answer by answer.
+ * it is typed, and a pitch meeting with an AI fund comes back scored: what
+ * moved the partner, in points (round 7: the meeting replaced the questions form).
  */
 test('a founder sees the stage tracker, a pricing warning and a scored pitch', async ({ page }) => {
   const tag = letters(5);
@@ -81,7 +82,7 @@ test('a founder sees the stage tracker, a pricing warning and a scored pitch', a
   );
   await expect(pricing.locator('[data-founder-check="runway"]')).toBeVisible();
 
-  // Pitch AI funds (through the API) until one asks questions.
+  // Pitch AI funds (through the API) until one takes the meeting (gameplay note).
   const opened = await page.evaluate(async () => {
     const h = { 'x-runway': '1', 'content-type': 'application/json' };
     const s = await (await fetch('/api/state', { headers: h })).json();
@@ -102,34 +103,50 @@ test('a founder sees the stage tracker, a pricing warning and a scored pitch', a
       });
       if (!r.ok) continue;
       const out = await r.json();
-      if (out.result.status === 'questions') return out.result.pitchId as string;
+      if (out.result.status === 'meeting') return out.result.pitchId as string;
     }
     return null;
   });
-  test.skip(!opened, 'No fund in this world asked questions of a brand-new founder.');
+  expect(opened, 'an AI fund that fits takes the meeting').not.toBeNull();
   await page.reload();
 
-  // Answer honestly (the first choice is the true figure) and read the scores.
+  // Play it honestly from the Money screen, and read the score: what moved him, in points.
   await openMoney(page);
-  const card = page.locator('section.card').filter({ hasText: /has questions/ });
-  await expect(card).toBeVisible();
-  for (const field of await card.locator('.field').all())
-    await field.locator('button.choice').first().click();
-  await card.getByRole('button', { name: 'Answer' }).click();
-  const result = page.locator(`[data-pitch-result="${opened}"]`);
+  await page.locator('[data-meeting-resume]').click();
+  const sheet = page.getByRole('dialog', { name: /^Pitch meeting/ });
+  await sheet.locator('[data-opener]').first().click();
+  await expect(sheet.locator('[data-reaction="opener"]')).toBeVisible();
+  for (const q of ['traction', 'runway', 'competition']) {
+    const honest = sheet.locator(`[data-turn="q-${q}"] [data-answer="true"]`);
+    if (
+      !(await honest.waitFor({ timeout: 3000 }).then(
+        () => true,
+        () => false,
+      ))
+    )
+      continue;
+    await honest.click();
+    await expect(sheet.locator(`[data-reaction="${q}"]`)).toBeVisible();
+  }
+  await sheet.locator('[data-ask-option="inside"]').click();
+  const result = sheet.locator('[data-pitch-result]');
   await expect(result).toBeVisible();
-  await expect(result.locator('[data-answer-score]').first()).toBeVisible();
-  await expect(result.getByText('That was the best answer.').first()).toBeVisible();
-  await expect(result.getByText(/^Because:/).first()).toBeVisible();
-  await expect(result.getByText(/avg \d+/)).toBeVisible();
   const pitch = await page.evaluate(async (id) => {
     const s = await (await fetch('/api/state', { headers: { 'x-runway': '1' } })).json();
     return s.view.pitches.find((p: { id: string }) => p.id === id);
   }, opened);
-  expect(pitch.scores.length).toBeGreaterThan(0);
-  // A pass names the real reason, with how to fix it.
-  if (pitch.status === 'passed' && pitch.passWhy) {
-    await expect(result.locator('[data-pass-why]')).toBeVisible();
-    await expect(result.getByText('How to fix it:')).toBeVisible();
-  }
+  const r = pitch.meeting.result;
+  await expect(result).toHaveAttribute('data-pitch-score', String(r.score));
+  await expect(sheet.locator('[data-moved-id]')).toHaveCount(r.moved.length);
+  for (const m of r.moved as { id: string; points: number }[])
+    await expect(sheet.locator(`[data-moved-id="${m.id}"]`)).toHaveAttribute(
+      'data-points',
+      String(m.points),
+    );
+  // An honest meeting: a term sheet, a pass (what held him back), or his partners next.
+  expect(['term-sheet', 'passed', 'partners']).toContain(r.outcome);
+  if (r.outcome === 'passed')
+    await expect(sheet.getByRole('heading', { name: /^What held .+ back$/ })).toBeVisible();
+  if (r.outcome === 'term-sheet')
+    await expect(sheet.getByRole('heading', { name: /^What moved / })).toBeVisible();
 });

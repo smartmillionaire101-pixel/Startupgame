@@ -5,6 +5,7 @@ import { GameProvider } from './store';
 import { getLang, loadLang, useLang } from './i18n';
 import { reloadForUpdate } from './stale';
 import { watchPageErrors } from './feedback';
+import './devflag';
 import './styles.css';
 
 const Admin = lazy(() => import('./admin/Admin'));

@@ -118,3 +118,83 @@ test('a founder prospects, works a deal to signature and sees the customer', asy
     await page.screenshot({ path: `${dir}/sales-desktop.png`, fullPage: true });
   }
 });
+
+/**
+ * Round 7 #9 (player feedback: empty stages collapsed to thin strips with
+ * turned labels, "LEAD 0 · DEMO 0", and looked broken): the Company screen's
+ * Sales board on a laptop is a row of stage chips with their counts (empty
+ * ones dimmed, never turned), the deal cards grouped below, and a tap on a
+ * chip shows that stage. What you don't know yet folds into one line.
+ */
+test.describe('the sales board on a laptop', () => {
+  test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
+
+  test('stage chips with counts, empty stages as dimmed chips, a tap filters', async ({ page }) => {
+    await playAsGuest(page);
+    const handle = `sb_${letters(8)}`;
+    await setupFounder(page, {
+      name: 'Ada Board',
+      handle,
+      company: `Board ${handle.slice(3)}`,
+      idea: 'Payments for market traders',
+    });
+    await page
+      .getByRole('button', { name: /^Company/ })
+      .first()
+      .click();
+    await page.getByRole('tab', { name: 'Sales' }).click();
+    const sales = page.locator('[data-sales]').first();
+    await sales.getByRole('button', { name: 'Find new leads' }).click();
+    await expect(sales.locator('[data-deal-stage="lead"]').first()).toBeVisible();
+    const leads = await sales.locator('[data-deal-stage="lead"]').count();
+
+    // One row of chips: All open, the six stages, Won and Lost.
+    const chips = sales.locator('[data-sales-stages]');
+    await expect(chips).toBeVisible();
+    await expect(chips.locator('[data-chip]')).toHaveCount(9);
+    await expect(chips.locator('[data-chip="all"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(chips.locator('[data-chip="lead"] .n')).toHaveText(String(leads));
+    // An empty stage is a dimmed chip with its 0, not a column.
+    await expect(chips.locator('[data-chip="demo"]')).toHaveClass(/is-empty/);
+    await expect(chips.locator('[data-chip="demo"] .n')).toHaveText('0');
+    await expect(sales.locator('.sales-col')).toHaveCount(1);
+    await expect(sales.locator('.sales-col[data-stage="demo"]')).toHaveCount(0);
+    // Nothing is written sideways, and the chips sit in one row.
+    const sideways = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('.sales *')].filter(
+          (e) => getComputedStyle(e).writingMode !== 'horizontal-tb',
+        ).length,
+    );
+    expect(sideways).toBe(0);
+    const tops = await chips
+      .locator('[data-chip]')
+      .evaluateAll((els) => [
+        ...new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))),
+      ]);
+    expect(tops).toHaveLength(1);
+
+    // Before discovery, the unknowns fold into one line.
+    const deal = sales.locator('[data-deal-stage="lead"]').first();
+    await expect(deal.locator('[data-tofind]')).toBeVisible();
+    await expect(deal.locator('[data-known="budget"]')).toBeHidden();
+
+    // Call one lead: it moves to Contacted, and that chip counts it.
+    await deal.locator('button[data-action="contact"]').click();
+    await deal.locator('[data-confirm="contact"]').getByRole('button', { name: 'Confirm' }).click();
+    await expect(chips.locator('[data-chip="contacted"] .n')).toHaveText('1');
+    await expect(chips.locator('[data-chip="contacted"]')).not.toHaveClass(/is-empty/);
+
+    // A tap shows that stage only; an empty stage says so; All open brings the rest back.
+    await chips.locator('[data-chip="contacted"]').click();
+    await expect(chips.locator('[data-chip="contacted"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(sales.locator('.sales-col')).toHaveCount(1);
+    await expect(sales.locator('.sales-col[data-stage="contacted"]')).toBeVisible();
+    await expect(sales.locator('[data-deal-stage="lead"]')).toHaveCount(0);
+    await chips.locator('[data-chip="negotiation"]').click();
+    await expect(sales.locator('[data-sales-none]')).toBeVisible();
+    await chips.locator('[data-chip="all"]').click();
+    await expect(sales.locator('[data-deal-stage="contacted"]')).toHaveCount(1);
+    if (leads > 1) await expect(sales.locator('[data-deal-stage="lead"]')).toHaveCount(leads - 1);
+  });
+});

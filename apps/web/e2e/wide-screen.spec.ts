@@ -187,3 +187,123 @@ test.describe('a tablet on its side (1024×768)', () => {
     await phonePanel(page);
   });
 });
+
+/**
+ * Round 7 #7 (player feedback: on a laptop an interview and a sales
+ * conversation were a narrow dark column under a separate strip with the
+ * business name): one centred panel, the conversation on the left and what
+ * you know on the right, on a laptop and on a tablet held upright. The
+ * place's column and its strip step back; a phone keeps one column.
+ */
+async function talkOpen(page: Page) {
+  // A lead you've called, then its sales conversation from the Company screen.
+  const r = await page.evaluate(async () => {
+    const post = (command: unknown) =>
+      fetch('/api/commands', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-runway': '1' },
+        body: JSON.stringify({ command }),
+      }).then((x) => x.json());
+    const p = await post({ type: 'sales.prospect' });
+    const id = p.result.leads[0].id as string;
+    await post({ type: 'sales.advance', dealId: id, action: 'contact' });
+    return id;
+  });
+  await page.reload();
+  await tab(page, 'Company').click();
+  await page.getByRole('tab', { name: 'Sales' }).click();
+  await page.locator(`[data-deal="${r}"] button[data-action="talk"]`).click();
+  const sheet = page.getByRole('dialog', { name: /^Sales conversation/ });
+  await expect(sheet).toBeVisible();
+  await sheet.locator('[data-talk-start]').click();
+  await expect(sheet.locator('[data-turn="lead"]')).toBeVisible({ timeout: 15_000 });
+  return sheet;
+}
+
+/** The conversation's two columns: side by side, the right one `side` px or so. */
+async function convoColumns(page: Page, minWidth: number) {
+  const panel = (await box(page, '.sheet.sheet-convo'))!;
+  expect(panel.width).toBeGreaterThan(minWidth);
+  // Centred in the room beside the nav pill (the backdrop's padding keeps clear of it).
+  const mid = await page
+    .locator('.sheet-backdrop', { has: page.locator('.sheet-convo') })
+    .first()
+    .evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      const l = r.x + parseFloat(cs.paddingLeft);
+      const rr = r.x + r.width - parseFloat(cs.paddingRight);
+      return (l + rr) / 2;
+    });
+  expect(Math.abs(panel.x + panel.width / 2 - mid)).toBeLessThan(4);
+  const main = (await box(page, '.sheet-convo .convo-main'))!;
+  const side = (await box(page, '.sheet-convo .convo-side'))!;
+  expect(side.x).toBeGreaterThanOrEqual(main.x + main.width - 1);
+  expect(Math.abs(side.y - main.y)).toBeLessThan(4);
+  // The sub-title names who you're talking to.
+  await expect(page.locator('.sheet-convo .sheet-sub')).toContainText(/with /);
+}
+
+test.describe('a conversation on a laptop (1440×900)', () => {
+  test.use({ viewport: { width: 1440, height: 900 }, ...desktop });
+
+  test('a sales conversation and an interview are one centred panel with two columns', async ({
+    page,
+  }) => {
+    await founder(page);
+    const sheet = await talkOpen(page);
+    await convoColumns(page, 900);
+    // What you know (who they are, the win meter) is the right column.
+    await expect(sheet.locator('.convo-side .convo-first')).toBeVisible();
+    await expect(sheet.locator('.convo-side').getByRole('meter')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // The Market's stall: the interview, over the place, without its strip.
+    await tab(page, 'City').click();
+    await page.getByRole('button', { name: /Places/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Places' })
+      .locator('[data-kind="stall"]')
+      .first()
+      .click();
+    await page.locator('.tray-card[data-action="interview"]').click();
+    const iv = page.getByRole('dialog', { name: /^Customer interview/ });
+    await expect(iv).toBeVisible();
+    await expect(page.locator('.place-scene > .place-head')).toBeHidden();
+    await iv.getByRole('button', { name: 'Start the interview' }).click();
+    await expect(iv.locator('[data-interview="round"]')).toBeVisible({ timeout: 15_000 });
+    const panel = (await box(page, '.sheet.sheet-convo'))!;
+    expect(panel.width).toBeGreaterThan(900);
+    const main = (await box(page, '.sheet-convo .convo-main'))!;
+    const notes = (await iv.locator('.convo-side').boundingBox())!;
+    expect(notes.x).toBeGreaterThanOrEqual(main.x + main.width - 1);
+    await expect(iv.locator('.convo-side')).toContainText('Your notes');
+  });
+});
+
+test.describe('a conversation on a tablet held upright (768×1024)', () => {
+  test.use({ viewport: { width: 768, height: 1024 }, ...desktop });
+
+  test('two columns too', async ({ page }) => {
+    await founder(page);
+    await talkOpen(page);
+    await convoColumns(page, 600);
+  });
+});
+
+test.describe('a conversation on a phone (390×844)', () => {
+  test('one column, who they are first', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await founder(page);
+    const sheet = await talkOpen(page);
+    const who = (await sheet.locator('.convo-first').boundingBox())!;
+    const lead = (await sheet.locator('[data-turn="lead"]').boundingBox())!;
+    expect(who.y).toBeLessThan(lead.y);
+    expect(Math.abs(who.x - lead.x)).toBeLessThan(30);
+    // Nothing in it runs off the side.
+    const over = await sheet
+      .locator('.sheet-body')
+      .evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(over).toBeLessThanOrEqual(0);
+  });
+});

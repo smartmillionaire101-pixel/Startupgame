@@ -598,7 +598,7 @@ export function planFor(tier: number, spec?: HomeSpec): HomePlan {
   if (!p) {
     const core = t === 1 ? sharedRoom() : flat(t);
     p = spec ? extend(core, { kind: spec.kind, wealth }) : core;
-    p = clearOfWindows(withFittedCounter(p));
+    p = withRoomSlots(clearOfWindows(withFittedCounter(p)));
     PLANS.set(k, p);
   }
   return p;
@@ -811,6 +811,276 @@ function clearOfWindows(plan: HomePlan): HomePlan {
 }
 
 // ---------------------------------------------------------------------------
+// Round 7: the bathroom and the hallway (engine ROOM_SLOTS).
+
+interface RoomSlotSpec {
+  /** The rooms it goes in, the first that has room for it. */
+  rooms: RoomId[];
+  /** Footprints to try (tiles along x, along y), the first that fits. */
+  sizes: [number, number][];
+  /** Hung on a wall (a mirror, a towel rail). */
+  wall?: boolean;
+  /** Walked over (a mat, a runner): it may lie where you stand to use things. */
+  flat?: boolean;
+  /** Where in the room it goes nearest to: the front door, or the room's sink. */
+  near?: 'door' | 'sink';
+}
+
+const HALLWAY: RoomId[] = ['hall', 'living'];
+
+/**
+ * Where round 7's bathroom and hallway things go: in the bathroom (a hamper
+ * or a plant that doesn't fit there goes to the bedroom or the living room),
+ * and in the hall, or by the front door where a home has no hall. A room in
+ * a shared flat has no room for some of them (Buy mode doesn't offer those).
+ */
+export const ROOM_SLOT_SPECS: Record<string, RoomSlotSpec> = {
+  // What stands on the floor first, then what hangs on a wall, then what you walk on.
+  hamper: { rooms: ['bathroom', 'bedroom', 'landing'], sizes: [[1, 1]] },
+  bathplant: { rooms: ['bathroom', 'living', 'bedroom'], sizes: [[1, 1]] },
+  shoes: { rooms: HALLWAY, sizes: [[1, 1]], near: 'door' },
+  coats: { rooms: HALLWAY, sizes: [[1, 1]], near: 'door' },
+  console: {
+    rooms: HALLWAY,
+    sizes: [
+      [2, 1],
+      [1, 1],
+    ],
+    near: 'door',
+  },
+  cabinet: { rooms: ['bathroom'], sizes: [[1, 1]], wall: true, near: 'sink' },
+  towels: { rooms: ['bathroom'], sizes: [[1, 1]], wall: true },
+  hallmirror: { rooms: HALLWAY, sizes: [[1, 1]], wall: true, near: 'door' },
+  bathmat: { rooms: ['bathroom'], sizes: [[1, 1]], flat: true },
+  runner: {
+    rooms: HALLWAY,
+    sizes: [
+      [2, 1],
+      [1, 1],
+    ],
+    flat: true,
+    near: 'door',
+  },
+};
+
+/** The way each quarter turn faces, in tiles: 0 is +y (away from the back wall), 1 is +x. */
+const FACE: readonly [number, number][] = [
+  [0, 1],
+  [1, 0],
+  [0, -1],
+  [-1, 0],
+];
+
+/** The tiles you can walk to from the door (4-way, round the walls). */
+function walkableFrom(
+  plan: HomePlan,
+  blocked: ReadonlySet<string>,
+  walls: ReadonlySet<string>,
+): Set<string> {
+  const seen = new Set<string>([key(plan.door.x, plan.door.y)]);
+  const queue = [plan.door];
+  while (queue.length) {
+    const t = queue.shift()!;
+    for (const [dx, dy] of FACE) {
+      const x = t.x + dx;
+      const y = t.y + dy;
+      const k = key(x, y);
+      if (x < 0 || y < 0 || x >= plan.w || y >= plan.h || seen.has(k) || blocked.has(k)) continue;
+      if (walls.has(`${key(t.x, t.y)}|${k}`)) continue;
+      seen.add(k);
+      queue.push({ x, y });
+    }
+  }
+  return seen;
+}
+
+/** A free tile beside a thing that you can walk to (Buy mode's "use it from here"). */
+function besideOk(sp: Spot, seen: ReadonlySet<string>): boolean {
+  for (let x = sp.x; x < sp.x + sp.w; x++)
+    if (seen.has(key(x, sp.y - 1)) || seen.has(key(x, sp.y + sp.h))) return true;
+  for (let y = sp.y; y < sp.y + sp.h; y++)
+    if (seen.has(key(sp.x - 1, y)) || seen.has(key(sp.x + sp.w, y))) return true;
+  return false;
+}
+
+/**
+ * Round 7: a spot for each bathroom and hallway thing on this floor: against
+ * a wall of its room (hung on one, for a mirror), clear of everything else
+ * and of where you stand to use it, never over a window or the front door,
+ * with everything still reachable from the door with all of it owned. A
+ * thing with no room for it on this floor gets no spot here.
+ */
+function withRoomSlots(plan: HomePlan): HomePlan {
+  if (!plan.rooms.some((r) => r.id === 'bathroom' || r.id === 'hall' || r.id === 'living'))
+    return plan;
+  const slots: Record<string, Spot> = { ...plan.slots };
+  const walls = wallEdges(plan);
+  const openings = wallOpenings(plan);
+  const roomOf = (x: number, y: number) =>
+    plan.rooms.find((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
+  /** A wall right behind tile (x, y) facing `rot` (an outer one, an inner one, the floor's edge). */
+  const wallAt = (x: number, y: number, rot: number) => {
+    const [fx, fy] = FACE[rot]!;
+    const bx = x - fx;
+    const by = y - fy;
+    if (bx < 0 || by < 0 || bx >= plan.w || by >= plan.h || !roomOf(bx, by)) return true;
+    return walls.has(`${key(x, y)}|${key(bx, by)}`);
+  };
+  for (const [slot, spec] of Object.entries(ROOM_SLOT_SPECS)) {
+    if (slots[slot]) continue;
+    const current: HomePlan = { ...plan, slots };
+    const all = new Set(Object.keys(slots));
+    const blocked = blockedTiles(current, all);
+    // Where things stand (owned or not), and where you stand to use them.
+    const taken = new Set<string>();
+    const uses = new Set<string>();
+    const mark = (sp: Spot, floorToo: boolean) => {
+      if (floorToo)
+        for (let x = sp.x; x < sp.x + sp.w; x++)
+          for (let y = sp.y; y < sp.y + sp.h; y++) taken.add(key(x, y));
+      uses.add(key(sp.interact.x, sp.interact.y));
+    };
+    for (const sp of Object.values(slots) as (Spot & { rot?: number })[]) {
+      mark(sp, !sp.wall);
+      // And the tile in front of it as it faces (Buy mode moves it from there).
+      const r = sp.rot ?? 0;
+      uses.add(
+        key(
+          sp.x + (r === 1 ? sp.w : r === 3 ? -1 : Math.floor((sp.w - 1) / 2)),
+          sp.y + (r === 0 ? sp.h : r === 2 ? -1 : Math.floor((sp.h - 1) / 2)),
+        ),
+      );
+    }
+    for (const sp of Object.values(plan.fixtures)) if (sp) mark(sp, true);
+    for (const d of plan.decor) mark(d.spot, true);
+    const onWall = Object.values(slots).filter((sp) => sp.wall) as (Spot & { rot?: number })[];
+    const others = [
+      ...Object.values(slots).map((sp) => sp.interact),
+      ...Object.values(plan.fixtures).map((sp) => sp!.interact),
+      ...plan.decor.map((d) => d.spot.interact),
+    ];
+    const door = key(plan.door.x, plan.door.y);
+    let found: (Spot & { rot: number }) | null = null;
+    for (const id of spec.rooms) {
+      const rooms = plan.rooms.filter((r) => r.id === id && !r.open);
+      if (!rooms.length) continue;
+      const anchor =
+        spec.near === 'door'
+          ? plan.door
+          : spec.near === 'sink' && plan.fixtures.sink
+            ? plan.fixtures.sink
+            : null;
+      const tries: { x: number; y: number; w: number; h: number; rot: number; d: number }[] = [];
+      for (const r of rooms)
+        for (const [w, h] of spec.sizes)
+          for (let y = r.y; y + h <= r.y + r.h; y++)
+            for (let x = r.x; x + w <= r.x + r.w; x++)
+              for (let rot = 0; rot < 4; rot++) {
+                // A long thing lies along its wall (its footprint as it faces: rot 0 or 2).
+                if (w !== h && rot % 2 === 1) continue;
+                const cx = anchor ? anchor.x : r.x + r.w / 2;
+                const cy = anchor ? anchor.y : r.y + r.h / 2;
+                // The first footprint wherever it fits, then the smaller one.
+                const d = Math.abs(x - cx) + Math.abs(y - cy) + rot * 0.01;
+                tries.push({ x, y, w, h, rot, d: spec.sizes[0]![0] === w ? d : d + 1000 });
+              }
+      tries.sort((a, z) => a.d - z.d);
+      // Against a wall if it can be; free-standing (not on a wall) where the room has no room left.
+      const passes = spec.wall ? [true] : [true, false];
+      for (const t of passes.flatMap((wallOnly) => tries.map((x) => ({ ...x, wallOnly })))) {
+        // Its back to a wall along its whole length.
+        let backed = true;
+        for (let i = 0; i < t.w && backed; i++)
+          for (let j = 0; j < t.h && backed; j++) {
+            const x = t.x + i;
+            const y = t.y + j;
+            const edge =
+              (t.rot === 0 && j === 0) ||
+              (t.rot === 2 && j === t.h - 1) ||
+              (t.rot === 1 && i === 0) ||
+              (t.rot === 3 && i === t.w - 1);
+            if (edge && !wallAt(x, y, t.rot)) backed = false;
+          }
+        if (!backed && t.wallOnly) continue;
+        const tiles: string[] = [];
+        let ok = true;
+        for (let i = 0; i < t.w && ok; i++)
+          for (let j = 0; j < t.h && ok; j++) {
+            const x = t.x + i;
+            const y = t.y + j;
+            const k = key(x, y);
+            if (roomOf(x, y)?.id !== id || k === door) ok = false;
+            else if (taken.has(k) || (!spec.wall && !spec.flat && uses.has(k))) ok = false;
+            tiles.push(k);
+          }
+        if (!ok) continue;
+        // No wall runs through it.
+        if (
+          t.w > 1 &&
+          plan.walls.some((wl) => wl.dir === 'v' && wl.x > t.x && wl.x < t.x + t.w && wl.y === t.y)
+        )
+          continue;
+        // Where you stand to use it: in front, in the same room, free.
+        const ix = t.x + (t.rot === 1 ? t.w : t.rot === 3 ? -1 : Math.floor((t.w - 1) / 2));
+        const iy = t.y + (t.rot === 0 ? t.h : t.rot === 2 ? -1 : Math.floor((t.h - 1) / 2));
+        const ik = key(ix, iy);
+        if (roomOf(ix, iy)?.id !== id || blocked.has(ik) || tiles.includes(ik)) continue;
+        if (!spec.wall && !spec.flat && taken.has(ik)) continue;
+        if (spec.wall) {
+          if (overOpening(plan, t.x, t.y, t.rot, openings)) continue;
+          // Not over another thing hung there, facing the same way.
+          if (
+            onWall.some(
+              (o) =>
+                t.x >= o.x &&
+                t.x < o.x + o.w &&
+                t.y >= o.y &&
+                t.y < o.y + o.h &&
+                (o.rot ?? (o.y === 0 ? 0 : o.x === 0 ? 1 : o.x + o.w === plan.w ? 3 : 2)) === t.rot,
+            )
+          )
+            continue;
+        }
+        const sp: Spot & { rot: number } = {
+          x: t.x,
+          y: t.y,
+          w: t.w,
+          h: t.h,
+          blocked: !spec.wall && !spec.flat,
+          ...(spec.wall ? { wall: true } : {}),
+          interact: { x: ix, y: iy },
+          rot: t.rot,
+        };
+        // Everything stays reachable from the door, with this and everything else owned,
+        // and every thing keeps a free tile beside it to be used (and moved) from.
+        const b = new Set(blocked);
+        if (sp.blocked) for (const k of tiles) b.add(k);
+        const seen = walkableFrom(plan, b, walls);
+        if (![...others, sp.interact].every((x) => seen.has(key(x.x, x.y)))) continue;
+        if (
+          sp.blocked &&
+          ![...Object.values(slots), sp].every((o) => o.wall || !o.blocked || besideOk(o, seen))
+        )
+          continue;
+        found = sp;
+        break;
+      }
+      if (found) break;
+    }
+    if (found) slots[slot] = found;
+  }
+  return { ...plan, slots };
+}
+
+/** The floor without round 7's bathroom and hallway spots (a world that doesn't sell them). */
+export function withoutRoomSlots(plan: HomePlan): HomePlan {
+  if (!Object.keys(ROOM_SLOT_SPECS).some((k) => plan.slots[k])) return plan;
+  const slots = { ...plan.slots };
+  for (const k of Object.keys(ROOM_SLOT_SPECS)) delete slots[k];
+  return { ...plan, slots };
+}
+
+// ---------------------------------------------------------------------------
 // Floors: a house has an upstairs, a mansion a roof terrace too.
 
 /** How many floors a kind of home has (the rest are one floor). */
@@ -848,6 +1118,8 @@ export function floorsFor(tier: number, spec?: HomeSpec): HomePlan[] {
     out = [groundFloor(ground, g), upperFloor(ground, g, n)];
     if (n >= 3) out.push(roofFloor(ground, g));
     out = out.map(clearOfWindows);
+    // The bathroom and hallway things go where this floor's rooms are (the hall downstairs).
+    out[0] = withRoomSlots(out[0]!);
     FLOORS.set(k, out);
   }
   return out;
@@ -925,6 +1197,7 @@ function groundFloor(p: HomePlan, g: Geometry): HomePlan {
   });
   const slots = { ...p.slots };
   for (const s of UPSTAIRS) delete slots[s];
+  for (const s of Object.keys(ROOM_SLOT_SPECS)) delete slots[s];
   // The art hangs in the hall beside the stairs; the AC is reached from the side of them.
   slots.art = spot(B - 2, 0, 1, 1, B - 2, 1, { wall: true });
   slots.cooling = spot(0, 0, 2, 1, Math.min(1, sx - 1), 1, { wall: true });

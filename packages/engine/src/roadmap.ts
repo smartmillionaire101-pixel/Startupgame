@@ -22,7 +22,8 @@ import { transfer } from './ledger.js';
 import { clamp01 } from './math.js';
 import { scale } from './money.js';
 import { deriveRng } from './rng.js';
-import { bandSalary, outputOf } from './staff.js';
+import { bandSalary } from './staff.js';
+import { buildOutput } from './cofounders.js';
 import type { BuildMode, Company, Id, Player, ProductProject, Roadmap, World } from './types.js';
 
 export const ROADMAP = {
@@ -398,7 +399,8 @@ export function releaseProject(world: World, c: Company, projectId: string, mont
 function monthlyCapacityWeeks(world: World, c: Company): number {
   const founder = world.players[c.founderIds[0]!];
   const founderBuild = founder ? (c.buildHours / 160) * (founder.skills.product / 60) : 0;
-  const output = outputOf(c, ['engineer']) + outputOf(c, ['product']) * 0.6 + founderBuild;
+  // Round 7: engineers and a technical co-founder build faster (gameplay note).
+  const output = buildOutput(world, c, founderBuild);
   return output * ROADMAP.share * ROADMAP.weeksPerOutput * ROADMAP.speed[c.product.buildMode];
 }
 

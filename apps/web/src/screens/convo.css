@@ -1,6 +1,8 @@
 /* Customer interviews and sales conversations: people, chat, choices, notes, scored results. */
 .convo {
   display: grid;
+  /* One column that never grows past the sheet (a wide row of chips scrolls inside it). */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
 }
@@ -201,6 +203,26 @@
   background: rgb(250 204 21 / 0.35);
   border-radius: 4px;
 }
+/* A note only a weaker question filled: a feeling, no figure. */
+.notes dd.vague {
+  color: #7a6a3a;
+  font-style: italic;
+}
+.note-vague {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px dashed #c9b26a;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-style: normal;
+  color: #8a7433;
+}
+.note-gaps {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
 .score-ring {
   display: block;
 }
@@ -355,4 +377,95 @@
 }
 .convo h3.small {
   margin: 12px 0 6px;
+}
+
+/* Round 7: one centred panel for an interview or a sales conversation
+   (player feedback: on a laptop they were a narrow dark column under a
+   separate strip with the business name). The conversation is on the left
+   (`.convo-main`); what you know (your notes, who they are, the win meter)
+   is a sticky column on the right (`.convo-side`). On a phone both wrappers
+   step aside (display: contents) and the cards read in their usual order. */
+.convo-main,
+.convo-side {
+  display: contents;
+}
+/* Phone order: who they are first, the next-round button after the notes. */
+.convo-side > .convo-first {
+  order: -1;
+}
+.convo-main > .convo-next {
+  order: 1;
+}
+.convo-next > .btn {
+  width: 100%;
+}
+.sheet-title {
+  display: grid;
+  min-width: 0;
+}
+.sheet-title h2 {
+  margin: 0;
+}
+.sheet-sub {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm, 0.875rem);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (min-width: 600px) {
+  .sheet.sheet-convo {
+    max-width: min(1080px, calc(100vw - 2 * var(--sp-5, 20px)));
+    width: 100%;
+    max-height: min(88dvh, 820px);
+    border: 1px solid var(--line);
+  }
+  .sheet-convo .sheet-head {
+    padding: var(--sp-4) var(--sp-5) var(--sp-3);
+    border-bottom: 1px solid var(--line);
+  }
+  .sheet-convo .sheet-body {
+    padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  }
+  .sheet-convo .convo:has(> .convo-side) {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: start;
+    column-gap: var(--sp-4);
+  }
+  .sheet-convo .convo-main,
+  .sheet-convo .convo-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    min-width: 0;
+  }
+  .sheet-convo .convo-side {
+    position: sticky;
+    top: 0;
+  }
+  .sheet-convo .convo-main > *,
+  .sheet-convo .convo-side > * {
+    margin: 0;
+    order: 0;
+  }
+  .sheet-convo .convo-next {
+    align-self: flex-end;
+  }
+  .sheet-convo .convo-next > .btn {
+    width: auto;
+    min-width: 14rem;
+  }
+  .sheet-convo .convo-meter {
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+@media (min-width: 900px) {
+  /* Room for the nav pill at the left edge of a laptop. */
+  .sheet.sheet-convo {
+    max-width: min(1080px, calc(100vw - 2 * 7.5rem));
+  }
+  .sheet-convo .convo:has(> .convo-side) {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
 }

@@ -52,6 +52,7 @@ import {
   type PriceBand,
   type TermsKind,
 } from './data/customer-interviews.js';
+import { openerFor, productTheme } from './data/sales-openers.js';
 import { getBusiness, isOpen, pitchBlocker } from './economy.js';
 import { ensure, fail } from './errors.js';
 import { getMarket, ownCompany, spendHours } from './helpers.js';
@@ -64,12 +65,14 @@ import {
   assumed,
   closeDeal,
   hasDealRoom,
+  holdingBack,
   isOpenDeal,
   makeLead,
   salesView,
   winChance,
 } from './sales.js';
-import { feedbackOn } from './releases.js';
+import { feedbackOn, gameplayOn } from './releases.js';
+import { salesStaff, salesTip } from './team.js';
 import type {
   Company,
   Id,
@@ -196,15 +199,40 @@ function talkChance(world: World, c: Company, d: SalesDeal, me: Player, known?: 
   return round2(clamp(p, SALES.chance[0], SALES.chance[1]));
 }
 
+/**
+ * Round 7: the best chance today, with a perfect conversation (their need
+ * first, the middle of the band, the terms that suit them): what's left
+ * below it is what holds the deal back, not the talk.
+ */
+function bestChance(world: World, c: Company, d: SalesDeal, me: Player): number {
+  const mid = priceOptions(world, c, d).find((o) => o.id === 'mid')!.amount;
+  let p = winChance(world, c, d, { price: mid, founder: me });
+  p += 0.5 * TALK.leadEffect;
+  p += (termsScore(d.customer, bestTerms(d.customer)) - 0.6) * TALK.termsEffect;
+  return round2(clamp(p, SALES.chance[0], SALES.chance[1]));
+}
+
+/** Round 7: how the conversation has gone so far (0–100), null before the first turn. */
+function talkSoFar(world: World, c: Company, d: SalesDeal): number | null {
+  const t = d.talk;
+  if (!t?.lead) return null;
+  const scores = [leadScore(world, c, d, t.lead as LeadKind).score];
+  if (t.price) scores.push(PRICE_SCORE[bandFor(d.customer, monthlyOf(d))]);
+  if (t.terms) scores.push(termsScore(d.customer, t.terms as TermsKind));
+  return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100);
+}
+
 // ---------------------------------------------------------------- Commands
 
 export interface TalkInput {
   companyId?: Id;
   dealId?: Id;
   businessId?: Id;
-  action: 'start' | 'lead' | 'price' | 'terms' | 'ask';
+  action: 'start' | 'lead' | 'price' | 'terms' | 'ask' | 'delegate';
   option?: string;
   discountPct?: number;
+  /** Round 7: the salesperson who takes the conversation for you (`delegate`). */
+  staffId?: Id;
 }
 
 function myCompany(world: World, me: Player, companyId?: Id): Company {
@@ -278,6 +306,10 @@ export function salesTalk(world: World, me: Player, cmd: TalkInput) {
   ensure(cmd.dealId, 'sales.deal', 'Pick a deal.');
   const { c, d } = findTalkDeal(world, me, cmd);
   if (cmd.action === 'start') return startTalk(world, me, c, d);
+  if (cmd.action === 'delegate') {
+    ensure(gameplayOn(world), 'command.unknown', 'Unknown command.');
+    return delegateTalk(world, me, c, d, cmd.staffId);
+  }
   const t = d.talk;
   ensure(t && underWay(t), 'sales.talk.none', 'Start the conversation first.');
   ensure(canTalkAt(d), 'sales.stage', 'That step isn’t possible at this stage of the deal.');
@@ -328,7 +360,44 @@ export function salesTalk(world: World, me: Player, cmd: TalkInput) {
   return { dealId: d.id, chance: talkChance(world, c, d, me) };
 }
 
-function startTalk(world: World, me: Player, c: Company, d: SalesDeal) {
+/**
+ * Round 7: a salesperson takes the conversation for you, at their skill: the
+ * opening that fits, the middle of the band and the right terms as often as
+ * they're good, then asks. Your hours aren't spent; the deal becomes theirs.
+ */
+function delegateTalk(world: World, me: Player, c: Company, d: SalesDeal, staffId?: Id) {
+  const s = c.staff.find((x) => x.id === staffId && x.role === 'sales');
+  ensure(s, 'sales.staff', 'Pick someone from your sales team.');
+  const month = getMarket(world, c.market).month;
+  ensure(month <= d.deadline, 'sales.deadline', 'This deal has run out of time.');
+  if (!(d.talk && underWay(d.talk))) startTalk(world, me, c, d, true);
+  const t = d.talk!;
+  ensure(canTalkAt(d), 'sales.stage', 'That step isn’t possible at this stage of the deal.');
+  const rng = deriveRng(world.seed, 'sales', 'delegate', d.id, t.n);
+  const need = d.customer.need;
+  if (!t.lead) {
+    const others = t.leadOptions.filter((o) => o !== need);
+    t.lead =
+      t.leadOptions.includes(need) && rng.chance(0.35 + 0.6 * s.skill) ? need : rng.pick(others);
+  }
+  if (!t.price) {
+    const mid = priceOptions(world, c, d).find((o) => o.id === 'mid')!;
+    t.priceOption = mid.id;
+    t.price = mid.amount;
+    t.discountPct = 0;
+    if (!d.revealed) t.guessed = true;
+  }
+  if (!t.terms) {
+    const opts = termsOf(t).slice() as TermsKind[];
+    const best = opts.sort((a, b) => termsScore(d.customer, b) - termsScore(d.customer, a))[0]!;
+    t.terms = rng.chance(0.3 + 0.6 * s.skill) ? best : rng.pick(opts);
+  }
+  d.owner = s.id;
+  c.lastDecisionMonth = month;
+  return { ...askForDeal(world, me, c, d, month, true), delegated: s.name };
+}
+
+function startTalk(world: World, me: Player, c: Company, d: SalesDeal, free = false) {
   const month = getMarket(world, c.market).month;
   ensure(
     canTalkAt(d),
@@ -341,7 +410,7 @@ function startTalk(world: World, me: Player, c: Company, d: SalesDeal) {
   // A conversation under way picks up where you left it.
   if (d.talk && underWay(d.talk))
     return { dealId: d.id, resumed: true, chance: talkChance(world, c, d, me) };
-  spendHours(me, TALK.hours, `Sales conversation: ${d.customer.name}`);
+  if (!free) spendHours(me, TALK.hours, `Sales conversation: ${d.customer.name}`);
   const n = (d.talk?.n ?? 0) + 1;
   const rng = deriveRng(world.seed, 'sales', 'talk', d.id, n);
   // Their real need is always on offer, with a feature tour and one other opening;
@@ -359,13 +428,20 @@ function startTalk(world: World, me: Player, c: Company, d: SalesDeal) {
   return { dealId: d.id, started: true, chance: talkChance(world, c, d, me) };
 }
 
-function askForDeal(world: World, me: Player, c: Company, d: SalesDeal, month: number) {
+function askForDeal(
+  world: World,
+  me: Player,
+  c: Company,
+  d: SalesDeal,
+  month: number,
+  free = false,
+) {
   const t = d.talk!;
   // The deal is decided on what they really have; before discovery the
   // player saw a guess (the live chance, as shown), kept with the result so
   // it can show both.
   const guess = d.revealed ? undefined : talkChance(world, c, d, me);
-  spendHours(me, TALK.askHours, `Asking ${d.customer.name} for the deal`);
+  if (!free) spendHours(me, TALK.askHours, `Asking ${d.customer.name} for the deal`);
   const chance = talkChance(world, c, d, me, true);
   const f = TALK.termsFactor[t.terms as TermsKind];
   d.price = Math.max(1, Math.round(t.price! * f));
@@ -399,8 +475,17 @@ function askForDeal(world: World, me: Player, c: Company, d: SalesDeal, month: n
 
 // ---------------------------------------------------------------- View
 
-const leadLine = (c: Company, k: string): Line =>
-  k === 'tour' ? TOUR_LINE : LEAD_LINES[c.industry][k as Exclude<LeadKind, 'tour'>];
+/**
+ * What an opening says: in the customer's segment's words, the product-fit
+ * one following the company's idea (data/sales-openers.ts); the industry's
+ * line for a segment without its own.
+ */
+function leadLine(c: Company, segmentKey: string, k: string): Line {
+  if (k === 'tour') return TOUR_LINE;
+  const need = k as Exclude<LeadKind, 'tour'>;
+  const theme = productTheme(c.industry, c.idea, c.starterIdea?.id);
+  return openerFor(segmentKey, need, theme) ?? LEAD_LINES[c.industry][need];
+}
 
 const fit3 = (s: number) => (s >= 0.8 ? 'good' : s >= 0.5 ? 'ok' : 'bad');
 
@@ -433,7 +518,10 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
     chance: open && t ? talkChance(world, c, d, me) : null,
     /** The live chance is a guess until a discovery meeting shows what they really have. */
     chanceGuess: !d.revealed,
-    leadOptions: (t?.leadOptions ?? []).map((id) => ({ id, text: leadLine(c, id) })),
+    leadOptions: (t?.leadOptions ?? []).map((id) => ({
+      id,
+      text: leadLine(c, d.customer.segmentKey, id),
+    })),
     lead: t?.lead ? { id: t.lead, reaction: reactLead } : null,
     priceOptions: prices,
     price: t?.price
@@ -453,6 +541,26 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
     })),
     terms: t?.terms ? { id: t.terms, reaction: reactTerms } : null,
     hints: interviewHints(world, c, d.customer.segmentKey),
+    /**
+     * Round 7 (gameplay note): what is holding the chance down before you ask
+     * (biggest first, in chance points), how your talk has gone, and the best
+     * chance a perfect talk could get today.
+     */
+    /** Round 7: a tip from a salesperson who knows this kind of customer (gameplay note). */
+    tip: open && t && underWay(t) ? salesTip(world, c, d) : null,
+    /** Round 7: salespeople who can take this conversation for you. */
+    delegates:
+      open && canTalkAt(d) && gameplayOn(world)
+        ? salesStaff(c).map((s) => ({ id: s.id, name: s.name, skill: s.skill }))
+        : [],
+    holding:
+      open && t && gameplayOn(world)
+        ? {
+            talk: talkSoFar(world, c, d),
+            items: holdingBack(world, c, d, { price: talkValue(world, c, d) }),
+            best: bestChance(world, c, d, me),
+          }
+        : null,
     result: res
       ? {
           score: res.score,
@@ -470,7 +578,7 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
               mark: fit3(x.score),
               option:
                 x.turn === 'lead'
-                  ? leadLine(c, x.option)
+                  ? leadLine(c, d.customer.segmentKey, x.option)
                   : x.turn === 'terms'
                     ? TERMS_LINES[x.option as TermsKind]
                     : null,
@@ -478,7 +586,7 @@ export function talkView(world: World, c: Company, d: SalesDeal, viewer?: Player
                 x.option === x.best
                   ? null
                   : x.turn === 'lead'
-                    ? leadLine(c, x.best)
+                    ? leadLine(c, d.customer.segmentKey, x.best)
                     : x.turn === 'terms'
                       ? TERMS_LINES[x.best as TermsKind]
                       : null,

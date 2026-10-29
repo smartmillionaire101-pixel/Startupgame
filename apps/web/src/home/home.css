@@ -141,6 +141,46 @@
 .home-person[data-pose='lie'] .city-leg {
   display: none;
 }
+/* Round 7e: lying down in Lite: under the covers, the head on the pillow, a slow "z z". */
+.home-covers {
+  display: none;
+}
+.home-person[data-pose='lie'] .home-covers {
+  display: inline;
+}
+.home-person[data-pose='lie'] .home-person-shadow {
+  display: none;
+}
+.home-zz {
+  fill: #e0f2fe;
+  font-size: 8px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgb(15 23 42 / 0.6);
+  stroke-width: 2px;
+  transform-box: fill-box;
+  animation: home-zz 2.4s ease-in-out infinite;
+}
+.home-zz.late {
+  font-size: 10px;
+  animation-delay: 1.2s;
+}
+@keyframes home-zz {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-zz {
+    animation: none;
+  }
+}
 .home-tag rect {
   fill: #0f172a;
   opacity: 0.78;
@@ -543,4 +583,87 @@
 .home-bar-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* Round 7: resting at home (RestChip.tsx): a chip under the HUD while you sit
+   or lie down, with the rate, what it has done so far, and Get up. */
+.rest-chip {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(var(--hud-scene-top2) + 4px);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 2 * var(--hud-gap));
+  padding: 8px 8px 8px 14px;
+  border-radius: 999px;
+  background: rgb(28 25 21 / 0.86);
+  color: #f6f1e8;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.35);
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  backdrop-filter: blur(8px);
+}
+.rest-ico {
+  font-size: 1.15rem;
+}
+.rest-text {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.rest-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rest-sub {
+  font-weight: 500;
+  opacity: 0.75;
+  font-size: 0.76rem;
+}
+.rest-fx {
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.rest-fx.stress {
+  background: rgb(45 212 191 / 0.2);
+  color: #5eead4;
+}
+.rest-fx.energy {
+  background: rgb(251 191 36 / 0.2);
+  color: #fcd34d;
+}
+.rest-chip button {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  min-height: 2.25rem;
+  padding: 7px 12px;
+  background: #f6f1e8;
+  color: #1c1915;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.rest-chip button:focus-visible {
+  outline: 2px solid #5eead4;
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .rest-chip {
+    top: calc(var(--hud-scene-top2) + 50px);
+    font-size: 0.82rem;
+    gap: 8px;
+  }
+  .rest-sub {
+    display: none;
+  }
 }

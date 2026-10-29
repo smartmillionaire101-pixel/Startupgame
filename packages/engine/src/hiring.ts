@@ -28,6 +28,9 @@ import { newId } from './ids.js';
 import { scale } from './money.js';
 import { deriveRng } from './rng.js';
 import { workable } from './roadmap.js';
+import { gameplayOn } from './releases.js';
+import { bringsOf } from './team.js';
+import { expertiseOf } from './cofounders.js';
 import { bandSalary, isOverloaded, SENIORITY_OUTPUT } from './staff.js';
 import type {
   AiCofounderProfileId,
@@ -469,6 +472,9 @@ export function hireAiCofounder(
       since: month,
     },
   };
+  // Round 7: the sector they know, as their card showed it.
+  if (gameplayOn(world))
+    staff.expertise = expertiseOf(world, `cofounder:${c.id}:${o.id}`, c.industry);
   c.staff.push(staff);
   c.capTable.holdings[staff.id] = { shares, kind: 'founder' };
   ensureHiring(c);
@@ -550,10 +556,28 @@ export function hiringView(world: World, c: Company) {
         personality: revealsFit(x) ? x.personality : null,
         keen: x.referredFor === c.id,
         trialFee: trialFee(x),
+        /** Round 7 (gameplay note): what they'd bring, at the skill their CV claims until checked. */
+        brings: gameplayOn(world)
+          ? bringsOf(world, c, { ...x, skill: revealsSkill(x) ? x.skill : x.cvSkill })
+          : null,
       })),
     aiCofounder: {
       hired: cof ? { staffId: cof.id, name: cof.name, title: cof.cofounder!.title } : null,
-      offers: cof ? [] : aiCofounderOffers(world, c),
+      offers: cof
+        ? []
+        : aiCofounderOffers(world, c).map((o) => ({
+            ...o,
+            /** Round 7 (gameplay note): what this co-founder would bring. */
+            brings: gameplayOn(world)
+              ? bringsOf(world, c, {
+                  id: `cofounder:${c.id}:${o.id}`,
+                  role: o.role,
+                  seniority: 'head',
+                  skill: o.skill,
+                  cofounder: o.id,
+                })
+              : null,
+          })),
     },
   };
 }

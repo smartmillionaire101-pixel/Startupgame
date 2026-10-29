@@ -149,3 +149,39 @@
 :root[data-reduce-motion='1'] .recap-sheet {
   animation: none;
 }
+/* Round 7: "Your team this month" (SalesTeam.tsx TeamMonth): a line per
+   person, what they did, and their skill. */
+.recap-team {
+  display: grid;
+  gap: 10px;
+}
+.team-person {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+.team-person .team-av {
+  width: 34px;
+  height: 34px;
+  font-size: 0.8rem;
+}
+.team-did {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+}
+.team-did li::before {
+  content: '· ';
+  color: var(--muted);
+}
+.team-skill {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--good);
+  white-space: nowrap;
+}
+.team-skill.flat {
+  color: var(--muted);
+}

@@ -6,6 +6,7 @@
  * from the world each time the chat is fetched.
  */
 import {
+  PLAY_IDLE_MS,
   locationOf,
   parseTechEventId,
   techEventsFor,
@@ -89,8 +90,11 @@ export type Card =
       roomId: string | null;
       venue: string | null;
       title: string | null;
+      /** The gameplay round: the venue's name (null: a home), and who was asked. */
+      venueName?: string | null;
+      invitee?: string | null;
     };
-export const PLAY_GAMES = ['quiz', 'snooker', 'football', 'golf'] as const;
+export const PLAY_GAMES = ['quiz', 'snooker', 'football', 'golf', 'bowling'] as const;
 export type PlayGame = (typeof PLAY_GAMES)[number];
 
 /** One-line summaries kept as the message text (chat lists, notifications, older clients). */
@@ -114,8 +118,10 @@ export function chatCommandTarget(c: Command): string | null {
     case 'living.date.invite':
       return c.playerId;
     case 'play.create':
-      // Golf with a friend, invited from their chat.
-      return c.game === 'golf' ? (c.invite ?? null) : null;
+      // A game with a friend, invited from their chat (golf; any game from the gameplay round).
+      return c.invite ?? null;
+    case 'play.invite':
+      return c.playerId;
     default:
       return null;
   }
@@ -165,17 +171,25 @@ export function cardFor(world: World, c: Command, result: unknown): Card | null 
         value: n(r.value),
         currency: s(r.currency),
       };
-    case 'play.create': {
+    case 'play.create':
+    case 'play.invite': {
       const room = world.playRooms?.[s(r.id)];
-      if (!room || c.game !== 'golf') return null;
+      const invitee = c.type === 'play.create' ? c.invite : c.playerId;
+      // Golf with a friend, or a table the invitation was made for (or added to).
+      const asked = room?.golf?.invite === invitee || room?.invited?.includes(invitee ?? '');
+      if (!room || !invitee || !asked) return null;
       return {
         type: 'play',
-        game: 'golf',
+        game: room.game,
         market: room.market,
         city: world.markets[room.market]?.data.name ?? room.market,
         roomId: room.id,
         venue: room.venue,
         title: room.title,
+        venueName: room.venue.startsWith('home:')
+          ? null
+          : (world.markets[room.market]?.businesses?.[room.venue]?.name ?? null),
+        invitee,
       };
     }
     default:
@@ -260,11 +274,25 @@ function cardState(world: World, card: Card, members: [string, string], now: num
       const r = card.roomId ? world.playRooms?.[card.roomId] : undefined;
       if (!card.roomId) return { status: 'open' };
       if (!r) return { status: 'gone' };
+      const waiting = r.status === 'waiting';
+      const seated = r.members.map((m) => m.id);
       return {
         status: r.status,
         stake: r.stake,
         currency: r.currency,
         players: r.members.length,
+        /** The gameplay round: who sits at the table, who's still to answer, when it's off. */
+        seated,
+        invited: waiting
+          ? [
+              ...(r.invited ?? []),
+              ...(r.golf && !seated.includes(r.golf.invite) ? [r.golf.invite] : []),
+            ]
+          : [],
+        expiresAt: waiting ? r.touchedAt + PLAY_IDLE_MS : null,
+        fee: r.bowling?.fee ?? r.golf?.fee ?? 0,
+        winners: r.winners,
+        rules: r.rules ?? null,
       };
     }
   }

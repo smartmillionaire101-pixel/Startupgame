@@ -21,7 +21,8 @@ const GAMES: { game: PlayGame; label: () => string }[] = [
   { game: 'snooker', label: () => t('Snooker') },
   { game: 'football', label: () => t('Football') },
 ];
-const gameName = (g: PlayGame) => GAMES.find((x) => x.game === g)?.label() ?? t('Golf');
+const gameName = (g: PlayGame) =>
+  GAMES.find((x) => x.game === g)?.label() ?? (g === 'bowling' ? t('Bowling') : t('Golf'));
 
 /** The players online now, polled while `enabled` and the tab is visible. */
 export function useOnlinePlayers(enabled: boolean) {

@@ -362,6 +362,18 @@ export function newBusinessIds(view: Pick<PlayerView, 'market'>): string[] {
     .sort();
 }
 
+/** Round 7: the businesses opened lately, with the month they opened (missing: long ago). */
+export function newBusinessesOf(
+  view: Pick<PlayerView, 'market'>,
+): { id: string; openedMonth: number }[] {
+  return rawBusinesses(view)
+    .filter((b) => b.isNew === true && typeof b.id === 'string' && b.open !== false)
+    .map((b) => ({
+      id: b.id as string,
+      openedMonth: typeof b.openedMonth === 'number' ? b.openedMonth : -1,
+    }));
+}
+
 /** How many other players are in each place right now (presence `place`). */
 export function playersByPlace(players: PresenceView[]): Map<string, number> {
   const out = new Map<string, number>();

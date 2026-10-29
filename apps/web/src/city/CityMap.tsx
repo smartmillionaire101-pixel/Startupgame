@@ -69,6 +69,9 @@ import type { VehicleSpec } from './flavour';
 import { playersByPlace, type PresenceView, type Walker } from './people';
 import { beginRide } from './ride/state';
 import { loadGeo, OSM_CREDIT } from './geo';
+import { geoMetres } from './geoLayout';
+import { prefetchArea, tileIndex } from './geo3d/cache';
+import { CityDrawing } from './CityLoading';
 import { GeoPainter } from './geoPaint';
 import { GeoSprite } from './geoSprites';
 import {
@@ -91,8 +94,24 @@ const CityMap3D = lazy(load3d);
  */
 export function preloadCityMap(marketId?: string) {
   if (typeof navigator === 'undefined' || /jsdom/i.test(navigator.userAgent)) return;
-  if (getMapQuality() === '3d' && hasWebGL()) void load3d().catch(() => {});
+  const three = getMapQuality() === '3d' && hasWebGL();
+  if (three) void load3d().catch(() => {});
   if (marketId) void loadGeo(marketId);
+  // Round 7: the 3D buildings' index (small) comes alongside.
+  if (three && marketId) void tileIndex(marketId);
+}
+
+/**
+ * Round 7 (the city is slow to load at start): once the city is laid out,
+ * the 3D buildings of your own area start coming (geo3d/cache.ts) while the
+ * 3D code loads and the scene is built; the rest of the city follows once
+ * the scene stands (three/tiles.ts).
+ */
+export function preloadCityArea(layout: CityLayout) {
+  if (typeof navigator === 'undefined' || /jsdom/i.test(navigator.userAgent)) return;
+  if (!layout.geo || getMapQuality() !== '3d' || !hasWebGL()) return;
+  const m = geoMetres(avatarPosIn(layout.marketId) ?? layout.start);
+  void prefetchArea(layout.marketId, m.e, m.s);
 }
 
 // ---------------------------------------------------------------------------
@@ -747,10 +766,8 @@ const Overlays = memo(function Overlays({
             data-new={p.id}
             transform={`translate(${corner.x + 10} ${corner.y - p.h + 4})`}
           >
-            <rect x={-14} y={-6} width={28} height={12} rx={3} />
-            <text y={3} textAnchor="middle">
-              {t('New')}
-            </text>
+            {/* Round 7: a small dot, not a "New" label on every pin. */}
+            <circle r={4.5} />
           </g>
         )}
         {n > 0 && (
@@ -1226,8 +1243,8 @@ export function CityMap(props: CityMapProps) {
     <>
       <Suspense
         fallback={
-          <div className="city-map city-loading" data-map3d="loading" role="status">
-            <p>{t('Building the city…')}</p>
+          <div className="city-map city-loading" data-map3d="loading">
+            <CityDrawing />
           </div>
         }
       >

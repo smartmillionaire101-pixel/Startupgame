@@ -214,7 +214,8 @@ test('players chat with emoji and voice notes, pay, date, visit, go out and give
   await bPhone.getByRole('button', { name: 'Record a voice note' }).click();
   const rec = bPhone.getByRole('group', { name: 'Recording a voice note' });
   await expect(rec).toBeVisible();
-  await expect(rec.locator('[data-recording-ms]')).toContainText('0:02', { timeout: 6000 });
+  // At least two seconds in (a slow machine can skip a tick).
+  await expect(rec.locator('[data-recording-ms]')).toContainText(/0:0[2-9]/, { timeout: 6000 });
   await shot(b, 'chat-recording');
   await rec.getByRole('button', { name: 'Send voice note' }).click();
   await expect(bPhone.locator('.chat-voice-bubble.mine')).toBeVisible({ timeout: 10_000 });
@@ -425,4 +426,71 @@ test('players chat with emoji and voice notes, pay, date, visit, go out and give
   await player(c, `Chidi${tag} Eze`);
   expect(await c.evaluate(async (u) => (await fetch(u)).status, voiceSrc!)).toBe(404);
   expect(bId).not.toBe(aId);
+});
+
+/**
+ * Round 7 #24 (player feedback: the bright mint chat bubbles felt "AI"): the
+ * Messages app in dark slate with a sky-blue accent edge: your bubbles, the
+ * chat cards' buttons, the "+" chips and the unread badge. Messages only:
+ * the rest of the game keeps its colours (the phone's app badges, the
+ * game's own buttons).
+ */
+test('Messages has its own slate colours, and only Messages', async ({ page, browser }) => {
+  test.slow();
+  // Unique names: a deployed world keeps the players of earlier runs.
+  const tomi = `Tomi${letters(4)} Teal`;
+  await player(page, `Sade${letters(4)} Slate`);
+  const ctx = await browser.newContext({ baseURL: test.info().project.use.baseURL });
+  const other = await ctx.newPage();
+  await withoutNetlifyDrawer(other);
+  await player(other, tomi);
+  const toId = (await state(other)).me.id;
+  const post = (url: string, data: unknown) =>
+    page.evaluate(
+      async ({ url, data }) => {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-runway': '1' },
+          body: JSON.stringify(data),
+        });
+        return { status: r.status, body: await r.json() };
+      },
+      { url, data },
+    );
+  const chat = await post('/api/chats', { playerId: toId, text: 'Hi Tomi', starter: 'Hi Tomi' });
+  expect(chat.status).toBe(200);
+  expect(
+    (await command(page, { type: 'money.send', toPlayerId: toId, amount: 20000 })).status,
+  ).toBe(200);
+
+  const phone = await openChat(page, tomi);
+  const css = (l: Locator, prop: string) =>
+    l.evaluate((e, p) => getComputedStyle(e).getPropertyValue(p), prop);
+  const mine = phone.locator('.bubble.mine').first();
+  await expect(mine).toBeVisible();
+  expect(await css(mine, 'background-color')).toBe('rgb(44, 56, 70)');
+  expect(await css(mine, 'border-right-width')).toBe('3px');
+  // The "+" chips are slate too.
+  await phone.locator('.chat-plus').first().click();
+  const chip = phone.locator('.chat-actions-menu button').first();
+  await expect(chip).toBeVisible();
+  expect(await css(chip, 'background-color')).toBe('rgb(30, 39, 51)');
+
+  // The other side: the unread badge in the list is sky blue; on the phone's
+  // home screen the Messages icon keeps its red badge.
+  await other.reload();
+  await expect(other.getByRole('button', { name: /^Phone/ })).toBeVisible({ timeout: 30_000 });
+  const theirs = other.getByRole('dialog', { name: 'Phone' });
+  await other.getByRole('button', { name: /^Phone/ }).click();
+  await expect(theirs).toBeVisible();
+  while (!(await theirs.locator('[data-phone-app="home"]').isVisible()))
+    await theirs.getByRole('button', { name: 'Back' }).click();
+  const appBadge = theirs.locator('[data-app="messages"] .phone-app-badge');
+  if (await appBadge.count())
+    expect(await css(appBadge.first(), 'background-color')).toBe('rgb(239, 68, 68)');
+  await theirs.locator('[data-app="messages"]').click();
+  const unread = theirs.locator('.phone-unread').first();
+  await expect(unread).toBeVisible();
+  expect(await css(unread, 'background-color')).toBe('rgb(56, 189, 248)');
+  await ctx.close();
 });

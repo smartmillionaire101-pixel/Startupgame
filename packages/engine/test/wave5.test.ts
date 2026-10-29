@@ -6,7 +6,7 @@ import {
   businessKind,
 } from '../src/data/businesses.js';
 import { BACKGROUNDS, STARTING_RUNWAY_MONTHS } from '../src/data/characters.js';
-import { FURNITURE, SELL_BACK, carsFor } from '../src/data/lifestyle-shop.js';
+import { FURNITURE, SELL_BACK, carsFor, isRoomSlot } from '../src/data/lifestyle-shop.js';
 import { MARKET_IDS } from '../src/data/markets.js';
 import { JOB_HOURS, isOpen } from '../src/economy.js';
 import { col } from '../src/helpers.js';
@@ -284,7 +284,7 @@ describe('home and car (Wave 5)', () => {
     const m = w.markets.lagos!;
     const store = byKind(w, 'furniture-store');
     const shop = playerView(w, 'u_founder')!.market.shop;
-    expect(shop.furniture).toHaveLength(FURNITURE.length);
+    expect(shop.furniture).toHaveLength(FURNITURE.filter((f) => !isRoomSlot(f.slot)).length);
     const sofa1 = shop.furniture.find((f) => f.id === 'sofa-1')!;
     expect(sofa1).toMatchObject({ slot: 'sofa', tier: 1, price: scale(col(m), 0.25) });
     const till = bal(w, store.account);

@@ -27,8 +27,11 @@ import {
   toTable,
 } from '../src/experiences/pool-view';
 import {
+  KICKER_Z,
+  KICK_RUN,
   ballAt,
   camera,
+  kickerTime,
   diveZones,
   keeperPose,
   kickTarget,
@@ -225,5 +228,34 @@ describe('the shootout on the phone', () => {
     expect(c.b).toEqual([false, true]);
     expect(c.suddenDeath).toBe(false);
     expect(shootoutCard(Array(10).fill(true)).suddenDeath).toBe(true);
+  });
+});
+
+describe('round 7e: the kicker on the pitch', () => {
+  it('stands below the goal and inside the canvas, on a phone, a tablet and a laptop', () => {
+    for (const [w, h] of [
+      [358, 351],
+      [360, 420],
+      [520, 504],
+      [520, 510],
+    ] as const) {
+      const cam = camera(w, h);
+      const feet = project(cam, -0.78, 0, KICKER_Z);
+      const head = project(cam, -0.78, 1.8, KICKER_Z);
+      const line = project(cam, 0, 0, 0);
+      const bar = project(cam, 0, GOAL_H, 0);
+      expect(feet.y).toBeLessThan(h - 20);
+      expect(head.y).toBeGreaterThan(line.y - 0.1 * h);
+      expect(bar.y).toBeGreaterThan(0);
+      // Left of the ball, where the swipe starts.
+      expect(project(cam, -0.78 + 0.3, 1, KICKER_Z).x).toBeLessThan(project(cam, 0, 0, SPOT).x);
+    }
+  });
+
+  it('runs up, then strikes the ball as it leaves', () => {
+    expect(kickerTime(-1)).toBeLessThan(0);
+    expect(kickerTime(0)).toBe(0);
+    expect(kickerTime(KICK_RUN.lead)).toBeCloseTo(KICK_RUN.contact, 6);
+    expect(kickerTime(KICK_RUN.lead + 500)).toBeGreaterThan(KICK_RUN.contact);
   });
 });

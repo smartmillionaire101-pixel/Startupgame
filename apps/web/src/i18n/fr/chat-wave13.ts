@@ -102,4 +102,28 @@ export const chatWave13: Record<string, string> = {
     'Attendez d’abord les réponses à vos autres offres.',
   'We can’t find that gift.': 'Nous ne trouvons pas ce cadeau.',
   'That gift has already been answered.': 'Ce cadeau a déjà reçu une réponse.',
+  // Playtest round 7: play a game from Messages
+  'Play a game': 'Jouer à un jeu',
+  'A free game, for fun.': 'Une partie gratuite, pour le plaisir.',
+  'Called off · stakes back': 'Annulée · mises remboursées',
+  'Called off.': 'Annulé.',
+  'Expires in {n} min · their stake is in the pot':
+    'Expire dans {n} min · sa mise est dans la cagnotte',
+  'Game over · a tie': 'Partie terminée · égalité',
+  'Game over · you won the pot': 'Partie terminée · vous remportez la cagnotte',
+  'Game over · {name} won': 'Partie terminée · {name} a gagné',
+  'If {name} doesn’t answer in 30 minutes, it’s off.':
+    'Si {name} ne répond pas dans les 30 minutes, c’est annulé.',
+  'Invitation sent. When {name} accepts, you’re both taken to the table.':
+    'Invitation envoyée. Quand {name} accepte, vous êtes tous les deux conduits à la table.',
+  'Invite {name} · free game': 'Inviter {name} · partie gratuite',
+  'Nowhere in this city runs that game right now.':
+    'Aucun lieu de cette ville ne propose ce jeu pour le moment.',
+  'Play with {name}': 'Jouer avec {name}',
+  'Pot {pot}. Winner takes it; a tie or a no gives the stakes back.':
+    'Cagnotte {pot}. Le gagnant la remporte ; une égalité ou un refus rembourse les mises.',
+  'Waiting for {name} · expires in {n} min, then your stake comes back':
+    'En attente de {name} · expire dans {n} min, puis votre mise vous revient',
+  'your home': 'chez vous',
+  '{game} with {name}': '{game} avec {name}',
 };

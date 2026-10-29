@@ -33,6 +33,7 @@ import { personScale } from './actors';
 import { Drive } from './drive';
 import { DriveHud } from './DriveHud';
 import { CityScene, type Tier } from './scene';
+import type { TileProgress } from './tiles';
 import type { PropertyTier } from '../properties';
 
 const tierLabel = (tier: PropertyTier) =>
@@ -1084,9 +1085,8 @@ export default function CityMap3D(
                   </b>
                 )}
                 {freshSet.has(l.id) && (
-                  <b className="c3-new" data-new={l.id} aria-hidden="true">
-                    {t('New')}
-                  </b>
+                  // Round 7: a small dot, not a "New" label on every pin.
+                  <i className="c3-new" data-new={l.id} aria-hidden="true" />
                 )}
                 {flagSet.has(l.id) && <i className="c3-flag" aria-hidden="true" />}
               </button>
@@ -1138,6 +1138,9 @@ export default function CityMap3D(
         />
       )}
       {!ready && <div className="c3-loading">{t('Building the city…')}</div>}
+      {ready && !paused && (
+        <TileStrip sceneRef={sceneRef} city={layout.marketName ?? t('the city')} />
+      )}
       <a
         className="city-osm-credit"
         data-osm-credit=""
@@ -1147,6 +1150,50 @@ export default function CityMap3D(
       >
         {OSM_CREDIT}
       </a>
+    </div>
+  );
+}
+
+/**
+ * Round 7 (the city is slow to load at start): the buildings round you come
+ * in two stages (three/tiles.ts), and a small strip over the map says which,
+ * with the real count: your area first, then the rest of the city. It never
+ * blocks the map, and goes once everything in reach stands.
+ */
+function TileStrip({
+  sceneRef,
+  city,
+}: {
+  sceneRef: React.RefObject<CityScene | null>;
+  city: string;
+}) {
+  const [p, setP] = useState<TileProgress | { stage: 'index' } | null>(null);
+  useEffect(() => {
+    const read = () => {
+      const now = sceneRef.current?.tileProgress ?? null;
+      setP((was) => (JSON.stringify(was) === JSON.stringify(now) ? was : now));
+    };
+    read();
+    const id = setInterval(read, 300);
+    return () => clearInterval(id);
+  }, [sceneRef]);
+  if (!p || p.stage === 'done') return null;
+  const [done, total] = p.stage === 'index' ? [0, 0] : p.stage === 'area' ? p.area : p.rest;
+  const text =
+    p.stage === 'rest'
+      ? t('Buildings across {city}: {done} of {total}', { city, done, total })
+      : t('Buildings round you: {done} of {total}', { done, total });
+  return (
+    <div
+      className="c3-tiles"
+      role="status"
+      data-tiles-stage={p.stage === 'index' ? 'area' : p.stage}
+    >
+      <span>{p.stage === 'index' ? t('Finding the buildings round you…') : text}</span>
+      <i
+        aria-hidden="true"
+        style={{ '--done': total > 0 ? done / total : 0 } as React.CSSProperties}
+      />
     </div>
   );
 }

@@ -644,12 +644,32 @@ export function jumpPlane({ reduced = false }: { reduced?: boolean } = {}): Craf
 
 // ---------------------------------------------------------------- The jumper
 
+/** How bright a colour is (0 … 1). */
+function luma(hex: string) {
+  const c = new THREE.Color(hex);
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+}
+
 /**
- * You, dressed for the jump: an orange jumpsuit over your own face and skin,
- * a white helmet (your hair under it), blue goggles and the black rig on
- * your back with its straps and the pilot-chute handle.
+ * Your jumpsuit in your outfit's colours: the suit in your top's, the
+ * panels, stripes and helmet in your trousers' (or white, when the two are
+ * too alike to tell apart).
+ */
+export function suitColours(look: Pick<AvatarLook, 'top' | 'bottom'>) {
+  const suit = look.top;
+  const near = Math.abs(luma(suit) - luma(look.bottom)) < 0.12;
+  const trim = near ? (luma(suit) < 0.5 ? '#f8fafc' : '#1e293b') : look.bottom;
+  return { suit, trim, helmet: trim };
+}
+
+/**
+ * You, dressed for the jump: a one-piece jumpsuit in your outfit's colours
+ * (long sleeves, a chest panel and stripes down the legs), gloves, your own
+ * face and skin, an open-face helmet over your hair, goggles, and the black
+ * rig on your back with its straps and the pilot-chute handle.
  */
 export function jumper(look: AvatarLook): Character {
+  const { suit, trim, helmet } = suitColours(look);
   const c = makeCharacter(
     {
       skin: look.skin,
@@ -657,8 +677,10 @@ export function jumper(look: AvatarLook): Character {
       hairStyle: look.hairStyle,
       gender: look.gender,
       ...(look.face ? { face: look.face } : {}),
-      top: '#f97316',
-      bottom: '#1e293b',
+      // Your own shoes (laced trainers instead of heels).
+      shoes: look.shoes === 'heels' || look.shoes === 'courts' ? 'trainers' : look.shoes,
+      top: suit,
+      bottom: suit,
       accessory: 'none',
       trousers: true,
     },
@@ -666,20 +688,31 @@ export function jumper(look: AvatarLook): Character {
   );
   c.hair.visible = false;
   c.shadow.visible = false;
+  const suitM = mat(suit, { rough: 0.85 });
+  const trimM = mat(trim, { rough: 0.7 });
+  const glove = mat('#1f2937', { rough: 0.7 });
   const hk = new Kit();
   hk.add(
-    new THREE.SphereGeometry(0.17, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62),
-    mat('#f8fafc', { rough: 0.3 }),
+    new THREE.SphereGeometry(0.168, 14, 9, 0, Math.PI * 2, 0, Math.PI * 0.6),
+    mat(helmet, { rough: 0.3 }),
     0,
     0.21,
-    0,
+    -0.005,
     {},
   );
+  // A stripe over the top in the suit's colour, the chin strap.
+  hk.add(new THREE.BoxGeometry(0.05, 0.02, 0.3), mat(suit, { rough: 0.4 }), 0, 0.375, -0.01, {
+    rx: 0.1,
+  });
+  for (const sx of [-1, 1])
+    hk.add(new THREE.BoxGeometry(0.012, 0.16, 0.02), glove, sx * 0.13, 0.12, 0.03, {
+      rz: sx * 0.1,
+    });
   hk.add(
     new THREE.BoxGeometry(0.22, 0.07, 0.04),
     mat('#0ea5e9', { rough: 0.1, metal: 0.6 }),
     0,
-    0.22,
+    0.225,
     0.13,
     {},
   );
@@ -687,10 +720,11 @@ export function jumper(look: AvatarLook): Character {
     new THREE.BoxGeometry(0.2, 0.05, 0.02),
     mat('#0c4a6e', { rough: 0.05, metal: 0.8 }),
     0,
-    0.22,
+    0.225,
     0.152,
     {},
   );
+  hk.add(new THREE.BoxGeometry(0.3, 0.018, 0.01), glove, 0, 0.225, 0.12, {});
   c.head.add(hk.build());
   const tk = new Kit();
   tk.add(
@@ -704,7 +738,39 @@ export function jumper(look: AvatarLook): Character {
   for (const sx of [-1, 1])
     tk.add(new THREE.BoxGeometry(0.04, 0.5, 0.02), mat('#111827'), sx * 0.08, 0.25, 0.115, {});
   tk.add(new THREE.SphereGeometry(0.03, 6, 4), mat('#f59e0b'), 0, 0.06, -0.26, {});
+  // The chest panel across the suit, and its zip.
+  const band = new THREE.CylinderGeometry(0.168, 0.168, 0.09, 14, 1, true);
+  band.scale(1.05, 1, 0.74);
+  tk.add(band, trimM, 0, 0.36, 0, {});
+  tk.add(new THREE.BoxGeometry(0.012, 0.32, 0.01), glove, 0, 0.22, 0.118, {});
   c.torso.add(tk.build());
+  // Long sleeves to the wrists, cuffs and gloves.
+  for (const [fore, hand] of [
+    [c.foreL, c.handL],
+    [c.foreR, c.handR],
+  ] as const) {
+    const sl = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.18, 3, 8), suitM);
+    sl.position.y = -0.12;
+    fore.add(sl);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.053, 0.053, 0.04, 10), trimM);
+    cuff.position.y = -0.24;
+    fore.add(cuff);
+    const g = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), glove);
+    g.scale.set(0.058, 0.062, 0.05);
+    hand.add(g);
+  }
+  // Stripes down the outside of each leg.
+  for (const [leg, side] of [
+    [c.thighL, 1],
+    [c.thighR, -1],
+    [c.shinL, 1],
+    [c.shinR, -1],
+  ] as const) {
+    const thigh = leg === c.thighL || leg === c.thighR;
+    const st = new THREE.Mesh(new THREE.BoxGeometry(0.016, thigh ? 0.34 : 0.3, 0.035), trimM);
+    st.position.set(side * (thigh ? 0.066 : 0.056), thigh ? -0.2 : -0.18, 0);
+    leg.add(st);
+  }
   return c;
 }
 
@@ -751,15 +817,53 @@ export function doorPose(c: Character) {
   c.shinR.rotation.x = 1.3;
 }
 
-/** Hanging in the harness, hands up on the toggles. */
+/** Hanging in the harness, legs down and together, hands up on the toggles. */
 export function canopyPose(c: Character, turn = 0) {
   pose(c, 'stand', 0);
   c.shadow.visible = false;
   c.root.rotation.set(0, 0, 0);
-  c.armL.rotation.set(0, 0, 2.7 - Math.max(0, -turn) * 0.6);
-  c.armR.rotation.set(0, 0, -2.7 + Math.max(0, turn) * 0.6);
-  c.thighL.rotation.x = c.thighR.rotation.x = -0.25;
-  c.shinL.rotation.x = c.shinR.rotation.x = 0.3;
+  c.armL.rotation.set(-0.15, 0, 2.6 - Math.max(0, -turn) * 0.7);
+  c.armR.rotation.set(-0.15, 0, -2.6 + Math.max(0, turn) * 0.7);
+  c.foreL.rotation.z = 0.25;
+  c.foreR.rotation.z = -0.25;
+  c.thighL.rotation.set(-0.12, 0, 0.03);
+  c.thighR.rotation.set(-0.12, 0, -0.03);
+  c.shinL.rotation.x = c.shinR.rotation.x = 0.12;
+  c.head.rotation.x = 0.15;
+}
+
+/** The flare: both toggles pulled down to the hips, legs forward for the touchdown. */
+export function flarePose(c: Character) {
+  canopyPose(c, 0);
+  c.armL.rotation.set(-0.5, 0, 0.35);
+  c.armR.rotation.set(-0.5, 0, -0.35);
+  c.foreL.rotation.set(-0.6, 0, 0);
+  c.foreR.rotation.set(-0.6, 0, 0);
+  c.thighL.rotation.x = c.thighR.rotation.x = -0.55;
+  c.shinL.rotation.x = c.shinR.rotation.x = 0.35;
+}
+
+/**
+ * Down: running out the landing (`u` 0 → 1 the steps slow down), then
+ * standing, a hand up (t: seconds, for the stride).
+ */
+export function landPose(c: Character, t: number, u: number) {
+  if (u >= 1) {
+    pose(c, 'stand', 0);
+    c.shadow.visible = true;
+    c.root.rotation.set(0, 0, 0);
+    c.armR.rotation.set(0, 0, -2.5);
+    c.foreR.rotation.z = -0.3;
+    return;
+  }
+  pose(c, 'run', t * (1 - u * 0.6));
+  c.root.rotation.set(0, 0, 0);
+  const k = 1 - u;
+  for (const g of [c.thighL, c.thighR, c.shinL, c.shinR, c.armL, c.armR]) g.rotation.x *= k;
+  c.body.position.y *= k;
+  // Hands still up on the toggles for the first steps.
+  c.armL.rotation.z = 0.08 + 1.6 * k;
+  c.armR.rotation.z = -0.08 - 1.6 * k;
 }
 
 /**
@@ -797,12 +901,12 @@ export function canopy(): THREE.Group {
 
 /**
  * Your arms out in front in the box position, in the camera's frame:
- * orange sleeves, black gloves and cuffs, and the altimeter on your left
+ * your jumpsuit's sleeves, black gloves and cuffs, and the altimeter on your left
  * wrist (`setAlt` redraws its face).
  */
-export function freefallArms(): Craft & { setAlt: (m: number) => void } {
+export function freefallArms(suit = '#f97316'): Craft & { setAlt: (m: number) => void } {
   const k = new Kit();
-  const sleeve = mat('#f97316', { rough: 0.85 });
+  const sleeve = mat(suit, { rough: 0.85 });
   const glove = mat('#1f2937', { rough: 0.7 });
   const up = new THREE.Vector3(0, 1, 0);
   const q = new THREE.Quaternion();

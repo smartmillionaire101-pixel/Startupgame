@@ -18,6 +18,7 @@ import { CURRENCY_SYMBOL, type Currency } from '@runway/engine';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { amountInput, money, moneyCents, parseAmount, pct } from '../format';
 import { locale, t, tx } from '../i18n';
+import { api } from '../api';
 import { useGame, useView } from '../store';
 import { Button, Card, ListRow, Pill, Segmented, Sparkline, Stat } from '../ui';
 import './stocks.css';
@@ -36,7 +37,6 @@ export interface StockListing {
   yourShares: number;
   lockedUntil: number | null;
   blackout?: string | null;
-  analysis: StockAnalysis;
 }
 
 /** A city's exchange, as the chips and the "other exchanges" list need it. */
@@ -244,9 +244,8 @@ export function OtherExchanges({
 type Range = '3' | '6' | '12' | 'all';
 
 /** The share price over time, with marks where the company was in the news. */
-function PriceChart({ x }: { x: StockListing }) {
+function PriceChart({ x, a }: { x: StockListing; a: StockAnalysis }) {
   const { lite } = useGame();
-  const a = x.analysis;
   const all = x.history;
   const ranges = (
     [
@@ -422,8 +421,7 @@ function Risk({ a }: { a: StockAnalysis }) {
   );
 }
 
-function Fairness({ x }: { x: StockListing }) {
-  const a = x.analysis;
+function Fairness({ x, a }: { x: StockListing; a: StockAnalysis }) {
   const cur = x.currency;
   const verdict =
     a.fairness === 'cheap'
@@ -472,8 +470,7 @@ function Fairness({ x }: { x: StockListing }) {
   );
 }
 
-function Numbers({ x }: { x: StockListing }) {
-  const a = x.analysis;
+function Numbers({ x, a }: { x: StockListing; a: StockAnalysis }) {
   const cur = x.currency;
   const growthYear =
     a.growthYearPct > 1000
@@ -547,9 +544,8 @@ const roundNice = (minor: number) => {
   return Math.max(100, Math.floor(major / step) * step * 100);
 };
 
-function BuyBox({ x }: { x: StockListing }) {
+function BuyBox({ x, a }: { x: StockListing; a: StockAnalysis }) {
   const { send } = useView();
-  const a = x.analysis;
   const cur = x.currency;
   const perShare = x.price * (1 + a.brokerBps / 10_000);
   const most = Math.min(a.yourCash, Math.floor(a.maxBuyShares * perShare));
@@ -729,6 +725,29 @@ function BuyBox({ x }: { x: StockListing }) {
   );
 }
 
+/**
+ * Round 7 (city load time): a company's analysis is read when its page
+ * opens, not sent in every state; read again when the listing moves (a new
+ * price, your shares), so the Buy box is never stale.
+ */
+function useStockAnalysis(x: StockListing): StockAnalysis | null {
+  const { toast } = useGame();
+  const [got, setGot] = useState<{ key: string; a: StockAnalysis } | null>(null);
+  const key = `${x.companyId}:${x.price}:${x.yourShares}`;
+  useEffect(() => {
+    const ctl = new AbortController();
+    api
+      .stockAnalysis(x.companyId, ctl.signal)
+      .then((r) => setGot({ key, a: r.analysis }))
+      .catch((e: Error) => {
+        if (!ctl.signal.aborted) toast(tx(e.message), 'error');
+      });
+    return () => ctl.abort();
+  }, [key, x.companyId, toast]);
+  // The last one read for this company stands in while the next comes.
+  return got && got.key.startsWith(`${x.companyId}:`) ? got.a : null;
+}
+
 /** Everything about a listed company before you buy, and the Buy box. */
 export function CompanyAnalysis({
   x,
@@ -740,11 +759,22 @@ export function CompanyAnalysis({
   /** More for this company under the Buy box (your holding and selling). */
   children?: ReactNode;
 }) {
-  const a = x.analysis;
+  const a = useStockAnalysis(x);
   const cur = x.currency;
   const top = useRef<HTMLDivElement>(null);
   // Opened from a long list: start at the top of the analysis.
   useEffect(() => top.current?.scrollIntoView?.({ block: 'start' }), [x.companyId]);
+  if (!a)
+    return (
+      <div className="stack stock-analysis" data-analysis-loading={x.companyId} ref={top}>
+        <button type="button" className="small stock-back" onClick={onBack}>
+          ‹ {exchangeName(x.city)}
+        </button>
+        <p className="muted" role="status">
+          {t('Reading {name}’s accounts…', { name: x.name })}
+        </p>
+      </div>
+    );
   return (
     <div className="stack stock-analysis" data-analysis={x.companyId} ref={top}>
       <button type="button" className="small stock-back" onClick={onBack}>
@@ -762,7 +792,7 @@ export function CompanyAnalysis({
           <Pill tone={x.changePct >= 0 ? 'good' : 'bad'}>{signedPct(x.changePct)}</Pill>
         </div>
       </div>
-      <PriceChart x={x} />
+      <PriceChart x={x} a={a} />
       <Card title={t('What it does')}>
         <p>{tx(a.idea)}</p>
         <p className="small muted">
@@ -781,11 +811,11 @@ export function CompanyAnalysis({
           </p>
         )}
       </Card>
-      <Numbers x={x} />
-      <Fairness x={x} />
+      <Numbers x={x} a={a} />
+      <Fairness x={x} a={a} />
       <Risk a={a} />
       <News a={a} />
-      <BuyBox x={x} />
+      <BuyBox x={x} a={a} />
       {x.yourShares > 0 && (
         <p className="small" data-holding>
           {t('You hold {n} shares, worth {v}.', {

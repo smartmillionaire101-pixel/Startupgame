@@ -21,6 +21,11 @@ const ready = () =>
   run(addInvestor(careerWorld(11)), I, { type: 'investor.tutorial', action: 'skip' }).world;
 const ex = (w: World) => playerView(w, I)!.exchange!;
 const lagos = (w: World) => ex(w).markets.find((m) => m.market === 'lagos')!;
+/** Lagos listings: the stock market list, each with what the exchange adds (sent once). */
+const lagosListings = (w: World) =>
+  playerView(w, I)!
+    .capital!.market.filter((l) => l.market === 'lagos')
+    .map((l) => ({ ...l, ...l.trade! }));
 const zero = (before: Record<string, number>, w: World) => {
   expect(moneyByCurrency(w)).toEqual(before);
   expect(negativeInternalAccounts(w)).toEqual([]);
@@ -32,8 +37,8 @@ describe('exchange: opening (§7.2)', () => {
     expect(listedIn(w, 'lagos').length).toBe(EXCHANGE_LISTINGS);
     const x = lagos(w);
     expect(x.level).toBe(100);
-    expect(x.listings.every((l) => l.marketCap > 0)).toBe(true);
-    expect(x.listings.reduce((a, l) => a + l.weightPct, 0)).toBeCloseTo(100, 0);
+    expect(lagosListings(w).every((l) => l.marketCap > 0)).toBe(true);
+    expect(lagosListings(w).reduce((a, l) => a + l.weightPct, 0)).toBeCloseTo(100, 0);
   });
 
   it('stays closed without the note', () => {
@@ -130,7 +135,7 @@ describe('exchange: depth caps and price impact', () => {
     const r = run(w, I, { type: 'shares.buy', companyId: c0.id, amount: Math.round(price * 50) });
     w = r.world;
     expect(w.companies[c0.id]!.ipo!.price!).toBeGreaterThan(price);
-    const l = lagos(w).listings.find((x) => x.companyId === c0.id)!;
+    const l = lagosListings(w).find((x) => x.companyId === c0.id)!;
     expect(l.yourShares).toBe(r.result.shares);
     expect(l.yourCost).toBe(r.result.cost);
     expect(lagos(w).holdings.cost).toBe(r.result.cost);
@@ -229,6 +234,6 @@ describe('exchange: dividends and insiders', () => {
     if (!r1.ok) expect(r1.error.code).toBe('shares.blackout');
     const r2 = tryRun(late, I, { type: 'shares.buy', companyId: c0.id, amount: 10_000_000 }, 100);
     expect(r2.ok).toBe(true);
-    expect(lagos(late).listings.find((l) => l.companyId === c0.id)!.insider).toBe(true);
+    expect(lagosListings(late).find((l) => l.companyId === c0.id)!.insider).toBe(true);
   });
 });

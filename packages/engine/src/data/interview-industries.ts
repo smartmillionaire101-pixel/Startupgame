@@ -27,6 +27,12 @@ export interface IndustryInterview {
   weak: Record<Weak, Line>[];
   /** The note a broad first question leaves: a feeling, no figure. */
   vague: Line;
+  /**
+   * The notes a weaker question leaves in rounds 2 and 3 (what they pay now,
+   * what would make them switch): something, but no figure and no reason.
+   */
+  vaguePays: Line;
+  vagueSwitch: Line;
 }
 
 // prettier-ignore
@@ -82,6 +88,8 @@ export const INDUSTRY_INTERVIEWS: Record<Industry, IndustryInterview> = {
       },
     ],
     vague: L('“Everything is hard” (no figure)', '« Tout est dur » (aucun chiffre)'),
+    vaguePays: L('Uses “something”: no cost, no reason it fails', 'Utilise « quelque chose » : aucun coût, aucune raison de l’échec'),
+    vagueSwitch: L('“Something simple and safe” (no test you could pass)', '« Un truc simple et sûr » (aucun critère précis)'),
   },
   ecommerce: {
     questions: [
@@ -134,6 +142,8 @@ export const INDUSTRY_INTERVIEWS: Record<Industry, IndustryInterview> = {
       },
     ],
     vague: L('“Prices, fakes, returns” (no figure)', '« Les prix, les contrefaçons, les retours » (aucun chiffre)'),
+    vaguePays: L('Buys “the usual way”: no cost, no story', 'Achète « comme d’habitude » : aucun coût, aucune histoire'),
+    vagueSwitch: L('“Cheaper and easier” (no test you could pass)', '« Moins cher et plus simple » (aucun critère précis)'),
   },
   logistics: {
     questions: [
@@ -186,6 +196,8 @@ export const INDUSTRY_INTERVIEWS: Record<Industry, IndustryInterview> = {
       },
     ],
     vague: L('“Traffic, fuel, drivers” (no figure)', '« Bouchons, carburant, chauffeurs » (aucun chiffre)'),
+    vaguePays: L('Uses “a rider they know”: no cost, no failure named', 'Utilise « un livreur qu’il connaît » : aucun coût, aucun échec cité'),
+    vagueSwitch: L('“On time, not too dear” (no test you could pass)', '« À l’heure, pas trop cher » (aucun critère précis)'),
   },
   healthtech: {
     questions: [
@@ -238,6 +250,8 @@ export const INDUSTRY_INTERVIEWS: Record<Industry, IndustryInterview> = {
       },
     ],
     vague: L('“Waiting and more waiting” (no figure)', '« Attendre, encore attendre » (aucun chiffre)'),
+    vaguePays: L('Gets by “somehow”: no cost, no story', 'Se débrouille « comme on peut » : aucun coût, aucune histoire'),
+    vagueSwitch: L('“If it’s a real doctor” (no test you could pass)', '« Si c’est un vrai médecin » (aucun critère précis)'),
   },
   edtech: {
     questions: [
@@ -290,6 +304,8 @@ export const INDUSTRY_INTERVIEWS: Record<Industry, IndustryInterview> = {
       },
     ],
     vague: L('“Fees, time, exams” (no figure)', '« Les frais, le temps, les examens » (aucun chiffre)'),
+    vaguePays: L('Pays “a bit” for lessons: no figure, no story', 'Paie « un peu » pour des cours : aucun chiffre, aucune histoire'),
+    vagueSwitch: L('“If it helps the results” (no test you could pass)', '« Si ça aide les résultats » (aucun critère précis)'),
   },
   saas: {
     questions: [
@@ -342,6 +358,8 @@ export const INDUSTRY_INTERVIEWS: Record<Industry, IndustryInterview> = {
       },
     ],
     vague: L('“Never enough time” (no figure)', '« Jamais assez de temps » (aucun chiffre)'),
+    vaguePays: L('Uses “spreadsheets and things”: no cost, no story', 'Utilise « des tableurs et tout ça » : aucun coût, aucune histoire'),
+    vagueSwitch: L('“If it saves time” (no test you could pass)', '« Si ça fait gagner du temps » (aucun critère précis)'),
   },
   agritech: {
     questions: [
@@ -394,5 +412,7 @@ export const INDUSTRY_INTERVIEWS: Record<Industry, IndustryInterview> = {
       },
     ],
     vague: L('“Rain, prices, transport” (no figure)', '« La pluie, les prix, le transport » (aucun chiffre)'),
+    vaguePays: L('Sells “to whoever comes”: no price, no story', 'Vend « à qui vient » : aucun prix, aucune histoire'),
+    vagueSwitch: L('“A better price” (no test you could pass)', '« Un meilleur prix » (aucun critère précis)'),
   },
 };

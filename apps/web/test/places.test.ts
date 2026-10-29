@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { PlayerView } from '@runway/engine';
+import { isRoomSlot, type PlayerView } from '@runway/engine';
 import { RoomBack, RoomFront } from '../src/city/RoomArt';
 import { cityInput } from '../src/city/contract';
 import { buildLayout, findPath } from '../src/city/layout';
@@ -175,7 +175,9 @@ describe('rooms (Wave 5 §D)', () => {
         }),
       ]),
     );
-    for (const slot of HOME_SLOTS) expect(flat, slot).toContain(`data-furniture="${slot}"`);
+    // (Round 7's bathroom and hallway things aren't in this front-on living room picture.)
+    for (const slot of HOME_SLOTS.filter((s) => !isRoomSlot(s)))
+      expect(flat, slot).toContain(`data-furniture="${slot}"`);
     expect(flat).toContain('data-furniture="tv" data-owned="1"');
     expect(flat).toContain('data-furniture="fridge" data-owned="0"');
     // A slot the client doesn't know yet still shows, as a box.
@@ -187,6 +189,10 @@ describe('rooms (Wave 5 §D)', () => {
     const p = { ref: undefined, motif: 'office' as const };
     expect(roomOf({ ...p, kind: 'office' })).toBe('office');
     expect(roomOf({ ...p, kind: 'office' }, { abroad: true })).toBe('cowork');
+    // Round 7: co-working desks leased at home are a co-working room; other leases an office.
+    expect(roomOf({ ...p, kind: 'office' }, { lease: 'cowork' })).toBe('cowork');
+    for (const lease of ['small', 'shop', 'serviced'])
+      expect(roomOf({ ...p, kind: 'office' }, { lease })).toBe('office');
     expect(roomOf({ ...p, kind: 'home' })).toBe('apartment');
     expect(roomOf({ ...p, kind: 'home' }, { abroad: true })).toBe('hotel');
     expect(roomOf({ ...p, kind: 'lender' })).toBe('bank');

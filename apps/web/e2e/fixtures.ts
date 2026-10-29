@@ -61,8 +61,23 @@ export async function withoutNetlifyDrawer(page: Page) {
   });
 }
 
-export const test = base.extend({
-  page: async ({ page }, use, testInfo) => {
+export const test = base.extend<{ devTools: boolean }>({
+  /**
+   * Round 7: players see the Dev tools card only with ?dev=1 (kept for the
+   * tab's session). Specs drive it (Advance a month, the home previews), so
+   * every page starts with the flag on, as ?dev=1 would leave it; a spec
+   * about the flag itself turns this off with test.use({ devTools: false }).
+   */
+  devTools: [true, { option: true }],
+  page: async ({ page, devTools }, use, testInfo) => {
+    if (devTools)
+      await page.addInitScript(() => {
+        try {
+          sessionStorage.setItem('rw_dev', '1');
+        } catch {
+          /* no storage: the card stays hidden */
+        }
+      });
     await withoutNetlifyDrawer(page);
     const errors: string[] = [];
     page.on('response', async (res) => {
@@ -455,6 +470,30 @@ export async function expectGolfControlsClear(page: Page, what = 'address') {
     expect(overlaps, `${what}: the ${name} overlaps the aim area ${JSON.stringify(zone)}`).toBe(
       false,
     );
+  }
+  // The nav pill and the phone button step aside while you play: neither sits on a control.
+  for (const sel of ['.nav', '.hud-phone']) {
+    const el = page.locator(sel).first();
+    if (!(await el.count()) || !(await el.isVisible())) continue;
+    const n = (await el.boundingBox())!;
+    for (const [name, b] of boxes) {
+      const over =
+        n.x < b.x + b.width && n.x + n.width > b.x && n.y < b.y + b.height && n.y + n.height > b.y;
+      expect(over, `${what}: ${sel} covers the ${name} control`).toBe(false);
+    }
+  }
+  // The golfer in the picture (3D): inside the canvas and clear of the clubs down the left.
+  const golfer = (await canvas.getAttribute('data-golf-golfer')) ?? '';
+  if (golfer) {
+    const [l, t, r, b] = golfer.split(',').map(Number) as [number, number, number, number];
+    const clubs = boxes.filter(([n]) => n === 'club').map(([, b]) => b.x + b.width);
+    const clubsRight = clubs.length ? (Math.max(...clubs) - c.x) / c.width : 0;
+    expect(l, `${what}: the golfer is cut at the left (or under the clubs)`).toBeGreaterThan(
+      clubsRight - 0.02,
+    );
+    expect(r, `${what}: the golfer is cut at the right`).toBeLessThan(1);
+    expect(t, `${what}: the golfer is cut at the top`).toBeGreaterThan(0);
+    expect(b, `${what}: the golfer is cut at the bottom`).toBeLessThan(1);
   }
 }
 

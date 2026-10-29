@@ -7,21 +7,24 @@ import {
   kvFor,
   modeFor,
   storeFor,
+  worldOf,
   type Runtime,
 } from '../runtime/runtime.mjs';
 
-/** One runtime per store this instance has served (production, or a preview's own). */
+/** One runtime per store this instance has served (production, a preview's own, or a test run's). */
 const runtimes = new Map<string, Promise<Runtime>>();
 
 export default async (req: Request, context: Context) => {
   // The host's time limit counts from here: a cold start and the world's load included.
   const startedAt = Date.now();
   const mode = modeFor(context.deploy, req.url);
-  const key = `${mode}:${storeFor(mode, req.url).name}`;
+  // An end-to-end run on a preview plays in its own fresh world.
+  const world = worldOf(mode, req.headers.get('cookie'));
+  const key = `${mode}:${storeFor(mode, req.url, world).name}`;
   let runtime = runtimes.get(key);
   if (!runtime) {
     runtime = (async () => {
-      const kv = kvFor(mode, req.url);
+      const kv = kvFor(mode, req.url, world);
       return createRuntime(kv, await configFor(kv, mode));
     })();
     runtimes.set(key, runtime);

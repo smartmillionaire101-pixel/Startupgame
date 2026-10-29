@@ -1,3 +1,4 @@
+import { HireBrings } from './SalesTeam';
 import { useEffect, useState } from 'react';
 import { FoundCompany } from './Me';
 import { ScreenBoundary } from '../ScreenBoundary';
@@ -23,7 +24,7 @@ import { InterviewSheet } from './Interview';
 import { CofounderCard, HiringPipeline, TeamHealth, staffDilution } from './Hiring';
 import { RunwayExplainer } from './FundCompany';
 import { RivalsPanel } from './Decisions';
-import { FounderSetup, SetupTracker, setupOpen } from './FounderSetup';
+import { FounderSetup, GoToOffice, SetupTracker, setupOpen } from './FounderSetup';
 import { SimpleLink } from './SimpleLink';
 import { CompanyKpis } from './Home';
 import { SnapButton } from '../photos/SnapButton';
@@ -232,6 +233,7 @@ export function CompanyScreen() {
       <CompanyKpis c={c} />
       {/* The camera: your company's numbers as a card to save or share. */}
       <div className="row">
+        <GoToOffice c={c} />
         <SnapButton
           action="company-photo"
           className="btn btn-subtle btn-sm"
@@ -662,7 +664,8 @@ export function SegmentCard({ c, s }: { c: CompanyT; s: Segment }) {
               {s.kind === 'b2b' ? t('Pipeline') : t('Trial')}
             </div>
             <div>
-              <b>{pos.paying.toLocaleString(locale())}</b>
+              {/* Customers won in Sales count with the funnel's (round 7). */}
+              <b>{(pos.paying + (pos.accounts ?? 0)).toLocaleString(locale())}</b>
               {t('Paying')}
             </div>
             <div>
@@ -732,6 +735,7 @@ export function Team({ c }: { c: CompanyT }) {
                         : ''}{' '}
                       · {personalityLabel(s.personality)}
                     </div>
+                    <HireBrings b={c.teamBrings?.[s.id]} name={s.name} hired />
                   </div>
                   <div className="row">
                     <Button variant="ghost" onClick={() => setRaiseFor(s)}>
@@ -811,6 +815,11 @@ export function Team({ c }: { c: CompanyT }) {
                           : t('1 other offer'))
                       : ''}
                   </div>
+                  <HireBrings
+                    b={c.talentBrings?.[p.id]}
+                    name={p.name}
+                    skill={{ n: Math.round(p.skill * 100), checked: true }}
+                  />
                 </div>
                 <Button variant="subtle" onClick={() => setOffer(p)}>
                   {t('Offer')}

@@ -330,6 +330,10 @@ export interface Player {
   needs?: { hunger: number; hygiene: number; fun: number; social: number };
   /** Wave 7: home acts (and 'invite') used per home month. Missing = none. */
   homeActs?: Record<string, { month: number; n: number }>;
+  /** Round 7 (rest.ts): sitting or lying down at home since this game minute. */
+  rest?: { spot: 'seat' | 'bed'; since: number };
+  /** Round 7: what resting did this month (stress taken off, energy back). */
+  restMonth?: { month: number; stress: number; energy: number };
   /**
    * Phase 3 life bars (lifebars.ts), 0–100 each. Humans created after the
    * release note start at 80 and 20; missing (older saves) = 75 and 25.
@@ -1194,6 +1198,55 @@ export interface Staff {
   workload?: number;
   /** An AI co-founder (§2.1 chapter 2): founder shares with a vesting record. */
   cofounder?: AiCofounderRecord;
+  /**
+   * Round 7 (gameplay note): the customer segment they know from their last
+   * job ("healthtech.clinics": hospitals and clinics), set when hired.
+   * Missing: read from their id (team.ts expertiseOf).
+   */
+  expertise?: string;
+}
+
+/** Round 7: what one person on the team did in a month (the recap's "Your team this month"). */
+export interface TeamWork {
+  staffId: Id;
+  name: string;
+  role: StaffRole;
+  /** A co-founder's title (CTO, CEO, Growth). */
+  title?: string;
+  /** Leads they brought from their sector, and discovery meetings they ran. */
+  leads?: number;
+  discovered?: number;
+  /** Deals they owned that signed. */
+  won?: number;
+  /** Demos a technical co-founder joined. */
+  demos?: number;
+  /** Person-weeks they put into the roadmap. */
+  roadmapWeeks?: number;
+  /** Warmer leads a business co-founder's contacts made. */
+  warm?: number;
+  /** Investors a business co-founder introduced you to (fund names). */
+  intros?: string[];
+  skillFrom: number;
+  skillTo: number;
+}
+
+/**
+ * Round 7 (gameplay note): a business co-founder's introduction to an AI fund
+ * that fits the company's stage and sector (intros.ts). Warm until `until`;
+ * a pitch to the fund uses it (`pitchId`).
+ */
+export interface InvestorIntro {
+  fundId: Id;
+  /** The co-founder who made it (staff id), and their name. */
+  by: Id;
+  byName: string;
+  month: number;
+  /** The last month it is warm, if not used. */
+  until: number;
+  /** How strong it is, 0.5–1 (their skill when they made it). */
+  strength: number;
+  /** The pitch it went into. */
+  pitchId?: Id;
 }
 
 /** The vesting record of an AI co-founder's founder shares. */
@@ -1457,6 +1510,10 @@ export interface Company {
    * last SALES.keepChurned), so the recap and the stage tracker count them.
    */
   salesChurn?: SalesChurn[];
+  /** Round 7 (gameplay note): what each person on the team did at the last settlement. */
+  teamMonth?: { month: number; people: TeamWork[] };
+  /** Round 7 (gameplay note): investors a business co-founder introduced (intros.ts). */
+  investorIntros?: InvestorIntro[];
   /** Next deal number (per company, so ids never touch the world counter). */
   salesSeq?: number;
   /**
@@ -2529,7 +2586,7 @@ export interface Pitch {
   fundId: Id | null;
   investorPlayerId: Id | null;
   slides: string[];
-  status: 'questions' | 'partner-meeting' | 'passed' | 'term-sheet' | 'sent';
+  status: 'questions' | 'partner-meeting' | 'passed' | 'term-sheet' | 'sent' | 'meeting';
   questions: PitchQuestion[];
   answers: Record<string, string>;
   /** Figures the founder typed instead of picking an option, by question id (life-bars note). */
@@ -2547,6 +2604,91 @@ export interface Pitch {
   scores?: PitchAnswerScore[];
   /** Feedback note: the real reason an AI fund passed, from the company's numbers. */
   passWhy?: PitchPassWhy;
+  /** Round 7 (gameplay note): the pitch as a meeting (pitchmeeting.ts). */
+  meeting?: PitchMeeting;
+}
+
+/** The company's numbers when the meeting began: what the investor asks about (pitchmeeting.ts). */
+export interface PitchMeetingFacts {
+  customers: number;
+  /** Last month's revenue, local minor units. */
+  revenue: number;
+  /** Monthly revenue growth (0.12 = 12% a month), over the last three months. */
+  growth: number;
+  cash: number;
+  /** Months the money lasts; null = it never runs out. */
+  runway: number | null;
+  /** Open pipeline deals past the first call, and what they'd pay a month. */
+  pipeline: number;
+  pipelineValue: number;
+  topDeal: string | null;
+  topDealValue: number;
+  /** Won customers from sales (accounts), and the biggest. */
+  accounts: number;
+  topAccount: string | null;
+  topAccountMonthly: number;
+  interviews: number;
+  interviewScore: number | null;
+  /** The latest pain note from an interview, and who said it. */
+  pain: { en: string; fr: string } | null;
+  painBy: string | null;
+  rival: string | null;
+}
+
+export type PitchMeetingQuestion = 'traction' | 'runway' | 'competition';
+export type PitchMeetingOpener = 'story' | 'traction' | 'problem' | 'market' | 'tour';
+export type PitchMeetingAnswer = 'true' | 'stretch' | 'vague';
+export type PitchAskOption = 'yours' | 'inside' | 'swing';
+
+/** One thing that moved the investor, in interest points (0–100 scale). */
+export interface PitchMoved {
+  id: string;
+  points: number;
+}
+
+export interface PitchMeeting {
+  /** An AI fund decides at the table; a player investor answers it themselves. */
+  investor: 'fund' | 'player';
+  facts: PitchMeetingFacts;
+  openers: PitchMeetingOpener[];
+  opener?: PitchMeetingOpener;
+  questions: {
+    id: PitchMeetingQuestion;
+    options: PitchMeetingAnswer[];
+    answer?: PitchMeetingAnswer;
+    /** The business co-founder took this one. */
+    cofounder?: boolean;
+  }[];
+  /** The founder's own number: pre-money, local minor units. */
+  preMoney: number;
+  /** Where he prices teams like yours (pre-money). */
+  band: [number, number];
+  /** Interest before a word is said (the fund's view of the company), and what's moved it from the start. */
+  base: number;
+  start: PitchMoved[];
+  cofounder: { name: string; points: number } | null;
+  /** Round 7: the business co-founder who introduced you to this fund, and what it added. */
+  intro?: { name: string; points: number } | null;
+  ask?: { option: PitchAskOption; amount: number; preMoney: number };
+  result?: {
+    score: number;
+    /** Interest when you asked (after the ask). */
+    interest: number;
+    moved: PitchMoved[];
+    outcome: 'term-sheet' | 'passed' | 'caught' | 'partners' | 'sent';
+    /** Answers diligence found out. */
+    caught: PitchMeetingQuestion[];
+    /** The term sheet's pre-money when it came out of the meeting. */
+    offerPre?: number;
+    /** Your one counter, and how it went. */
+    counter?: { preMoney: number; reply: 'agreed' | 'met' | 'walked' | 'waiting' };
+    /** You accepted, or walked away. */
+    closed?: 'accepted' | 'walked';
+  };
+  /** A player investor's answer. */
+  reply?: { action: 'accept' | 'counter' | 'decline'; amount?: number; preMoney?: number };
+  /** You left the meeting before the ask: it's over, and the fund isn't put off. */
+  left?: true;
 }
 
 /** One founder pitch answer, scored 0–100 (feedback note, founderguide.ts). */
@@ -3176,6 +3318,10 @@ export const SALES_LOSS_REASONS = [
   'trust',
   'competitor',
   'no_budget',
+  // Round 7 (gameplay note): "can't sign alone" (before it, a weak signer read as
+  // no budget), and a deal that was likely and lost anyway.
+  'authority',
+  'luck',
 ] as const;
 export type SalesLossReason = (typeof SALES_LOSS_REASONS)[number];
 export const SALES_ACTIONS = [
@@ -3241,6 +3387,17 @@ export interface SalesDeal {
   /** Lost because the deadline passed. */
   expired?: boolean;
   closedMonth?: number;
+  /** Round 7 (gameplay note): the salesperson who brought or runs this deal (a staff id). */
+  owner?: Id;
+  /** Round 7: a technical co-founder joined the demo (who, by how much, in which month). */
+  demoLift?: { by: Id; lift: number; month: number };
+  /** Round 7: a business co-founder's contact made this lead warmer (their staff id). */
+  warmBy?: Id;
+  /**
+   * Round 7 (gameplay note): lost on budget or timing, they asked you to come
+   * back: the month the lead opens again (it stays on the board until then).
+   */
+  revisit?: number;
   /** A won deal whose customer later stopped buying (feedback note): when and why. */
   churned?: { month: number; reason: SalesChurnReason };
   /** The sales conversation (feedback note, salestalk.ts). Missing = none started. */

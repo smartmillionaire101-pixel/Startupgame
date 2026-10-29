@@ -1,3 +1,4 @@
+import { shopOrder, type OrderLine } from './basket.js';
 import { livingCommand, orderFurniture, queueDelivery } from './living.js';
 import {
   buyWall,
@@ -78,8 +79,10 @@ import {
   travel,
 } from './travel.js';
 import { cancelEvent, hostEvent, rsvpEvent } from './events.js';
-import { advanceDeal, dropDeal, prospect } from './sales.js';
+import { advanceDeal, assignDeal, dropDeal, prospect } from './sales.js';
+import { homeRest } from './rest.js';
 import { salesTalk } from './salestalk.js';
+import { beginMeeting, pitchMeet, pitchReply } from './pitchmeeting.js';
 import { askInterview, leaveInterview, startInterview } from './customer-interviews.js';
 import { chooseDecision } from './decisions.js';
 import {
@@ -153,6 +156,7 @@ import {
   bankersOn,
   exitsOn,
   feedbackOn,
+  gameplayOn,
   investorOn,
   jobsOn,
   lifeBarsOn,
@@ -160,6 +164,7 @@ import {
   placesOn,
   shopOn,
 } from './releases.js';
+import { expertiseOf } from './cofounders.js';
 import {
   addCapital,
   answerCofounder,
@@ -789,6 +794,8 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       me.skills.negotiation = Math.min(100, me.skills.negotiation + 0.3);
       if (res.outcome === 'accept') {
         const s = hire(world, c, cand, cmd.salary, cmd.equityBps, month);
+        // Round 7: the sector they know, as their card showed it before the hire.
+        if (gameplayOn(world)) s.expertise = expertiseOf(world, cand.id, c.industry);
         if (piped) onPipelineHire(world, c, piped, s);
         return { ...res, staffId: s.id };
       }
@@ -1057,11 +1064,20 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         investorPlayerId: cmd.investorId,
         slides: cmd.slides,
         ask: cmd.ask,
+        meeting: gameplayOn(world),
       });
+      // Round 7: the pitch is a meeting with the investor (pitchmeeting.ts).
+      if (p.status === 'meeting') beginMeeting(world, p, cmd.preMoney);
       me.skills.fundraising = Math.min(100, me.skills.fundraising + 1);
       me.skills.publicSpeaking = Math.min(100, me.skills.publicSpeaking + 0.5);
       return { pitchId: p.id, status: p.status, reason: p.reason };
     }
+    case 'pitch.meet':
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return pitchMeet(world, me, cmd);
+    case 'pitch.reply':
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return pitchReply(world, me, cmd);
     case 'pitch.answer': {
       const p = answerPitch(world, cmd.pitchId, me.id, cmd.answers, cmd.figures);
       return { pitchId: p.id, status: p.status, reason: p.reason, dealId: p.dealId };
@@ -1659,6 +1675,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return advanceDeal(world, me, cmd);
     case 'sales.drop':
       return dropDeal(world, me, cmd.dealId, cmd.companyId);
+    case 'sales.assign':
+      // Unknown until the gameplay note: old worlds replay as before.
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return assignDeal(world, me, cmd.dealId, cmd.staffId, cmd.companyId);
     case 'sales.talk':
       if (!feedbackOn(world)) return fail('command.unknown', 'Unknown command.');
       return salesTalk(world, me, cmd);
@@ -1694,6 +1714,19 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
         ? orderFurnitureOnline(world, me, cmd.itemId, cmd.delivery, ctx.now, options)
         : orderFurniture(world, me, cmd.itemId, ctx.now, cmd.businessId, options);
     }
+    // Round 7: a basket is one order, in one van. Unknown before the note.
+    case 'shop.order':
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return shopOrder(
+        world,
+        me,
+        cmd.lines as OrderLine[],
+        {
+          ...(cmd.delivery ? { speed: cmd.delivery } : {}),
+          ...(cmd.businessId ? { businessId: cmd.businessId } : {}),
+        },
+        ctx.now,
+      );
     case 'home.buy':
       if (cmd.options && !shopOn(world)) return fail('command.unknown', 'Unknown command.');
       return buyFurniture(
@@ -1752,6 +1785,10 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'car.sell':
       return sellCar(world, me);
     // ------------------------------------------------------------ life at home (Wave 7)
+    case 'home.rest':
+      // Unknown until the gameplay note: old worlds replay as before.
+      if (!gameplayOn(world)) return fail('command.unknown', 'Unknown command.');
+      return homeRest(world, me, cmd, ctx.now);
     case 'home.act': {
       const done = homeAct(world, me, cmd.act);
       if (!feedbackOn(world)) return done;

@@ -18,6 +18,7 @@ import { visitPlace } from '../../city/goto';
 import { businessesOf } from '../../city/contract';
 import { cityViewOf, hereOf } from '../../city/travel';
 import { Avatar, isObj, kindName, str, type PhoneCtx, type ThreadRef, type View } from '../shared';
+import './chat.css';
 import { ChatActions, EmojiPicker, PlayerMessage, VoiceRecorder, type ActBody } from './ChatExtras';
 
 // ---------------------------------------------------------------------------
@@ -869,7 +870,13 @@ export function PlayerThreadView({
       {blocked ? (
         <p className="small muted">{t('This chat is blocked.')}</p>
       ) : (
-        <ChatActions partner={partner} act={act} busy={busy} goPlace={ctx?.goPlace}>
+        <ChatActions
+          partner={partner}
+          act={act}
+          busy={busy}
+          goPlace={ctx?.goPlace}
+          close={ctx?.close}
+        >
           {(plus) => (
             <PlayerComposer
               value={text}

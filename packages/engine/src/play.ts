@@ -5,7 +5,7 @@ import type { Currency } from './money.js';
 import { ensure } from './errors.js';
 import { col, getMarket, locationOf, notify } from './helpers.js';
 import { newId } from './ids.js';
-import { account, openAccount, payExact, transfer } from './ledger.js';
+import { account, openAccount, pay, payExact, transfer } from './ledger.js';
 import type { Command } from './commands.js';
 import { createRng, deriveRng, hashString } from './rng.js';
 import {
@@ -14,7 +14,14 @@ import {
   type BankQuestion,
   type QuizCategory,
 } from './data/quiz-bank.js';
-import { feedbackOn, investorOn, journeyEventsOn, lifeBarsOn, moreGamesOn } from './releases.js';
+import {
+  feedbackOn,
+  gameplayOn,
+  investorOn,
+  journeyEventsOn,
+  lifeBarsOn,
+  moreGamesOn,
+} from './releases.js';
 import {
   FULL_RACK,
   aiBowl,
@@ -104,6 +111,15 @@ export const autoQuiz = (w: World) => {
 export const QUIZ_LENGTH = 10;
 /** A quiz host waiting alone this long is matched with AI opponents (on the next sync). */
 export const QUIZ_AI_AFTER = 45_000;
+/**
+ * The gameplay round (playtest round 7: "can't find an opponent"): a quiz
+ * host alone this long has AI players sit down in the other seats…
+ */
+export const QUIZ_AI_SEAT_AFTER = 30_000;
+/** …and the quiz starts this long after, so a real player can still take an AI's seat. */
+export const QUIZ_TAKEOVER_MS = 15_000;
+/** A room nobody has touched this long (an unanswered invitation too) is called off, entries back. */
+export const PLAY_IDLE_MS = 30 * 60_000;
 const QUESTION_MS = 20_000;
 /** Snooker: time for each shot. Football: time to lock in each penalty. */
 const SHOT_MS = 45_000;
@@ -163,6 +179,23 @@ export interface PlayRoom {
   bowling?: BowlingMatch;
   /** The player who left this game while it was under way (it ended there). */
   forfeitBy?: Id;
+  /**
+   * The gameplay round: real players asked to this table (from Messages or
+   * the lobby) who haven't answered yet. They see it from anywhere, and may
+   * sit at it even at the host's home.
+   */
+  invited?: Id[];
+  /**
+   * Made for an invitation from Messages: only the host and who they asked
+   * sit here (quick play never matches it), either may start it, and it's
+   * off, entries back, if they say no.
+   */
+  byInvite?: boolean;
+  /**
+   * The gameplay round's quiz: AI players hold seats, and the quiz starts at
+   * this time (a real player joining before then takes an AI's seat).
+   */
+  startAt?: number;
 }
 
 // ---------------------------------------------------------------- Bowling
@@ -537,8 +570,13 @@ function aiCandidates(w: World, r: PlayRoom) {
     .sort((a, b) => hashString(`${r.id}:${a.id}`) - hashString(`${r.id}:${b.id}`));
 }
 
-/** Seat AI opponents and start the quiz (a host alone at the table). */
-function fillWithAi(w: World, r: PlayRoom, now: number, count: number) {
+/**
+ * Seat AI opponents and start the quiz (a host alone at the table). With
+ * `start` false (the gameplay round's quiz) they only hold the seats: the
+ * quiz starts in QUIZ_TAKEOVER_MS, and a real player who joins first takes
+ * one of their seats.
+ */
+function fillWithAi(w: World, r: PlayRoom, now: number, count: number, start = true) {
   // Snooker and football are one against one: a single AI opponent.
   const seats =
     r.game === 'quiz'
@@ -568,6 +606,14 @@ function fillWithAi(w: World, r: PlayRoom, now: number, count: number) {
       );
     r.members.push({ id: ai.id, score: 0 });
     r.ai.push(ai.id);
+  }
+  if (!start) {
+    r.startAt = now + QUIZ_TAKEOVER_MS;
+    r.touchedAt = now;
+    r.last = `${picks.map((p) => p.name).join(', ')} sat down. The quiz starts in ${Math.round(
+      QUIZ_TAKEOVER_MS / 1000,
+    )} seconds.`;
+    return;
   }
   r.status = 'playing';
   r.deadline = now + (r.game === 'snooker' ? SHOT_MS : QUESTION_MS);
@@ -1023,14 +1069,120 @@ export function canVisitHome(w: World, p: Player, host: string) {
       ))
   );
 }
+/** Asked to this table, or sat at it (the gameplay round: a home table lets them in). */
+const askedOrSeated = (w: World, p: Player, r: PlayRoom) =>
+  gameplayOn(w) && ((r.invited ?? []).includes(p.id) || r.members.some((m) => m.id === p.id));
 function access(w: World, p: Player, r: PlayRoom) {
   ensure(locationOf(p) === r.market, 'play.city', 'Travel to this city first.');
   if (r.venue.startsWith('home:'))
     ensure(
-      canVisitHome(w, p, r.venue.slice(5)),
+      canVisitHome(w, p, r.venue.slice(5)) || askedOrSeated(w, p, r),
       'play.invite',
       'Accept an invitation to this home first.',
     );
+}
+/** In another open or running game (an invitation they haven't answered doesn't count). */
+const busyElsewhere = (w: World, id: Id, roomId: Id) =>
+  Object.values(w.playRooms ?? {}).some(
+    (x) => x.id !== roomId && active(x) && x.members.some((m) => m.id === id),
+  );
+/** A game's name in a notice. */
+const GAME_TEXT: Record<PlayRoom['game'], string> = {
+  quiz: 'a quiz',
+  snooker: 'pool',
+  football: 'a penalty shootout',
+  golf: 'golf',
+  bowling: 'bowling',
+};
+/** Where a room is, in a notice: the venue's name, or whose home. */
+function whereText(w: World, r: PlayRoom) {
+  const city = w.markets[r.market]?.data.name ?? r.market;
+  if (r.venue.startsWith('home:')) return `${nameOf(w, r.venue.slice(5))}’s home, ${city}`;
+  const b = w.markets[r.market]?.businesses?.[r.venue];
+  return b ? `${b.name}, ${city}` : city;
+}
+/**
+ * The gameplay round: ask a real player to this table. They get a notice
+ * (and, from a chat, a card); they see the table from anywhere, travel to it
+ * if they must, and answer with Accept (`play.join`) or Decline.
+ */
+function askToTable(w: World, p: Player, r: PlayRoom, friendId: Id, now: number) {
+  const friend = w.players[friendId];
+  ensure(friend && friend.id !== p.id, 'play.invite', 'Pick who to play with.');
+  ensure(
+    !friend.ai,
+    'play.invite',
+    `${friend.name} is an AI player: play them from the table (Play vs AI).`,
+  );
+  ensure(
+    !r.members.some((m) => m.id === friend.id),
+    'play.invite',
+    `${friend.name} is already at this table.`,
+  );
+  ensure(
+    !(r.invited ?? []).includes(friend.id),
+    'play.invite',
+    `${friend.name} is already invited.`,
+  );
+  ensure((r.invited ?? []).length < 8, 'play.invite', 'That’s enough invitations for one table.');
+  ensure(
+    !busyElsewhere(w, friend.id, r.id),
+    'play.busy',
+    `${friend.name} is in another game right now.`,
+  );
+  ensure(
+    !r.stake || account(w, friend.accounts.local).currency === r.currency,
+    'play.currency',
+    `${friend.name} has no account in this city’s currency: invite them to a free game.`,
+  );
+  (r.invited ??= []).push(friend.id);
+  const m = getMarket(w, r.market);
+  notify(w, friend.id, {
+    month: m.month,
+    kind: 'system',
+    text: r.stake
+      ? `${p.name} invites you to ${GAME_TEXT[r.game]} at ${whereText(w, r)}: ${formatMoney(r.stake, r.currency)} each, winner takes the pot.`
+      : `${p.name} invites you to ${GAME_TEXT[r.game]} at ${whereText(w, r)}.`,
+    from: p.id,
+  });
+  r.touchedAt = now;
+}
+/** Tell the players at (or asked to) a table, but not `but`. */
+function tellTable(w: World, r: PlayRoom, but: Id, text: string) {
+  const month = getMarket(w, r.market).month;
+  const ids = new Set([...r.members.map((m) => m.id), ...(r.invited ?? [])]);
+  ids.delete(but);
+  for (const id of ids) notify(w, id, { month, kind: 'system', text, from: but });
+}
+/**
+ * Nobody has played yet: no question answered, no ball bowled, no shot or
+ * kick taken (AI players answering early don't count).
+ */
+function notStarted(r: PlayRoom) {
+  const human = (id: string) => !(r.ai ?? []).includes(id);
+  return (
+    r.round === 0 &&
+    !Object.keys(r.answers).some(human) &&
+    !Object.keys(r.moves).some(human) &&
+    (r.pool?.shots ?? 0) === 0 &&
+    (r.bowling?.balls ?? 0) === 0 &&
+    (r.golf?.shots.length ?? 0) === 0
+  );
+}
+/** A game called off before anyone played: the lane or green fees go back too. */
+function refundFees(w: World, r: PlayRoom) {
+  const fee = r.bowling?.fee ?? r.golf?.fee ?? 0;
+  if (!fee) return;
+  const m = getMarket(w, r.market);
+  const payee = r.bowling
+    ? (m.businesses?.[r.venue]?.account ?? m.ext.suppliers)
+    : (golfClubOf(m)?.account ?? m.ext.suppliers);
+  for (const { id } of r.members) {
+    const who = w.players[id];
+    const from = account(w, payee);
+    if (!who || (!from.external && from.balance < fee)) continue;
+    pay(w, payee, who.accounts.local, fee, 'Fee refunded: game called off', m.month, 'move');
+  }
 }
 function payOut(w: World, r: PlayRoom, refund: boolean) {
   if (!active(r)) return;
@@ -1099,9 +1251,29 @@ function forfeit(w: World, r: PlayRoom, p: Player) {
 /** Timeout cleanup runs inside commands, so refunds are logged and replay safely. */
 export function expirePlay(w: World, now: number) {
   for (const r of Object.values(w.playRooms ?? {})) {
-    if (active(r) && now - r.touchedAt > 30 * 60_000) {
+    if (active(r) && now - r.touchedAt > PLAY_IDLE_MS) {
       r.last = 'Room expired. Entries refunded.';
+      // An invitation nobody answered (the gameplay round): both hear it's off.
+      const asked = r.status === 'waiting' ? (r.invited ?? []) : [];
       payOut(w, r, true);
+      if (!asked.length) continue;
+      const month = getMarket(w, r.market).month;
+      const host = nameOf(w, r.host);
+      notify(w, r.host, {
+        month,
+        kind: 'system',
+        text: `Nobody answered your invitation to ${GAME_TEXT[r.game]} in 30 minutes. ${
+          r.stake ? 'Your stake is back.' : 'It’s off.'
+        }`,
+        from: asked[0]!,
+      });
+      for (const id of asked)
+        notify(w, id, {
+          month,
+          kind: 'system',
+          text: `${host}’s invitation to ${GAME_TEXT[r.game]} has expired.`,
+          from: r.host,
+        });
     }
   }
 }
@@ -1422,6 +1594,12 @@ function createRoom(
   rooms[id] = r;
   // A custom quiz author (old rooms) is the non-playing quizmaster: they knew the answers.
   if (!r.custom) join(w, p, r);
+  // The gameplay round: any game, from Messages, for the one you asked.
+  if (cmd.invite && r.game !== 'golf' && gameplayOn(w)) {
+    r.byInvite = true;
+    askToTable(w, p, r, cmd.invite, now);
+    r.last = `${p.name} invited ${nameOf(w, cmd.invite)}.`;
+  }
   return r;
 }
 
@@ -1436,19 +1614,27 @@ export function playCommand(
   if (cmd.type === 'play.match') {
     // Quick play: the next waiting quiz at this venue with the same stake, or a new one.
     const market = locationOf(p);
+    // The gameplay round (playtest round 7: two players looking for a quiz at
+    // different venues never met): any waiting quiz in the city, this venue's first.
+    const anyVenue = gameplayOn(w);
+    const here = (r: PlayRoom) => (r.venue === cmd.venue ? 0 : 1);
     const open = Object.values(rooms)
       .filter(
         (r) =>
           r.status === 'waiting' &&
           r.game === 'quiz' &&
           r.market === market &&
-          r.venue === cmd.venue &&
+          (anyVenue || r.venue === cmd.venue) &&
+          !r.byInvite &&
           r.stake === cmd.stake &&
           !r.custom &&
           r.members.length < 8 &&
           !r.members.some((m) => m.id === p.id),
       )
-      .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
+      .sort(
+        (a, b) =>
+          (anyVenue ? here(a) - here(b) : 0) || a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1),
+      );
     for (const r of open) {
       try {
         access(w, p, r);
@@ -1478,12 +1664,44 @@ export function playCommand(
   // Leaving or calling off your own game works from anywhere (playtest round 6:
   // a room left open in another city blocked every other game).
   const mine = r.host === p.id || r.members.some((m) => m.id === p.id);
-  if (!(mine && (cmd.type === 'play.leave' || cmd.type === 'play.cancel'))) access(w, p, r);
+  // An invitation can be turned down from anywhere (the gameplay round).
+  const asked = (r.invited ?? []).includes(p.id);
+  if (
+    !(mine && (cmd.type === 'play.leave' || cmd.type === 'play.cancel')) &&
+    !(asked && cmd.type === 'play.decline')
+  )
+    access(w, p, r);
   if (cmd.type === 'play.join') {
     join(w, p, r);
     // Golf: the invited friend's yes starts the match.
     if (r.golf && r.members.length === 2) startGolf(w, r, now);
     return { id: r.id };
+  }
+  if (cmd.type === 'play.invite') {
+    ensure(gameplayOn(w), 'play.invite', 'Invitations to a table aren’t open yet.');
+    ensure(r.status === 'waiting', 'play.started', 'This game has already started.');
+    ensure(mine, 'play.member', 'Join this game first.');
+    askToTable(w, p, r, cmd.playerId, now);
+    return { id: r.id, invited: cmd.playerId };
+  }
+  if (cmd.type === 'play.decline' && !r.golf && asked) {
+    // The gameplay round: no to an invitation. A table made for it is off.
+    ensure(r.status === 'waiting', 'play.invite', 'There’s no invitation to answer here.');
+    r.invited = (r.invited ?? []).filter((id) => id !== p.id);
+    const off = !!r.byInvite && r.members.length <= 1 && !r.invited.length;
+    if (off) {
+      r.last = `${p.name} can’t play this time. Entries refunded.`;
+      payOut(w, r, true);
+    }
+    notify(w, r.host, {
+      month: getMarket(w, r.market).month,
+      kind: 'system',
+      text: `${p.name} declined your invitation to ${GAME_TEXT[r.game]}.${
+        off && r.stake ? ` Your ${formatMoney(r.stake, r.currency)} stake is back.` : ''
+      }`,
+      from: p.id,
+    });
+    return { ok: true };
   }
   if (cmd.type === 'play.decline') {
     ensure(
@@ -1501,12 +1719,45 @@ export function playCommand(
     return { ok: true };
   }
   if (cmd.type === 'play.cancel') {
+    // The gameplay round (playtest round 7: "Cancel didn't end the game"): a
+    // game nobody has played yet can be called off, every entry (and the
+    // lane or green fee) back, no forfeit, by the host or a player whose
+    // only company is AI players. Once anyone has played, leaving forfeits.
+    if (gameplayOn(w) && r.status === 'playing') {
+      ensure(
+        r.members.some((m) => m.id === p.id),
+        'play.member',
+        'You are not in this game.',
+      );
+      ensure(
+        notStarted(r),
+        'play.started',
+        'The game is under way: leave it instead (you forfeit it).',
+      );
+      ensure(
+        r.host === p.id || r.members.every((m) => m.id === p.id || (r.ai ?? []).includes(m.id)),
+        'play.cancel',
+        'Only the host can cancel the game.',
+      );
+      refundFees(w, r);
+      r.last = `${p.name} cancelled the game before anyone played. Entries refunded.`;
+      payOut(w, r, true);
+      tellTable(
+        w,
+        r,
+        p.id,
+        `${p.name} cancelled “${r.title}” before anyone played. Your entry is back.`,
+      );
+      return { ok: true, cancelled: true };
+    }
     ensure(
       r.host === p.id && r.status === 'waiting',
       'play.cancel',
       'Only the host can cancel an unstarted game.',
     );
     payOut(w, r, true);
+    if (r.invited?.length)
+      tellTable(w, r, p.id, `${p.name} called off “${r.title}”. Entries refunded.`);
     return { ok: true };
   }
   if (cmd.type === 'play.leave') {
@@ -1544,8 +1795,10 @@ export function playCommand(
   }
   if (cmd.type === 'play.start') {
     ensure(!r.golf, 'play.golf', 'A golf match starts when your friend accepts.');
+    // A table made for an invitation: either of you starts it once you're both there.
+    const seated = !!r.byInvite && r.members.some((m) => m.id === p.id);
     ensure(
-      r.host === p.id && r.status === 'waiting',
+      (r.host === p.id || seated) && r.status === 'waiting',
       'play.host',
       'Only the host can start this room.',
     );
@@ -1573,8 +1826,11 @@ export function playCommand(
   if (cmd.type === 'play.sync') {
     if (r.golf && r.status === 'waiting' && r.golf.aiAcceptAt && now >= r.golf.aiAcceptAt)
       aiAcceptsGolf(w, r, now);
+    // The gameplay round: AI players sit down after QUIZ_AI_SEAT_AFTER, the
+    // quiz starts QUIZ_TAKEOVER_MS later (a real player can take a seat until then).
+    if (gameplayOn(w)) quizWait(w, r, now);
     // A host alone at a quiz long enough is matched with AI opponents.
-    if (
+    else if (
       autoQuiz(w) &&
       r.status === 'waiting' &&
       r.game === 'quiz' &&
@@ -1669,10 +1925,63 @@ export function playCommand(
   }
   return { ok: true };
 }
+/**
+ * The gameplay round's waiting quiz: AI players sit down once the host has
+ * waited QUIZ_AI_SEAT_AFTER alone, and the quiz starts at `startAt`.
+ */
+function quizWait(w: World, r: PlayRoom, now: number) {
+  if (r.status !== 'waiting' || r.game !== 'quiz' || r.custom || r.byInvite) return;
+  if (r.startAt === undefined) {
+    if (
+      r.members.length === 1 &&
+      now - r.createdAt >= QUIZ_AI_SEAT_AFTER &&
+      aiCandidates(w, r).length > 0
+    )
+      fillWithAi(w, r, now, 2, false);
+    return;
+  }
+  if (now < r.startAt) return;
+  r.status = 'playing';
+  r.deadline = now + QUESTION_MS;
+  r.touchedAt = now;
+  r.last = 'The quiz begins.';
+}
+/** When a waiting room does something on its own (null: it doesn't), so clients sync then. */
+function waitingDueAt(w: World, r: PlayRoom): number | null {
+  if (r.status !== 'waiting' || r.game !== 'quiz' || r.custom || r.byInvite) return null;
+  if (!gameplayOn(w))
+    return autoQuiz(w) && r.members.length === 1 ? r.createdAt + QUIZ_AI_AFTER : null;
+  if (r.startAt !== undefined) return r.startAt;
+  return r.members.length === 1 ? r.createdAt + QUIZ_AI_SEAT_AFTER : null;
+}
+/** A real player sits down at a quiz where AI players hold seats: one gives theirs up. */
+function takeAiSeat(w: World, r: PlayRoom) {
+  const ai = r.ai?.at(-1);
+  if (r.startAt === undefined || r.status !== 'waiting' || !ai) return;
+  const who = w.players[ai];
+  if (r.stake && who)
+    transfer(
+      w,
+      r.escrow,
+      who.accounts.local,
+      r.stake,
+      'Game entry refunded',
+      getMarket(w, r.market).month,
+      'move',
+    );
+  r.ai = r.ai!.filter((id) => id !== ai);
+  r.members = r.members.filter((m) => m.id !== ai);
+}
 function join(w: World, p: Player, r: PlayRoom) {
   access(w, p, r);
   ensure(r.status === 'waiting', 'play.started', 'This game has already started.');
   if (r.members.some((m) => m.id === p.id)) return;
+  ensure(
+    !r.byInvite || p.id === r.host || (r.invited ?? []).includes(p.id),
+    'play.invite',
+    'This table is by invitation.',
+  );
+  takeAiSeat(w, r);
   ensure(
     !r.custom || p.id !== r.host,
     'play.author',
@@ -1727,6 +2036,17 @@ function join(w: World, p: Player, r: PlayRoom) {
       'move',
     );
   r.members.push({ id: p.id, score: 0 });
+  // An invitation accepted: the host hears it, and you're both at the table.
+  if ((r.invited ?? []).includes(p.id)) {
+    r.invited = r.invited!.filter((id) => id !== p.id);
+    r.last = `${p.name} accepted.`;
+    notify(w, r.host, {
+      month: getMarket(w, r.market).month,
+      kind: 'system',
+      text: `${p.name} accepted your invitation to ${GAME_TEXT[r.game]}: they’re at the table.`,
+      from: p.id,
+    });
+  }
 }
 /**
  * The game you're in that's still open or under way, wherever it is (a room
@@ -1749,12 +2069,51 @@ export function myPlayRoom(w: World, p: Player) {
     host: r.host === p.id,
   };
 }
+/**
+ * The gameplay round: the invitations to a table waiting for your answer,
+ * wherever the table is (you may have to travel to it).
+ */
+export function playInvites(w: World, p: Player) {
+  return Object.values(w.playRooms ?? {})
+    .filter((r) => r.status === 'waiting' && (r.invited ?? []).includes(p.id))
+    .sort((a, b) => b.touchedAt - a.touchedAt || (a.id < b.id ? -1 : 1))
+    .map((r) => ({
+      id: r.id,
+      game: r.game,
+      rules: r.rules ?? null,
+      title: r.title,
+      host: r.host,
+      hostName: nameOf(w, r.host),
+      venue: r.venue,
+      venueName: r.venue.startsWith('home:')
+        ? null
+        : (w.markets[r.market]?.businesses?.[r.venue]?.name ?? null),
+      market: r.market,
+      city: w.markets[r.market]?.data.name ?? r.market,
+      here: locationOf(p) === r.market,
+      currency: r.currency,
+      stake: r.stake,
+      /** The lane or green fee each player pays when the game starts. */
+      fee: r.bowling?.fee ?? r.golf?.fee ?? 0,
+      players: r.members.map((m) => ({ id: m.id, name: nameOf(w, m.id) })),
+      /** When it's off if nobody answers (entries back). */
+      expiresAt: r.touchedAt + PLAY_IDLE_MS,
+    }));
+}
 export function playView(w: World, p: Player) {
   return Object.values(w.playRooms ?? {})
     .filter(
       (r) =>
         r.market === locationOf(p) &&
-        (!r.venue.startsWith('home:') || canVisitHome(w, p, r.venue.slice(5))),
+        (!r.venue.startsWith('home:') ||
+          canVisitHome(w, p, r.venue.slice(5)) ||
+          (r.invited ?? []).includes(p.id) ||
+          r.members.some((m) => m.id === p.id)) &&
+        // A table made for an invitation is only for the two of you.
+        (!r.byInvite ||
+          r.host === p.id ||
+          (r.invited ?? []).includes(p.id) ||
+          r.members.some((m) => m.id === p.id)),
     )
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 40)
@@ -1778,6 +2137,20 @@ export function playView(w: World, p: Player) {
       last: r.last,
       /** Who left this game while it was under way (it ended there), if anyone did. */
       forfeitBy: r.forfeitBy ?? null,
+      /** The gameplay round: who's been asked and hasn't answered; a table made for one. */
+      invited: r.invited ?? [],
+      byInvite: !!r.byInvite,
+      /** A quiz's AI players hold seats until it starts then (a real player can take one). */
+      startAt: r.startAt ?? null,
+      /** When a waiting room does something on its own (AI players sit down, it starts): sync then. */
+      autoAt: waitingDueAt(w, r),
+      /** When a waiting room is off if nobody touches it (entries back). */
+      expiresAt: active(r) ? r.touchedAt + PLAY_IDLE_MS : null,
+      /** Nobody has played yet: it can still be cancelled (no forfeit). */
+      fresh: gameplayOn(w) && r.status === 'playing' && notStarted(r),
+      venueName: r.venue.startsWith('home:')
+        ? null
+        : (w.markets[r.market]?.businesses?.[r.venue]?.name ?? null),
       totalQuestions: r.questions.length,
       question:
         r.status === 'playing' && r.game === 'quiz'

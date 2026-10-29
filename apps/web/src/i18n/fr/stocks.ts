@@ -102,4 +102,5 @@ export const stocks: Record<string, string> = {
     'Moins d’un an de comptes : les chiffres annuels sont ceux du dernier mois × 12.',
   'Prices follow company results and the market’s mood. A game, not financial advice.':
     'Les prix suivent les résultats des sociétés et l’humeur du marché. Un jeu, pas un conseil financier.',
+  'Reading {name}’s accounts…': 'Lecture des comptes de {name}…',
 };

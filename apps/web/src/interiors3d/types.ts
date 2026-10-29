@@ -17,6 +17,8 @@ export interface Home3DPerson {
   pose: 'stand' | 'sit' | 'lie';
   /** Which way they face when standing still (radians; 0 = +z), when the scene says. */
   ry?: number;
+  /** Round 7: the thing they sit or lie on (an object id: 'sofa', 'dining', 'bed' or the mat…). */
+  seat?: string;
 }
 
 export interface Home3DObject {

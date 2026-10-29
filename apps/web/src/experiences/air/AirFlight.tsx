@@ -48,6 +48,7 @@ import {
   newHeli,
   newJump,
   sideOf,
+  skipClimb,
   stepHeli,
   type RoofAt,
   stepJump,
@@ -57,6 +58,7 @@ import {
   type Waypoint,
 } from './flight';
 import { AirRig, saveCamMode, savedCamMode, type AirCamMode } from './air3d';
+import { labelLayer, placeLabels, type Box } from './labels';
 import '../../city/three/city3d.css';
 
 export interface AirBooking {
@@ -148,6 +150,15 @@ const tierOf = () => {
 const LABEL_BLOCKERS =
   '.air-head h2, .air-head small, .panorama-actions, .air-cam, .air-hud, .air-say, .air-controls, .air-result';
 
+/** What the loading screen is waiting for, step by step. */
+const LOAD_STEP: (() => string)[] = [
+  () => t('The city map'),
+  () => t('The hills and the river'),
+  () => t('The streets'),
+  () => t('The 3D city'),
+  () => t('The aircraft'),
+];
+
 /** The helicopter flight's title: the flight you booked. */
 const HELI_TITLE: Record<string, () => string> = {
   'heli-hop': () => t('Helicopter hop'),
@@ -188,16 +199,25 @@ export default function AirFlight({
       typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
     [],
   );
-  // Inside or Outside: remembered for the player.
-  const [camMode, setCamMode] = useState<AirCamMode>(() => savedCamMode(view.me.id));
+  // Inside or Outside: remembered for the player. A skydive cuts by itself until
+  // you choose: Outside for the climb (the whole plane, you in the door), Inside
+  // at the open door, then your own choice for the jump.
+  const [camMode, setCamMode] = useState<AirCamMode>(() =>
+    skydive ? 'outside' : savedCamMode(view.me.id),
+  );
   const camModeRef = useRef(camMode);
+  const chosenCam = useRef(false);
   useEffect(() => {
     camModeRef.current = camMode;
   }, [camMode]);
   const pickCam = (m: AirCamMode) => {
+    chosenCam.current = true;
     setCamMode(m);
     saveCamMode(view.me.id, m);
   };
+  /** Skip the climb (asked for while loading, too): straight to the open door. */
+  const skipRef = useRef(false);
+  const [drawnOnce, setDrawnOnce] = useState(false);
   useEffect(() => {
     if (!geo || geo === 'loading') return;
     const id = setTimeout(() => setLayout(cachedCityLayout(layoutKeyRef.current, geo)), 30);
@@ -255,11 +275,23 @@ export default function AirFlight({
   const [landed, setLanded] = useState<{ jump: Jump; result: LandResult | null } | null>(null);
   const [home, setHome] = useState<Heli | null>(null);
   const [say, setSay] = useState<{ name: string; side: string; detail?: string } | null>(null);
+  const sayRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    sayRef.current = say ? `${say.name}:${say.side}` : undefined;
+  }, [say]);
+
+  useEffect(() => {
+    if (!skydive || chosenCam.current) return;
+    if (hud.phase === 'door') queueMicrotask(() => setCamMode('inside'));
+    else if (hud.phase === 'freefall') queueMicrotask(() => setCamMode(savedCamMode(view.me.id)));
+  }, [hud.phase, skydive, view.me.id]);
 
   useEffect(() => {
     if (!where) return;
-    if (skydive) jumpRef.current = newJump(where.x, where.z);
-    else
+    if (skydive) {
+      const j = newJump(where.x, where.z);
+      jumpRef.current = skipRef.current ? skipClimb(j) : j;
+    } else
       heliRef.current = {
         ...newHeli(where.x, where.z),
         heading: route[0] ? Math.atan2(route[0].x - where.x, -(route[0].z - where.z)) : 0,
@@ -382,8 +414,10 @@ export default function AirFlight({
     let last = performance.now();
     let hudAt = 0;
     const out = { x: 0, y: 0, z: 0 };
-    let frames = 0;
-    let blocks: { l: number; r: number; t: number; b: number }[] = [];
+    let first = false;
+    let measured = -1e9;
+    let measuredSay: string | undefined;
+    let blocks: Box[] = [];
     const groundAt = (x: number, z: number) => {
       const s = sceneRef.current;
       return s ? s.groundAt(x, z) + s.terrainAt(x, z) : 0;
@@ -435,6 +469,7 @@ export default function AirFlight({
       const cam = camRef.current;
       if (skydive && jumpRef.current) {
         let j = jumpRef.current;
+        if (skipRef.current && j.phase === 'climb') j = skipClimb(j);
         if (j.phase !== 'landed') {
           // Small steps, so a big one doesn't skip the ground.
           for (let left = dt; left > 0; left -= 0.05) {
@@ -503,48 +538,71 @@ export default function AirFlight({
             );
         }
       }
+      // The loading screen stays up until the first frame with the aircraft is drawn.
+      if (!first && (!gl || (rigRef.current?.frames ?? 0) > 0)) {
+        first = true;
+        setDrawnOnce(true);
+      }
       // The landmarks' names over the city.
       const scene = sceneRef.current;
       const host = labelsRef.current;
       if (scene && host && cam) {
         const { w: W, h: H } = scene.viewSize;
-        // The title, buttons and panels, measured now and then: a name never sits on them.
-        if (frames++ % 20 === 0) {
+        // The title, buttons and panels, measured a few times a second and as soon as the
+        // commentary changes (measured every 20 frames, a slow phone left a name over the
+        // new line for seconds): a name never sits on them, nor within a few pixels.
+        const sayNow = sayRef.current;
+        if (now - measured > 300 || sayNow !== measuredSay) {
+          measured = now;
+          measuredSay = sayNow;
           const at = host.getBoundingClientRect();
           const root = host.closest('.air');
+          const pad = 6;
           blocks = root
-            ? [...root.querySelectorAll<HTMLElement>(LABEL_BLOCKERS)].map((e) => {
-                const r = e.getBoundingClientRect();
-                return {
-                  l: r.left - at.left,
-                  r: r.right - at.left,
-                  t: r.top - at.top,
-                  b: r.bottom - at.top,
-                };
-              })
+            ? [...root.querySelectorAll<HTMLElement>(LABEL_BLOCKERS)]
+                .map((e) => e.getBoundingClientRect())
+                .filter((r) => r.width > 0 && r.height > 0)
+                .map((r) => ({
+                  l: r.left - at.left - pad,
+                  r: r.right - at.left + pad,
+                  t: r.top - at.top - pad,
+                  b: r.bottom - at.top + pad,
+                }))
             : [];
         }
-        for (const node of host.querySelectorAll<HTMLElement>('[data-air-label]')) {
+        // Two landmarks close together: the nearer one's name goes where it is, the
+        // farther one's stacks above it on a longer stem, or hides (./labels.ts).
+        const nodes = [...host.querySelectorAll<HTMLElement>('[data-air-label]')];
+        const at: { x: number; y: number }[] = [];
+        const wants = nodes.map((node) => {
           const l = where.marks[Number(node.dataset.i)];
-          if (!l) continue;
-          const d = Math.hypot(l.x - cam.pos.x, l.z - cam.pos.z);
+          if (!l) {
+            at.push({ x: 0, y: 0 });
+            return { x: 0, y: 0, inFront: false, d: Infinity, w: 0, h: 0 };
+          }
           scene.project(l.x, groundAt(l.x, l.z) + l.h + 10, l.z, out);
-          // The name's box: centred over the point, above its 8 px stem (.sky-label).
-          const lw = node.offsetWidth || 140;
-          const lh = node.offsetHeight || 20;
-          const box = { l: out.x - lw / 2, r: out.x + lw / 2, t: out.y - lh - 8, b: out.y };
-          const vis =
-            out.z < 1 &&
-            box.l > 4 &&
-            box.r < W - 4 &&
-            box.t > 4 &&
-            out.y < H - 120 &&
-            d < 6000 &&
-            !blocks.some((k) => box.l < k.r && box.r > k.l && box.t < k.b && box.b > k.t);
-          if (vis)
-            node.style.transform = `translate(${Math.round(out.x)}px,${Math.round(out.y)}px)`;
+          at.push({ x: out.x, y: out.y });
+          return {
+            x: out.x,
+            y: out.y,
+            inFront: out.z < 1,
+            d: Math.hypot(l.x - cam.pos.x, l.z - cam.pos.z),
+            w: node.offsetWidth || 140,
+            h: node.offsetHeight || 20,
+          };
+        });
+        const stems = placeLabels(wants, blocks, W, H);
+        const layer = labelLayer(wants);
+        nodes.forEach((node, i) => {
+          const stem = stems[i];
+          const vis = stem !== null && stem !== undefined;
+          if (vis) {
+            node.style.transform = `translate(${Math.round(at[i]!.x)}px,${Math.round(at[i]!.y)}px)`;
+            node.style.setProperty('--stem', `${stem}px`);
+            node.style.zIndex = String(layer[i]);
+          }
           if (node.hidden === vis) node.hidden = !vis;
-        }
+        });
       }
       raf = requestAnimationFrame(frame);
     };
@@ -626,6 +684,7 @@ export default function AirFlight({
     setPhoto({ src });
   };
   const done = !!landed || !!home;
+  const loadSteps = [!!geo && geo !== 'loading', terrain !== 'loading', !!layout, ready, drawnOnce];
   const fmtAlt = (m: number) => t('{n} m', { n: m.toLocaleString('en-GB') });
   const result = landed?.result;
 
@@ -661,8 +720,23 @@ export default function AirFlight({
         )}
         {!skydive && !gl && !done && <div className="air-cockpit" aria-hidden="true" />}
       </div>
-      {!ready && !error && (
-        <p className="panorama-loading">{skydive ? t('To the plane…') : t('To the heliport…')}</p>
+      {!(ready && drawnOnce) && !error && (
+        // A short loading screen: what's ready of the five steps, and (a skydive) Skip the climb.
+        <div
+          className="air-loading"
+          role="status"
+          data-air-loading={Math.round((loadSteps.filter(Boolean).length / loadSteps.length) * 100)}
+        >
+          <b>{skydive ? t('To the plane…') : t('To the heliport…')}</b>
+          <span className="panorama-progress" aria-hidden="true">
+            <span
+              style={{
+                width: `${Math.round((loadSteps.filter(Boolean).length / loadSteps.length) * 100)}%`,
+              }}
+            />
+          </span>
+          <small>{LOAD_STEP[Math.min(loadSteps.indexOf(false), LOAD_STEP.length - 1)]?.()}</small>
+        </div>
       )}
       <header className="air-head">
         <div>
@@ -754,8 +828,21 @@ export default function AirFlight({
         </p>
       )}
       <footer className="air-controls">
-        {skydive && hud.phase === 'climb' && (
-          <p>{t('The plane climbs to 4,000 m over the city. Get ready at the door.')}</p>
+        {skydive && (hud.phase === 'climb' || !hud.phase) && (
+          <>
+            <p>{t('The plane climbs to 4,000 m over the city. Get ready at the door.')}</p>
+            <button
+              type="button"
+              className="experience-secondary air-skip"
+              data-action="air-skip"
+              onClick={() => {
+                skipRef.current = true;
+                if (jumpRef.current) jumpRef.current = skipClimb(jumpRef.current);
+              }}
+            >
+              {t('Skip the climb ›')}
+            </button>
+          </>
         )}
         {skydive && hud.phase === 'door' && (
           <button

@@ -50,7 +50,7 @@ import { openPhone, type PhoneOpen } from '../phone/bus';
 import { HudButton, HudRail } from '../ui';
 import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
 import { businessesOf, hash } from '../city/contract';
-import { carOf, genderOf, nearest, sellsOf, storeForSlot } from '../city/life';
+import { carOf, genderOf, nearest, sellsOf, shopOf, storeForSlot } from '../city/life';
 import type { SceneProps } from '../city/PlaceScene';
 import { DecorArt, FixtureArt, SlotArt, TILE } from './art';
 import {
@@ -59,6 +59,7 @@ import {
   bathDoors,
   blockedTiles,
   floorsFor,
+  withoutRoomSlots,
   withBuiltIns,
   homeSpecOf,
   key,
@@ -87,12 +88,13 @@ import { HomeWindows } from './HomeWindows';
 import { HotelKnocked, HotelNeighbours, holidaysOf } from '../phone/apps/Holiday';
 import type { HotelTier } from '../city/travel';
 import { ActFx } from './ActFx';
+import { RestChip } from './RestChip';
 import { PhotoSheet, addPhoto } from './HomePhotos';
 import { pathTowards, walkable, type Grid, type Tile } from './path';
 import { balconyView } from './balcony';
 import type PanoramaView from '../experiences/Panorama';
 import { NEEDS, actsLeft, inviteesOf, ownedTiers, type NeedKey } from './view';
-import { OPTION_GROUPS, WALLS } from '@runway/engine';
+import { OPTION_GROUPS, WALLS, isRoomSlot } from '@runway/engine';
 import {
   canPlaceDivider,
   dividerAt,
@@ -108,6 +110,8 @@ import {
 } from './dividers';
 import { CatalogueSheet } from '../shop/CatalogueSheet';
 import { onlineCatalog } from '../shop/catalog';
+import { onToPlace, takeToPlace, type ToPlace } from '../shop/vans';
+import { DeliveryBanner } from './DeliveryBanner';
 
 /** Wave 9 §C: the 3D home, loaded on demand (three.js is its own chunk). */
 // A chunk that fails to load (offline) leaves the 2D home in place.
@@ -162,6 +166,16 @@ const SLOT_LABEL: Record<string, string> = {
   coffee: 'Coffee machine',
   wifi: 'Wi-Fi',
   laptop: 'Laptop',
+  towels: 'Towel rail',
+  bathmat: 'Bath mat',
+  cabinet: 'Bathroom cabinet',
+  hamper: 'Laundry basket',
+  bathplant: 'Bathroom plant',
+  shoes: 'Shoe rack',
+  coats: 'Coat stand',
+  console: 'Console table',
+  hallmirror: 'Hallway mirror',
+  runner: 'Runner rug',
 };
 const slotLabel = (s: string) => t(SLOT_LABEL[s] ?? 'Furniture');
 
@@ -204,6 +218,8 @@ interface Person {
   /** Snapped onto a seat or a bed (px offsets from the tile grid). */
   pose: 'stand' | 'sit' | 'lie';
   at?: { x: number; y: number };
+  /** Round 7: the object they sit or lie on (for the 3D pose: the right bed, the chair's seat). */
+  seat?: string;
   arrive?: () => void;
   tile: string;
 }
@@ -244,6 +260,10 @@ function baseOf(p: Person): number {
   if (p.pose !== 'stand' && p.at) return p.at.y / TILE + (p.pose === 'lie' ? 1.3 : 0.6);
   return p.y + 0.72;
 }
+
+/** Round 7e: a bed you can sit on the edge of (yours, the mat, a guest bed). */
+const isBed = (o: { verbs: readonly unknown[] }) =>
+  o.verbs.some((v) => !!v && typeof v === 'object' && 'act' in v && v.act === 'sleep');
 
 const GUEST_BG = ['f-dropout', 'i-first', 'b-wealthy', 'f-corporate', 'i-operator', 'b-fintech'];
 const guestLook = (personId: string) =>
@@ -324,13 +344,13 @@ export function HomeScene({
     : homeSpecOf(residence, tier).kind;
   const specWealth = hostView ? (hostView.wealth ?? 1) : homeSpecOf(residence, tier).wealth;
   // A house has an upstairs (a mansion a roof terrace too): one floor at a time.
-  const floors = useMemo(
-    () =>
-      hotelTier
-        ? [hotelPlan(hotelTier, hotel?.pod)]
-        : floorsFor(tier, { kind: specKind, wealth: specWealth }),
-    [hotelTier, hotel?.pod, tier, specKind, specWealth],
-  );
+  // Round 7: the bathroom and hallway things have spots once the shop sells them.
+  const roomsSold = shopOf(view).furniture.some((f) => isRoomSlot(f.slot));
+  const floors = useMemo(() => {
+    if (hotelTier) return [hotelPlan(hotelTier, hotel?.pod)];
+    const all = floorsFor(tier, { kind: specKind, wealth: specWealth });
+    return roomsSold ? all : all.map(withoutRoomSlots);
+  }, [hotelTier, hotel?.pod, tier, specKind, specWealth, roomsSold]);
   const [floorAt, setFloorAt] = useState(0);
   const floor = Math.min(floorAt, floors.length - 1);
   const basePlan = floors[floor]!;
@@ -532,6 +552,9 @@ export function HomeScene({
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
   const meStart = { x: plan.door.x, y: plan.door.y - 1 };
   const me = useRef<Person>(newPerson('me', view.me.name, meLook, meStart));
+  /** Round 7: the rest under way (held sit or lie) and how to get up from it. */
+  const restRef = useRef<{ spot: 'seat' | 'bed'; label: string } | null>(null);
+  const getUpRef = useRef<(() => Promise<void>) | null>(null);
   const guestKey = hotelTier ? `hotel:${view.me.id}` : view.me.id;
   const [guests, setGuests] = useState<Guest[]>(() => {
     // Your guests are back home, not in your hotel room: a friend from next door
@@ -651,7 +674,10 @@ export function HomeScene({
     if (inner)
       inner.setAttribute(
         'transform',
-        p.pose === 'lie' ? 'scale(0.95)' : `scale(${(p.facing * 0.95).toFixed(2)} 0.95)`,
+        // Lying (round 7e, Lite): a little up the bed, the head on the pillow.
+        p.pose === 'lie'
+          ? 'translate(0 -7) scale(0.95)'
+          : `scale(${(p.facing * 0.95).toFixed(2)} 0.95)`,
       );
   }, []);
 
@@ -731,9 +757,12 @@ export function HomeScene({
   const walk = useCallback(
     (p: Person, to: Tile, arrive?: () => void) => {
       const from = { x: Math.round(p.x), y: Math.round(p.y) };
+      // Round 7: walking off a seat or a bed ends the rest.
+      if (p === me.current && restRef.current) void getUpRef.current?.();
       if (p.pose !== 'stand') {
         p.pose = 'stand';
         p.at = undefined;
+        p.seat = undefined;
       }
       // Standing on something (off a seat): start from the nearest free tile.
       const start = walkable(grid, from.x, from.y)
@@ -947,6 +976,8 @@ export function HomeScene({
     null,
   );
   const [shopWalls, setShopWalls] = useState(false);
+  // Round 7: the online catalogue, its own button on the rail and in Buy mode (on a phone too).
+  const [shopAll, setShopAll] = useState(false);
   const wallGhost = useMemo(
     () =>
       wallPlacing
@@ -1015,6 +1046,46 @@ export function HomeScene({
     }
     return false;
   };
+  // ---- Round 7: unpacked things go straight to placing (a painting is never hung for you).
+  const [toPlaceQ, setToPlaceQ] = useState<ToPlace[]>(() =>
+    hotelTier || hostView ? [] : takeToPlace(),
+  );
+  useEffect(() => {
+    if (hotelTier || hostView) return;
+    return onToPlace(() => setToPlaceQ((q) => [...q, ...takeToPlace()]));
+  }, [hotelTier, hostView]);
+  const toPlaceSince = useRef(0);
+  useEffect(() => {
+    if (!toPlaceQ.length || placing || wallPlacing || sheet || placeQueue.length) return;
+    const [next, ...rest] = toPlaceQ;
+    if (!toPlaceSince.current) toPlaceSince.current = Date.now();
+    // In the home yet (the view after the unpack)? Give it a few seconds, then let it go.
+    const wall = next!.kind === 'wall' ? extras.walls.find((w) => w.id === next!.id) : undefined;
+    const ready =
+      next!.kind === 'slot'
+        ? owned.has(next!.slot)
+        : next!.kind === 'extra'
+          ? extraTiers.has(extraKey(next!.slot, next!.id))
+          : !!wall;
+    if (!ready && Date.now() - toPlaceSince.current < 6000) {
+      const retry = window.setTimeout(() => setToPlaceQ((q) => [...q]), 500);
+      return () => clearTimeout(retry);
+    }
+    const go = window.setTimeout(() => {
+      toPlaceSince.current = 0;
+      setToPlaceQ(rest);
+      if (!ready) return;
+      if (next!.kind === 'wall') return startWall(wall!);
+      const key = next!.kind === 'extra' ? extraKey(next!.slot, next!.id) : next!.slot;
+      // Placed already (chosen while it was on its way): it stays where you put it.
+      if (next!.kind === 'slot' && placements[key]) return;
+      startPlacing(key, slotLabel(next!.slot));
+    }, 0);
+    return () => clearTimeout(go);
+    // startPlacing and startWall read this render's plan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toPlaceQ, placing, wallPlacing, sheet, placeQueue, owned, extraTiers, extras.walls]);
+
   const floatId = useRef(0);
   const actTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(actTimer.current), []);
@@ -1048,6 +1119,7 @@ export function HomeScene({
           x: (obj.spot.x + obj.spot.w / 2) * TILE,
           y: (obj.spot.y + 1.9) * TILE,
         };
+        p.seat = obj.id;
         writePerson(p);
         bump(p);
       }
@@ -1060,6 +1132,7 @@ export function HomeScene({
       if (p.pose === 'lie') {
         p.pose = 'stand';
         p.at = undefined;
+        p.seat = undefined;
         writePerson(p);
         bump(p);
       }
@@ -1085,6 +1158,83 @@ export function HomeScene({
     },
     [send, cur, float, writePerson, bump],
   );
+
+  // ---- Round 7: resting (gameplay note). Sitting on a seat or lying on a bed is
+  // held until you get up (or walk off): the chip under the HUD shows it, and
+  // the server settles the game time you rested (`home.rest`).
+  const restOn = !!view.me.rest && !hostView;
+  const [resting, setResting] = useState<{ spot: 'seat' | 'bed'; label: string } | null>(null);
+  const setRest = (r: { spot: 'seat' | 'bed'; label: string } | null) => {
+    restRef.current = r;
+    setResting(r);
+  };
+  const startRest = (spot: 'seat' | 'bed', obj: Obj) => {
+    const label =
+      spot === 'bed'
+        ? obj.id === 'bed' && !owned.has('bed') && plan.fixtures.mat
+          ? t('Napping on the mat')
+          : t('Napping')
+        : obj.id === 'sofa'
+          ? owned.has('sofa') || !plan.fixtures.cushions
+            ? t('Resting on the sofa')
+            : t('Resting on the cushions')
+          : isBed(obj)
+            ? obj.id === 'bed' && !owned.has('bed') && plan.fixtures.mat
+              ? t('Sitting on the mat')
+              : t('Sitting on the bed')
+            : t('Resting: {thing}', { thing: obj.label });
+    setRest({ spot, label });
+    void send({ type: 'home.rest', action: 'start', spot }).then((r) => {
+      if (r === null && restRef.current?.spot === spot) {
+        setRest(null);
+        standUp();
+      }
+    });
+  };
+  const standUp = () => {
+    const p = me.current;
+    if (p.pose === 'stand') return;
+    p.pose = 'stand';
+    p.at = undefined;
+    p.seat = undefined;
+    writePerson(p);
+    bump(p);
+    api3d.current?.wake();
+  };
+  useEffect(() => {
+    getUpRef.current = async () => {
+      if (!restRef.current) return;
+      setRest(null);
+      const r = await send<{ minutes: number; stress: number; energy: number; hours: number }>({
+        type: 'home.rest',
+        action: 'stop',
+      });
+      if (!r) return;
+      const lines: { text: string; tone: string }[] = [];
+      if (r.energy) lines.push({ text: t('{n} energy', { n: `+${r.energy}` }), tone: 'energy' });
+      if (r.stress)
+        lines.push({ text: t('{n} stress', { n: `${Math.round(r.stress)}` }), tone: 'fun' });
+      if (r.hours) lines.push({ text: t('{n}h rested', { n: r.hours }), tone: 'hours' });
+      if (!lines.length) lines.push({ text: t('A short rest'), tone: 'fun' });
+      float(lines);
+    };
+  });
+  const getUp = () => {
+    standUp();
+    void getUpRef.current?.();
+  };
+  // Leaving home while resting gets you up; back home after a reload, an old rest is settled.
+  useEffect(() => {
+    if (view.me.rest?.resting && !restRef.current) {
+      restRef.current = { spot: view.me.rest.resting.spot, label: '' };
+      void getUpRef.current?.();
+    }
+    return () => {
+      if (restRef.current) void getUpRef.current?.();
+    };
+    // Once, on entering and leaving the home.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Up or down the stairs: you come out where they meet that floor. */
   const goFloor = (to: number) => {
@@ -1152,11 +1302,49 @@ export function HomeScene({
     }
     const p = me.current;
     if (v.id === 'sit') {
-      const seat = plan.seats[0]!;
+      const sofa = obj.id === 'sofa';
+      const seat = sofa ? plan.seats[0] : undefined;
       const path = walk(p, obj.spot.interact, () => {
-        seatAt(p, seat);
+        if (seat && owned.has('sofa')) seatAt(p, seat);
+        else if (isBed(obj)) {
+          // Round 7e: on the edge of the bed (or the mat), at its foot, facing the room.
+          p.pose = 'sit';
+          p.at = {
+            x: (obj.spot.x + obj.spot.w / 2) * TILE,
+            y: (obj.spot.y + obj.spot.h) * TILE - 6,
+          };
+        } else {
+          // The cushions, a chair at the table, the cinema seats: sit where you are.
+          const at = seat ?? obj.spot.interact;
+          p.x = at.x;
+          p.y = at.y;
+          p.pose = 'sit';
+          p.at = { x: (at.x + 0.5) * TILE, y: (at.y + 0.55) * TILE };
+        }
+        p.seat = obj.id;
         writePerson(p);
         bump(p);
+        api3d.current?.wake();
+        if (restOn) startRest('seat', obj);
+      });
+      setWalkPath(reduceMotion() ? null : path);
+      return;
+    }
+    if (
+      'act' in v &&
+      v.act === 'nap' &&
+      restOn &&
+      obj.verbs.some((x) => 'act' in x && x.act === 'sleep')
+    ) {
+      // Round 7: a nap is lying down on the bed (or the mat) until you wake up.
+      const path = walk(p, obj.spot.interact, () => {
+        p.pose = 'lie';
+        p.at = { x: (obj.spot.x + obj.spot.w / 2) * TILE, y: (obj.spot.y + 1.9) * TILE };
+        p.seat = obj.id;
+        writePerson(p);
+        bump(p);
+        api3d.current?.wake();
+        startRest('bed', obj);
       });
       setWalkPath(reduceMotion() ? null : path);
       return;
@@ -1733,9 +1921,29 @@ export function HomeScene({
           }}
         >
           <g>
-            <ellipse cx="0" cy="0" rx="11" ry="4" fill="#000" opacity="0.16" />
+            <ellipse
+              className="home-person-shadow"
+              cx="0"
+              cy="0"
+              rx="11"
+              ry="4"
+              fill="#000"
+              opacity="0.16"
+            />
             <g className="city-avatar">
               <AvatarFigure look={p.look} />
+            </g>
+            {/* Round 7e: lying down (Lite): under the covers, the head on the pillow. */}
+            <g className="home-covers" aria-hidden="true">
+              <rect x="-14" y="-25" width="28" height="30" rx="6" fill="#e2e8f0" />
+              <rect x="-14" y="-25" width="28" height="5" rx="2.5" fill="#ffffff" />
+              <path d="M -9 -10 Q 0 -7 9 -10" stroke="#94a3b8" strokeWidth="1" fill="none" />
+              <text className="home-zz" x="9" y="-44">
+                z
+              </text>
+              <text className="home-zz late" x="14" y="-52">
+                z
+              </text>
             </g>
           </g>
           {p.id !== 'me' && (
@@ -1787,7 +1995,14 @@ export function HomeScene({
     const out: Home3DPerson[] = [];
     const guestsHere = floorRef.current === 0 ? [...guestPeople.current.values()] : [];
     for (const p of [me.current, ...guestsHere])
-      out.push({ id: p.id, look: p.look, x: p.x, y: p.y, pose: p.pose });
+      out.push({
+        id: p.id,
+        look: p.look,
+        x: p.x,
+        y: p.y,
+        pose: p.pose,
+        ...(p.seat ? { seat: p.seat } : {}),
+      });
     for (const p of corridor.current.values()) out.push({ ...p });
     return out;
   }, []);
@@ -2220,6 +2435,7 @@ export function HomeScene({
             </span>
           ))}
         {flash > 0 && <div key={flash} className="home-flash" aria-hidden="true" />}
+        {resting && <RestChip spot={resting.spot} label={resting.label} onUp={getUp} />}
         {placing && ghost && (
           <PlaceBar
             label={placing.label}
@@ -2246,6 +2462,7 @@ export function HomeScene({
             }
             lift={placing.p.lift ?? 0}
             at={`${placing.p.x},${placing.p.y},${placing.p.rot}`}
+            tiles={onWall ? null : { w: ghost.spot.w, d: ghost.spot.h }}
             onDone={finishPlacing}
             onReset={resetPlacing}
             onCancel={cancelPlacing}
@@ -2307,13 +2524,8 @@ export function HomeScene({
           />
         )}
       </div>
-      {!hotelTier && view.living.deliveries.some((d) => d.owner === placeOwner && !d.complete) && (
-        <div className="home-delivery-banner">
-          <button onClick={() => openLiving(placeOwner)}>
-            {t('🚚 Delivery on its way / at your door · Open')}
-          </button>
-        </div>
-      )}
+      {/* Round 7: the van per order, "Unpack all" (then straight to placing). */}
+      {!hotelTier && <DeliveryBanner owner={placeOwner} />}
       {/* The room's buttons: a rail of icons on the right, the rest behind ⋯
           (out of the way while you place something). */}
       {!placing && !wallPlacing && !naming && (
@@ -2449,12 +2661,24 @@ export function HomeScene({
             </>
           ) : (
             !hostView && (
-              <HudButton
-                icon="cart"
-                label={t('Buy')}
-                aria-haspopup="dialog"
-                onClick={() => setSheet('buy')}
-              />
+              <>
+                <HudButton
+                  icon="cart"
+                  label={t('Buy')}
+                  aria-haspopup="dialog"
+                  onClick={() => setSheet('buy')}
+                />
+                {view.me.shop && (
+                  <HudButton
+                    label={t('Shop')}
+                    data-action="shop-online"
+                    aria-haspopup="dialog"
+                    onClick={() => setShopAll(true)}
+                  >
+                    <span aria-hidden="true">🛍️</span>
+                  </HudButton>
+                )}
+              </>
             )
           )}
           {is3d && !hotelTier && (
@@ -2561,9 +2785,31 @@ export function HomeScene({
             setSheet(null);
             setShopWalls(true);
           }}
+          onShop={
+            view.me.shop
+              ? () => {
+                  setSheet(null);
+                  setShopAll(true);
+                }
+              : undefined
+          }
           onNameRooms={() => {
             setSheet(null);
             setNaming('pick');
+          }}
+        />
+      )}
+      {shopAll && view.me.shop && (
+        <CatalogueSheet
+          mode="online"
+          title={t('Shop online')}
+          entries={onlineCatalog(view)}
+          currency={view.me.shop.currency}
+          onClose={() => setShopAll(false)}
+          dock
+          onBack={() => {
+            setShopAll(false);
+            setSheet('buy');
           }}
         />
       )}
@@ -2575,6 +2821,11 @@ export function HomeScene({
           currency={view.me.shop.currency}
           category="walls"
           onClose={() => setShopWalls(false)}
+          dock
+          onBack={() => {
+            setShopWalls(false);
+            setSheet('buy');
+          }}
         />
       )}
 
@@ -2754,11 +3005,17 @@ function buildObjects(
   };
 
   // Bed (or a floor mat).
+  // Round 7e: or sit on its edge (a rest like a chair's).
   if (has('bed') || !plan.fixtures.mat)
-    slotObj('bed', [act('sleep', t('Sleep')), act('nap', t('Nap'))]);
+    slotObj('bed', [
+      act('sleep', t('Sleep')),
+      { id: 'sit', label: t('Sit on the bed') },
+      act('nap', t('Nap')),
+    ]);
   else
     fixture('bed', 'mat', t('Sleeping mat'), [
       act('sleep', t('Sleep')),
+      { id: 'sit', label: t('Sit on the mat') },
       act('nap', t('Nap')),
       buy('bed'),
     ]);
@@ -2806,17 +3063,19 @@ function buildObjects(
   else if (has('laptop')) slotObj('laptop', [act('read', t('Read')), buy('desk')]);
   if (has('books')) slotObj('books', [act('read', t('Read'))]);
   if (has('rug')) slotObj('rug', [act('workout', t('Work out'))]);
-  for (const slot of [
-    'wardrobe',
-    'plants',
-    'art',
-    'lights',
-    'sound',
-    'cooling',
-    'power',
-    'wifi',
-    'dining',
-  ])
+  for (const slot of ['wardrobe', 'plants', 'art', 'lights', 'sound', 'cooling', 'power', 'wifi'])
+    if (has(slot)) slotObj(slot, [upgrade(slot)]);
+  // Round 7: a chair at the table to sit on.
+  if (has('dining'))
+    slotObj('dining', [{ id: 'sit', label: t('Sit at the table') }, upgrade('dining')]);
+  // Round 7: the bathroom and the hallway.
+  if (has('cabinet')) slotObj('cabinet', [act('toilet', t('Freshen up')), upgrade('cabinet')]);
+  if (has('towels')) slotObj('towels', [act('shower', t('Shower')), upgrade('towels')]);
+  if (has('hamper')) slotObj('hamper', [act('laundry', t('Do laundry')), upgrade('hamper')]);
+  if (has('coats')) slotObj('coats', [{ id: 'out', label: t('Go out') }, upgrade('coats')]);
+  if (has('hallmirror'))
+    slotObj('hallmirror', [{ id: 'out', label: t('Go out') }, upgrade('hallmirror')]);
+  for (const slot of ['bathmat', 'bathplant', 'shoes', 'console', 'runner'])
     if (has(slot)) slotObj(slot, [upgrade(slot)]);
   // The utility room: wash and dry your clothes.
   if (has('washer')) slotObj('washer', [act('laundry', t('Do laundry')), upgrade('washer')]);
@@ -2839,13 +3098,18 @@ function buildObjects(
       id: d.id,
       label: t(d.label),
       spot: d.spot,
-      verbs: d.verbs.map((v): Verb =>
-        'act' in v
-          ? act(v.act, t(v.label))
-          : v.id === 'floor'
-            ? { id: 'floor', label: t(v.label), to: v.to }
-            : { id: 'invite', label: t(v.label) },
-      ),
+      verbs: [
+        // Round 7: seats you can sit on (round 7e: a guest bed's edge too).
+        ...(d.model === 'cinema-seats' ? [{ id: 'sit', label: t('Sit') } as Verb] : []),
+        ...(d.model === 'guest-bed' ? [{ id: 'sit', label: t('Sit on the bed') } as Verb] : []),
+        ...d.verbs.map((v): Verb =>
+          'act' in v
+            ? act(v.act, t(v.label))
+            : v.id === 'floor'
+              ? { id: 'floor', label: t(v.label), to: v.to }
+              : { id: 'invite', label: t(v.label) },
+        ),
+      ],
       art: <DecorArt model={d.model} w={d.spot.w} h={d.spot.h} />,
       model: d.model,
       finish: d.tier,

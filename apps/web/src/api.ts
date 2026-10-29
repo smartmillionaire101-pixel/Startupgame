@@ -4,6 +4,7 @@ import type {
   PlayerView,
   Receipt,
   RecapView,
+  StockAnalysis,
   StarterIdea,
   StatementLine,
   StatementQuery,
@@ -237,10 +238,20 @@ export type ChatCard = { from: string; status: string } & (
       stake?: number;
       currency?: string;
       players?: number;
+      /** The gameplay round: the venue's name (null: a home) and who was asked. */
+      venueName?: string | null;
+      invitee?: string | null;
+      /** Who sits at the table, who's still to answer, when it's off if nobody does. */
+      seated?: string[];
+      invited?: string[];
+      expiresAt?: number | null;
+      fee?: number;
+      winners?: string[];
+      rules?: string | null;
     }
 );
 
-export type PlayGame = 'quiz' | 'snooker' | 'football' | 'golf';
+export type PlayGame = 'quiz' | 'snooker' | 'football' | 'golf' | 'bowling';
 
 /** A real player online now (`GET /api/online/players`). */
 export interface OnlinePlayer {
@@ -334,6 +345,14 @@ export const api = {
   /** The month recap for an earlier month (the current one comes with the view). */
   recap: (month: number, signal?: AbortSignal) =>
     request<{ recap: RecapView }>('GET', `/api/recap?month=${month}`, undefined, signal),
+  /** Round 7: a listed company's analysis, read when its page opens (not in the state). */
+  stockAnalysis: (companyId: string, signal?: AbortSignal) =>
+    request<{ analysis: StockAnalysis }>(
+      'GET',
+      `/api/stocks/${encodeURIComponent(companyId)}`,
+      undefined,
+      signal,
+    ),
   /** One transaction's receipt, as this player saw it. */
   receipt: (ref: string) =>
     request<{ receipt: Receipt }>('GET', `/api/receipts/${encodeURIComponent(ref)}`),

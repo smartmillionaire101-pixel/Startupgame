@@ -123,7 +123,7 @@ export function pipelineWatch(world: World, me: Player, companyId: Id, on: boole
   return { watch: on };
 }
 
-const PASS_NOTE: Record<PassReason, string> = {
+export const PASS_NOTE: Record<PassReason, string> = {
   team: 'the team isn’t complete enough for us yet',
   market: 'we’re not convinced the market is big enough',
   traction: 'we’d like to see more traction first',

@@ -6,7 +6,7 @@ import { t, tx } from '../../i18n';
 import { useView } from '../../store';
 import { Button } from '../../ui';
 import { businessesOf } from '../../city/contract';
-import { homeOf, sellsOf } from '../../city/life';
+import { homeOf, sellsOf, shopOf } from '../../city/life';
 import { slotLabel, slotsOwned } from '../../city/Showroom';
 import { cityViewOf, isAbroad, stayOf } from '../../city/travel';
 import { Icon } from '../icons';
@@ -35,7 +35,7 @@ export function HomeApp({ ctx }: { ctx: PhoneCtx }) {
     const s = sellsOf(city, b);
     return !!s && 'slots' in s;
   });
-  const owned = home ? slotsOwned(home.items) : null;
+  const owned = home ? slotsOwned(home.items, shopOf(view).furniture) : null;
   return (
     <div className="phone-stack">
       <section className="phone-card phone-hero tone-house">

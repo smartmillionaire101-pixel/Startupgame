@@ -12,6 +12,7 @@
  */
 import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 import * as THREE from 'three';
+import { screenBoxOf } from '../three-kit/screen-box';
 import { TILE } from '../home/art';
 import type { HomePlan, Spot } from '../home/layout';
 import { LIFT_STEP } from './placement';
@@ -863,6 +864,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
     >();
     const particles = stage.scene.userData.particles as Particles;
     let lastAct: string | null = null;
+    let mePose: { pose: PoseId; seat: string | null; seatH: number } | null = null;
     const bedOf = () => {
       const pl = placedRef.current;
       return pl.get('bed')?.obj.spot;
@@ -877,6 +879,35 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       s.applyAxisAngle(new THREE.Vector3(0, 1, 0), p.ry);
       s.add(p.group.position);
       return { pos: s, ry: p.ry, h: p.model.seats[0]!.y };
+    };
+    // Round 7e: sitting on the edge of a bed (yours, the mat, a guest bed): on the side
+    // (or the foot) nearest where you walked up, facing out, on the mattress.
+    const bedBox = new THREE.Box3();
+    const bedEdge = (id: string, from: THREE.Vector3) => {
+      const b = placedRef.current.get(id);
+      const model = b ? modelIdOf(b.obj) : null;
+      if (!b || !model || !/(^|-)bed$|^mat$/.test(model)) return null;
+      bedBox.setFromObject(b.group);
+      const mid = bedBox.getCenter(new THREE.Vector3());
+      const size = bedBox.getSize(new THREE.Vector3());
+      const c = Math.abs(Math.cos(b.ry)),
+        sn = Math.abs(Math.sin(b.ry));
+      const across = (c * size.x + sn * size.z) / 2;
+      const along = (sn * size.x + c * size.z) / 2;
+      const fwd = new THREE.Vector3(Math.sin(b.ry), 0, Math.cos(b.ry));
+      const side = new THREE.Vector3(fwd.z, 0, -fwd.x);
+      const to = from.clone().sub(mid).setY(0);
+      const sides = [
+        { d: side, r: across - 0.2 },
+        { d: side.clone().negate(), r: across - 0.2 },
+        { d: fwd, r: along - 0.22 },
+      ];
+      const best = sides.reduce((a, x) => (x.d.dot(to) > a.d.dot(to) ? x : a));
+      const pos = mid.clone().setY(0).addScaledVector(best.d, Math.max(0.1, best.r));
+      // A little towards the foot on a long side (clear of the pillows).
+      if (best.d !== fwd) pos.addScaledVector(fwd, 0.15);
+      const h = b.model.seats[0]?.y ?? (model === 'mat' ? 0.12 : 0.48);
+      return { pos, ry: Math.atan2(best.d.x, best.d.z), h: model === 'mat' ? 0.12 : h };
     };
     const off = stage.add((t, dt) => {
       const P = live.current;
@@ -941,24 +972,54 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
           seatH = water ? 0.2 : 0.42;
           if (water) fx.water(particles, pos.clone().add(new THREE.Vector3(0, 0.9, 0)), dt * 0.3);
         } else if (p.pose === 'lie') {
-          const b = bedOf() ?? live.current.objects.find((o) => o.id === 'bed')?.spot;
+          // Round 7: the bed you lie on, whatever it is: your bed, a guest bed or
+          // the starter flat's sleeping mat (its object id is 'bed' too).
+          const on = p.seat ? placedRef.current.get(p.seat) : undefined;
+          const b =
+            on?.obj.spot ?? bedOf() ?? live.current.objects.find((o) => o.id === 'bed')?.spot;
           if (b) {
             const bc = center(b);
-            const bedRy = facingOf(P.plan, 'bed', b);
+            const bedRy = on ? on.ry : facingOf(P.plan, 'bed', b);
+            const under = on ?? placedRef.current.get('bed');
+            const mat = !!under && modelIdOf(under.obj) === 'mat';
             pos = bc
               .clone()
               .add(new THREE.Vector3(Math.sin(bedRy) * 0.25, 0, Math.cos(bedRy) * 0.25));
             face = bedRy;
             poseId = 'lie';
-            seatH = placedRef.current.has('bed') ? 0.5 : 0.12;
+            seatH = mat || !under ? 0.12 : 0.5;
           }
         } else if (p.pose === 'sit') {
-          const sofa = placedRef.current.get('sofa') ?? placedRef.current.get('cushions' as string);
-          face = sofa ? sofa.ry : Math.PI;
-          pos = new THREE.Vector3(p.x + 0.5, 0, p.y + 0.5 + (sofa ? Math.cos(sofa.ry) * -0.05 : 0));
-          poseId = n % 2 ? 'chat' : 'sit';
-          if (poseId === 'chat') poseId = 'sit';
-          seatH = sofa ? 0.48 : 0.2;
+          // Round 7: a chair or seat with a seat of its own (the dining table, the
+          // cinema seats); else the sofa (or the floor cushions) where you are.
+          const edge = p.seat ? bedEdge(p.seat, new THREE.Vector3(p.x + 0.5, 0, p.y + 0.5)) : null;
+          const own =
+            !edge && p.seat && p.seat !== 'sofa' && p.seat !== 'cushions' ? seatOf(p.seat) : null;
+          if (edge) {
+            pos = edge.pos;
+            face = edge.ry;
+            poseId = 'sit';
+            seatH = edge.h;
+          } else if (own) {
+            pos = own.pos.clone();
+            pos.y = 0;
+            face = own.ry;
+            poseId = 'sit';
+            seatH = own.h;
+          } else {
+            const sofa =
+              placedRef.current.get('sofa') ?? placedRef.current.get('cushions' as string);
+            face = sofa ? sofa.ry : Math.PI;
+            pos = new THREE.Vector3(
+              p.x + 0.5,
+              0,
+              p.y + 0.5 + (sofa ? Math.cos(sofa.ry) * -0.05 : 0),
+            );
+            poseId = n % 2 ? 'chat' : 'sit';
+            if (poseId === 'chat') poseId = 'sit';
+            seatH =
+              sofa && sofa.obj.owned !== false && modelIdOf(sofa.obj) !== 'cushions' ? 0.48 : 0.2;
+          }
         }
         // Your act, played out.
         if (isMe && acting && !walking) {
@@ -1140,6 +1201,7 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
         c.root.rotation.y += P.reduced ? d : d * Math.min(1, dt * 12);
         if (Math.abs(d) > 0.01) busy = true;
         pose(c, poseId, t, { seat: seatH, phase: n });
+        if (isMe) mePose = { pose: poseId, seat: p.seat ?? null, seatH };
         if (walking) busy = true;
         // Keep the camera on you when zoomed in.
         if (isMe && stage.zoom > 1.25) {
@@ -1180,7 +1242,27 @@ export default function Home3D(props: Home3DProps): ReactElement | null {
       if (particles.update(dt)) busy = true;
       return busy;
     });
+    // Round 7e, for the tests: how you are posed (sat on the bed's edge, lying…), where
+    // you are on screen, and where a thing is on the canvas (CSS px) to tap it.
+    const hook = {
+      me: () => {
+        const c = chars.get('me');
+        return c
+          ? { ...mePose, box: screenBoxOf(c.root, stage.camera), y: c.body.position.y }
+          : null;
+      },
+      objAt: (id: string) => {
+        const o = placedRef.current.get(id);
+        if (!o) return null;
+        const v = new THREE.Box3().setFromObject(o.group).getCenter(new THREE.Vector3());
+        v.project(stage.camera);
+        const el = stage.renderer.domElement.getBoundingClientRect();
+        return { x: ((v.x + 1) / 2) * el.width, y: ((1 - v.y) / 2) * el.height };
+      },
+    };
+    (window as unknown as { __home3d?: typeof hook }).__home3d = hook;
     return () => {
+      delete (window as unknown as { __home3d?: typeof hook }).__home3d;
       off();
       // (Their GPU copies too: the stage is kept for the next home.)
       for (const c of chars.values()) {

@@ -2,7 +2,9 @@
  * 8-ball pool, top down on the phone: a 9-foot table with its cushions,
  * pockets and sights, numbered solids and stripes, the cue you pull back to
  * strike, an aiming line with a ghost ball, spin, ball in hand, and every
- * shot replayed from the server's own physics.
+ * shot replayed from the server's own physics. Round 7e: whoever is at the
+ * table leans over it along the cue (you in your own look; in 3D, over the
+ * 2D table: ./game-avatar3d.ts), and stays down watching the shot.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -21,7 +23,10 @@ import {
 } from '@runway/engine';
 import { useView } from '../store';
 import { t } from '../i18n';
-import { softwareGl, useQuality } from '../three-kit/quality';
+import { softwareGl, useQuality, webglAvailable } from '../three-kit/quality';
+import { avatarLook } from '../city/art';
+import { genderOf } from '../city/life';
+import type { TableLayer } from './game-avatar3d';
 import {
   LONG_SIGHTS,
   RAIL,
@@ -46,6 +51,9 @@ import { reduceMotion, sfx } from './sfx';
 type Room = PlayerView['playRooms'][number];
 type Mode = 'aim' | 'pull' | 'place' | null;
 
+/** Room around the table for the player standing at its ends (CSS px, 3D only). */
+const STAND_ROOM = 18;
+
 const wrap = (a: number) => (a > Math.PI ? a - 2 * Math.PI : a < -Math.PI ? a + 2 * Math.PI : a);
 
 export function PoolGame({
@@ -59,11 +67,15 @@ export function PoolGame({
   live: boolean;
   serverNow: () => number;
 }) {
-  const { send, busy } = useView();
+  const { view, send, busy } = useView();
   const pool = room.pool!;
   const mine = live && room.turn === me;
   const quality = useQuality();
   const hq = quality === '3d' && !softwareGl();
+  const gl = quality === '3d' && webglAvailable();
+  const standRef = useRef<HTMLCanvasElement>(null);
+  const [player, setPlayer] = useState<TableLayer | null>(null);
+  const [wrapW, setWrapW] = useState(358);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [layout, setLayout] = useState<TableLayout>(() => tableLayout(358, 600));
@@ -91,6 +103,7 @@ export function PoolGame({
     const el = wrapRef.current;
     if (!el) return;
     const fit = () => {
+      setWrapW(el.clientWidth || 358);
       const w = Math.min(el.clientWidth || 358, 460);
       const h = Math.max(380, Math.min(window.innerHeight * 0.66, 760));
       setLayout(tableLayout(w, h));
@@ -179,6 +192,93 @@ export function PoolGame({
 
   const staticTable = useMemo(() => drawTable(layout, hq), [layout, hq]);
 
+  // Round 7e: someone else at the table lines up on the first ball they're on (their cue shows).
+  const theirAim = useMemo(() => {
+    if (mine || rolling || !live || !room.turn || !player) return null;
+    const on = room.balls.find((b) => pool.targets.includes(b.id) && !b.potted);
+    return on ? aimAt(cueBall, on.x, on.y) : 0;
+  }, [mine, rolling, live, room.turn, room.balls, pool.targets, cueBall, player]);
+
+  // Round 7e: the player at the table, in 3D over it (loaded when the game opens in 3D).
+  useEffect(() => {
+    const c = standRef.current;
+    if (!gl || !c) return;
+    let layer: TableLayer | null = null;
+    let gone = false;
+    void import('./game-avatar3d').then((m) => {
+      if (gone) return;
+      try {
+        layer = new m.TableLayer(c, softwareGl());
+      } catch {
+        return;
+      }
+      (window as unknown as { __pool3d?: TableLayer }).__pool3d = layer;
+      setPlayer(layer);
+    });
+    return () => {
+      gone = true;
+      layer?.dispose();
+      setPlayer(null);
+      delete (window as unknown as { __pool3d?: TableLayer }).__pool3d;
+    };
+  }, [gl]);
+  // Who is down on the shot: the shooter while the balls roll, else whoever's turn it is.
+  const shooterId = rolling ? last?.by : room.turn;
+  const standLook = useMemo(
+    () =>
+      !shooterId
+        ? null
+        : shooterId === view.me.id
+          ? avatarLook(view.me.background?.id, view.me.id, genderOf(view.me))
+          : avatarLook(undefined, shooterId),
+    [shooterId, view.me],
+  );
+  const standW = Math.max(layout.width, Math.min(wrapW, layout.width + 120));
+  const standH = layout.height + 2 * STAND_ROOM;
+  useEffect(() => {
+    if (!player) return;
+    player.setSize(standW, standH, layout.scale);
+    const ox = (standW - layout.width) / 2;
+    const oy = STAND_ROOM;
+    // The shot being played (from where the cue ball was struck), or the one being lined up.
+    const struck = rolling && last?.before ? last.before.find((b) => b.id === 0) : null;
+    const shotAngle = struck ? Math.atan2(last!.vy ?? 0, last!.vx ?? 1) : mine ? angle : theirAim;
+    if (!shooterId || !standLook || shotAngle === null || (!struck && !live)) {
+      player.hide();
+      player.render();
+      return;
+    }
+    const from = struck ?? cue;
+    const [sx, sy] = toScreen(layout, from.x, from.y);
+    // The pull as the 2D cue draws it; after the strike, the cue through the ball.
+    const pull = struck ? -9 : mine ? (power / 100) * 150 : 0;
+    player.stand({
+      id: shooterId,
+      look: standLook,
+      at: { x: ox + sx, y: oy + sy },
+      dir: screenDir(shotAngle),
+      tip: POOL_R * layout.scale + 3 + pull,
+      pull,
+      table: { x0: ox, y0: oy, x1: ox + layout.width, y1: oy + layout.height },
+    });
+    player.render();
+  }, [
+    player,
+    standW,
+    standH,
+    layout,
+    rolling,
+    last,
+    mine,
+    angle,
+    theirAim,
+    shooterId,
+    standLook,
+    live,
+    cue,
+    power,
+  ]);
+
   // Paint.
   useEffect(() => {
     const c = canvasRef.current;
@@ -213,7 +313,16 @@ export function PoolGame({
       g.setLineDash([]);
     }
     if (mine && !rolling) drawCue(g, layout, cue, angle, power);
+    else if (!rolling && theirAim !== null) drawCue(g, layout, cue, theirAim, 0);
+    else if (rolling && player && last?.before) {
+      // Round 7e: the shooter stays down on the shot, the cue through where the ball was.
+      const struck = last.before.find((b) => b.id === 0);
+      if (struck) drawCue(g, layout, struck, Math.atan2(last.vy ?? 0, last.vx ?? 1), -6);
+    }
   }, [
+    theirAim,
+    player,
+    last,
     layout,
     staticTable,
     balls,
@@ -373,24 +482,39 @@ export function PoolGame({
       <p className="pool-hint" role="status">
         {rolling ? call || t('Balls rolling…') : hint}
       </p>
-      <div className="pool-table" ref={wrapRef}>
-        <canvas
-          ref={canvasRef}
-          style={{ width: layout.width, height: layout.height }}
-          role="img"
-          aria-label={t('Pool table: drag to aim, pull the cue back and let go to shoot')}
-          data-cue={toScreen(layout, cue.x, cue.y).map(Math.round).join(',')}
-          data-angle={angle.toFixed(4)}
-          data-rolling={rolling ? '1' : '0'}
-          data-mine={mine && !rolling ? '1' : '0'}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={() => {
-            mode.current = null;
-            setPower(0);
-          }}
-        />
+      <div className="pool-stage">
+        {gl && (
+          <canvas
+            ref={standRef}
+            className="pool-player-3d"
+            style={{ width: standW, height: standH }}
+            aria-hidden="true"
+            data-player={player && shooterId ? shooterId : undefined}
+          />
+        )}
+        <div
+          className={`pool-table${gl ? ' has-player' : ''}`}
+          ref={wrapRef}
+          style={gl ? ({ '--stand-room': `${STAND_ROOM}px` } as React.CSSProperties) : undefined}
+        >
+          <canvas
+            ref={canvasRef}
+            style={{ width: layout.width, height: layout.height }}
+            role="img"
+            aria-label={t('Pool table: drag to aim, pull the cue back and let go to shoot')}
+            data-cue={toScreen(layout, cue.x, cue.y).map(Math.round).join(',')}
+            data-angle={angle.toFixed(4)}
+            data-rolling={rolling ? '1' : '0'}
+            data-mine={mine && !rolling ? '1' : '0'}
+            onPointerDown={onDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onPointerCancel={() => {
+              mode.current = null;
+              setPower(0);
+            }}
+          />
+        </div>
       </div>
       {!rolling && last && <p className="pool-call">{call}</p>}
       {mine && (

@@ -17,6 +17,7 @@ import { NextStepCard } from '../city/NextStepCard';
 import { useSimple } from '../phone/settings';
 import { HolidayCards } from '../phone/apps/Holiday';
 import { BankerToday } from './BankerToday';
+import { devToolsShown } from '../devflag';
 
 /** Today (was "Home"): the dashboard and inbox. `onNews` opens the city's news. */
 export function Home({ onNews }: { onNews?: () => void } = {}) {
@@ -123,7 +124,7 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
             </div>
           </Card>
         </div>
-        <div className="screen-col">{meta?.devTools && <DevTools />}</div>
+        <div className="screen-col">{devToolsShown(meta?.devTools) && <DevTools />}</div>
       </div>
     </>
   );

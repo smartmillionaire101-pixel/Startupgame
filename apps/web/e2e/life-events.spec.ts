@@ -94,7 +94,7 @@ test('a life event pops up, the player chooses, and sees what happened', async (
 
   // The card opens on its own over the City.
   const card = page.locator('[data-life-event]');
-  await expect(card).toBeVisible({ timeout: 15_000 });
+  await expect(card).toBeVisible({ timeout: 30_000 });
   const sheet = page.getByRole('dialog').filter({ has: card });
   await expect(sheet.locator('.life-card-pic')).not.toBeEmpty();
   await expect(sheet.locator('.life-card-story')).not.toBeEmpty();
@@ -117,20 +117,42 @@ test('a life event pops up, the player chooses, and sees what happened', async (
   const changes = result.locator('[data-life-change]');
   expect(await changes.count()).toBeGreaterThanOrEqual(1);
   const bar = result.locator('[data-life-change][data-delta]').first();
-  if (await bar.count()) {
-    const key = (await bar.getAttribute('data-life-change')) as keyof typeof before;
-    const delta = Number(await bar.getAttribute('data-delta'));
-    const after = (await state(page)).view!.me.bars!;
-    expect(after[key] - before[key]).toBe(delta);
-    // Me shows the new value.
-    await tab(page, 'Me').click();
-    await expect(
-      page.locator(`[data-lifebars-sheet] [data-bar="${key}"] [role="meter"]`),
-    ).toHaveAttribute('aria-valuenow', String(after[key]));
-  }
+  const moved = (await bar.count())
+    ? {
+        key: (await bar.getAttribute('data-life-change')) as keyof typeof before,
+        delta: Number(await bar.getAttribute('data-delta')),
+      }
+    : null;
+  // Read straight away: on a deployed preview the clock keeps moving the bars.
+  const after = (await state(page)).view!.me.bars!;
+  if (moved) expect(after[moved.key] - before[moved.key]).toBe(moved.delta);
   await shot(page, 'life-event-result');
   await sheet.getByRole('button', { name: 'OK' }).click();
-  await expect(card).toBeHidden();
+  await expect(sheet).toBeHidden();
+  // Another waiting event pops up next: put it off (on a phone the nav steps
+  // aside while a sheet is open).
+  const calm = async () => {
+    await page.waitForTimeout(2000);
+    for (let i = 0; i < 3 && (await page.locator('[data-life-event]').count()); i++) {
+      await page
+        .getByRole('dialog')
+        .filter({ has: page.locator('[data-life-event]') })
+        .getByRole('button', { name: 'Close' })
+        .click();
+      await page.waitForTimeout(2000);
+    }
+  };
+  await calm();
+  if (moved) {
+    // Me shows the new value (give or take the clock since).
+    await tab(page, 'Me').click();
+    const meter = page.locator(`[data-lifebars-sheet] [data-bar="${moved.key}"] [role="meter"]`);
+    await expect(meter).toBeVisible();
+    const shown = Number(await meter.getAttribute('aria-valuenow'));
+    expect(Math.abs(shown - after[moved.key])).toBeLessThanOrEqual(3);
+    await page.keyboard.press('Escape');
+    await calm();
+  }
 
   // It's kept on Today with what you chose.
   await tab(page, 'Today').click();

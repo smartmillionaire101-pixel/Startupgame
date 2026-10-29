@@ -9,7 +9,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import { useGame, useView } from './store';
+import { onViewArrived, useGame, useView } from './store';
 import { Icon, initReduceMotion, Sheet, Toasts, type IconName } from './ui';
 import { t } from './i18n';
 import { SignIn } from './screens/SignIn';
@@ -26,6 +26,10 @@ import { preloadCityMap } from './city/CityMap';
 import { onVisit, visitPlace } from './city/goto';
 import { DealCard } from './screens/common';
 import { NavContext, openPhone, type Nav } from './phone/bus';
+import { onLiving } from './experiences/living-bus';
+import { onPlay } from './experiences/play-bus';
+import { onSky } from './experiences/sky-bus';
+import { onAir } from './experiences/air/air-bus';
 import { inboxTarget, type TabId, type Target } from './phone/navigate';
 import { UpdateBanner } from './update';
 import { FeedbackHost, setFeedbackScreen } from './feedback';
@@ -103,12 +107,52 @@ try {
   /* storage blocked */
 }
 
+// Round 7: and the moment the state arrives (a new player's city), not after
+// the first render of the game has run.
+onViewArrived((v) => preloadCityMap(hereOf(v).id));
+
 const LivingHost = lazy(() => import('./experiences/LivingHost'));
 const SkyHost = lazy(() => import('./experiences/SkyHost'));
 const AirHost = lazy(() => import('./experiences/air/AirHost'));
 const PlayHost = lazy(() => import('./experiences/PlayHost'));
 const GolfInviteHost = lazy(() => import('./city/golf/GolfInviteHost'));
 const MallInviteHost = lazy(() => import('./city/mall/MallInviteHost'));
+
+/**
+ * Round 7 (city load time): the experiences' hosts (games, invites, home and
+ * friends, sky views, flights) and their code wait until the city is up, a
+ * quiet moment after the game starts, unless one is asked for first.
+ */
+function LaterHosts() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (on) return;
+    const go = () => setOn(true);
+    const offs = [onLiving(go), onPlay(go), onSky(go), onAir(go)];
+    let idle = 0;
+    const timer = window.setTimeout(() => {
+      if (typeof requestIdleCallback === 'function')
+        idle = requestIdleCallback(go, { timeout: 2500 });
+      else go();
+    }, 1500);
+    return () => {
+      offs.forEach((off) => off());
+      clearTimeout(timer);
+      if (idle) cancelIdleCallback(idle);
+    };
+  }, [on]);
+  if (!on) return null;
+  return (
+    <Suspense fallback={null}>
+      <PlayHost />
+      <GolfInviteHost />
+      <MallInviteHost />
+      <LivingHost />
+      <SkyHost />
+      <AirHost />
+    </Suspense>
+  );
+}
 
 type Entry = 'landing' | 'signup' | 'login';
 /** The sign-up screen this history entry is on (set by goEntry below). */
@@ -190,14 +234,7 @@ export function App() {
       {status === 'ready' && (
         <>
           <Game />
-          <Suspense fallback={null}>
-            <PlayHost />
-            <GolfInviteHost />
-            <MallInviteHost />
-            <LivingHost />
-            <SkyHost />
-            <AirHost />
-          </Suspense>
+          <LaterHosts />
         </>
       )}
       <Toasts />

@@ -19,6 +19,12 @@
  * and none sharing space with another, in this tile or a neighbour already
  * standing. While a tile stands, the city file's own outlines there hide
  * (`onShow`), so the same building is never drawn twice.
+ *
+ * Round 7 (the city is slow to load at start): tiles come in two stages,
+ * your area first (the tiles within AREA_R of the camera's target), then the
+ * rest of the reach once your area stands, and each tile's bytes are kept
+ * (geo3d/cache.ts), so a scene built again takes them from memory.
+ * `progress()` says honestly where the loading is.
  */
 import * as THREE from 'three';
 import type { CityLook } from './cities';
@@ -26,6 +32,7 @@ import { boxMeshes, mergedMesh, osmFootprints, type RealBuilding } from './build
 import { FootprintGrid, type Fp } from './footprints';
 import { beacons, glowPoints } from './lights';
 import * as geoTiles from '../geo3d/tiles';
+import { AREA_R, tileBuffer, tileDistance, tileIndex, tileKeys } from '../geo3d/cache';
 
 type Decoder = (buf: ArrayBuffer, index?: unknown) => unknown;
 // A plain import: terrain.ts already loads geo3d/tiles.ts with the map, so a
@@ -62,6 +69,15 @@ interface TileContext {
   stage?: (show: () => void) => void;
 }
 
+/** Where the tiles round you are: your area first, then the rest. */
+export interface TileProgress {
+  stage: 'area' | 'rest' | 'done';
+  /** Tiles of your area standing, of how many. */
+  area: [number, number];
+  /** The other tiles in reach standing, of how many. */
+  rest: [number, number];
+}
+
 export interface TileSet {
   /** Tiles that exist ("tx_ty") and their size in metres. */
   keys: Set<string>;
@@ -70,6 +86,8 @@ export interface TileSet {
   update(x: number, y: number, dist: number, ctx: TileContext, reach?: number): void;
   /** How many tiles stand now. */
   loaded(): number;
+  /** The two stages of the tiles last asked for. */
+  progress(): TileProgress;
   /** Drop every tile (the ground kept clear changed): they come back at the next update. */
   reset(ctx: TileContext): void;
 }
@@ -88,44 +106,61 @@ export function tileBuildings(list: RawBuilding[]): RealBuilding[] {
 export async function loadTiles(marketId: string): Promise<TileSet | null> {
   const loader = Object.values(DECODERS)[0];
   if (!loader || typeof fetch === 'undefined') return null;
-  let index: Record<string, unknown>;
-  try {
-    const res = await fetch(`/geo/${marketId}/index.json`);
-    if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return null;
-    index = (await res.json()) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+  const index = await tileIndex(marketId);
+  if (!index) return null;
   const mod = await loader().catch(() => null);
   const decode = mod?.decodeTile ?? mod?.decode;
   if (!decode) return null;
-  const size = Number(index.tileSize ?? index.tile ?? index.size ?? 1000) || 1000;
-  const keys = new Set<string>();
-  for (const t of (index.tiles as unknown[]) ?? []) {
-    if (typeof t === 'string') keys.add(t);
-    else if (Array.isArray(t)) keys.add(`${t[0]}_${t[1]}`);
-    else if (t && typeof t === 'object' && 'x' in t) {
-      const o = t as unknown as { x: number; y: number };
-      keys.add(`${o.x}_${o.y}`);
-    }
-  }
+  const { keys, size } = tileKeys(index);
   /** What stands of every tile shown: no new outline may share their space. */
   const grid = new FootprintGrid();
   const loaded = new Map<string, { obj: THREE.Object3D; fps: Fp[] } | 'loading'>();
-  return {
+  /** The tiles last asked for: your area, then the rest (nearest first). */
+  let area: string[] = [];
+  let rest: string[] = [];
+  /** The last ask, made again when your area is in (the rest's turn). */
+  let again: (() => void) | null = null;
+  const done = (k: string) => {
+    const o = loaded.get(k);
+    return !!o && o !== 'loading';
+  };
+  const areaIn = () => area.every(done);
+  const settle = (k: string, o: { obj: THREE.Object3D; fps: Fp[] }) => {
+    loaded.set(k, o);
+    if (again && area.includes(k) && areaIn()) {
+      const go = again;
+      again = null;
+      go();
+    }
+  };
+  const drop = (k: string, ctx: TileContext) => {
+    const o = loaded.get(k);
+    if (o && o !== 'loading') {
+      o.obj.removeFromParent();
+      o.obj.traverse((m) => (m as THREE.Mesh).geometry?.dispose());
+      for (const f of o.fps) grid.remove(f);
+      ctx.onShow?.(k, false);
+    }
+    loaded.delete(k);
+  };
+  const set: TileSet = {
     keys,
     size,
     loaded: () => [...loaded.values()].filter((v) => v !== 'loading').length,
+    progress() {
+      const a = area.filter(done).length;
+      const r = rest.filter(done).length;
+      return {
+        stage: a < area.length ? 'area' : r < rest.length ? 'rest' : 'done',
+        area: [a, area.length],
+        rest: [r, rest.length],
+      };
+    },
     reset(ctx) {
-      for (const [k, o] of loaded) {
-        if (o !== 'loading') {
-          o.obj.removeFromParent();
-          o.obj.traverse((m) => (m as THREE.Mesh).geometry?.dispose());
-          for (const f of o.fps) grid.remove(f);
-          ctx.onShow?.(k, false);
-        }
-        loaded.delete(k);
-      }
+      for (const k of [...loaded.keys()]) drop(k, ctx);
+      area = [];
+      rest = [];
+      again = null;
     },
     update(x, y, dist, ctx, reach) {
       const R = reach ?? Math.min(3000, Math.max(1200, dist * 2));
@@ -141,27 +176,18 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
             continue;
           if (keys.has(k)) want.add(k);
         }
-      for (const [k, o] of loaded)
-        if (!want.has(k) && o !== 'loading') {
-          o.obj.removeFromParent();
-          o.obj.traverse((m) => (m as THREE.Mesh).geometry?.dispose());
-          for (const f of o.fps) grid.remove(f);
-          loaded.delete(k);
-          ctx.onShow?.(k, false);
-        }
-      // Nearest first (a sky view asks for a lot at once).
-      const order = [...want].sort((a, b) => {
-        const [ax, ay] = a.split('_').map(Number) as [number, number];
-        const [bx, by] = b.split('_').map(Number) as [number, number];
-        const d = (tx: number, ty: number) =>
-          Math.hypot((tx + 0.5) * size - x, (ty + 0.5) * size - y);
-        return d(ax, ay) - d(bx, by);
-      });
-      for (const k of order) {
-        if (loaded.has(k)) continue;
+      for (const k of [...loaded.keys()])
+        if (!want.has(k) && loaded.get(k) !== 'loading') drop(k, ctx);
+      // Nearest first; your area (AREA_R round the camera's target) before the rest.
+      const order = [...want]
+        .map((k) => ({ k, d: tileDistance(k, size, x, y) }))
+        .sort((a, b) => a.d - b.d || (a.k < b.k ? -1 : 1));
+      area = order.filter((t) => t.d <= AREA_R).map((t) => t.k);
+      rest = order.filter((t) => t.d > AREA_R).map((t) => t.k);
+      const start = (k: string) => {
+        if (loaded.has(k)) return;
         loaded.set(k, 'loading');
-        void fetch(`/geo/${marketId}/b-${k}.bin`)
-          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        void tileBuffer(marketId, k)
           .then((buf) => {
             const make = () => {
               if (loaded.get(k) !== 'loading') return;
@@ -181,7 +207,7 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
               const lights = ctx.glow ? glowPoints(beacons(fp.fps), ctx.glow) : null;
               if (lights) g.add(lights);
               ctx.scene.add(g);
-              loaded.set(k, { obj: g, fps: fp.fps });
+              settle(k, { obj: g, fps: fp.fps });
               ctx.onShow?.(k, true);
             };
             if (!ctx.stage) return make();
@@ -189,12 +215,21 @@ export async function loadTiles(marketId: string): Promise<TileSet | null> {
               try {
                 make();
               } catch {
-                loaded.set(k, { obj: new THREE.Group(), fps: [] });
+                settle(k, { obj: new THREE.Group(), fps: [] });
               }
             });
           })
-          .catch(() => loaded.set(k, { obj: new THREE.Group(), fps: [] }));
-      }
+          .catch(() => {
+            if (loaded.get(k) === 'loading') settle(k, { obj: new THREE.Group(), fps: [] });
+          });
+      };
+      area.forEach(start);
+      // The rest waits for your area (and comes as soon as it stands).
+      if (areaIn()) {
+        again = null;
+        rest.forEach(start);
+      } else again = () => rest.forEach(start);
     },
   };
+  return set;
 }

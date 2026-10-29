@@ -3,6 +3,9 @@
  * collection, costs (some priced in dollars), taxes, loans, compliance,
  * pivots, shutdown, and the warning signs that precede failure.
  */
+import { payingCustomers } from './traction.js';
+import { buildOutput } from './cofounders.js';
+import { logRoadmapWork, settleTeam } from './team.js';
 import { segmentsForIndustry } from './data/industries.js';
 import { rulesFor } from './data/rules.js';
 import type { Industry } from './data/industries.js';
@@ -26,12 +29,12 @@ import { clamp, clamp01 } from './math.js';
 import { formatMoney, scale } from './money.js';
 import type { Rng } from './rng.js';
 import { applyStarEvent, settleStars } from './stars.js';
-import { outputOf, settleStaff } from './staff.js';
+import { settleStaff } from './staff.js';
 import { settleHiring } from './hiring.js';
 import { monthlyGrowth } from './valuation.js';
 import { setCogs } from './world.js';
 import { recordInterest, recordLoanLoss } from './banks.js';
-import { advanceRoadmap, roadmapFeedback, roadmapShare } from './roadmap.js';
+import { ROADMAP, advanceRoadmap, roadmapFeedback, roadmapShare } from './roadmap.js';
 import { releaseReserveIfShort, windDownFounderFinance } from './founderfinance.js';
 import { updateDistress } from './rescue.js';
 import { buildStory, storySnapshot } from './story.js';
@@ -100,10 +103,15 @@ export function settleProduct(
   roadmap?: { world: World; month: number },
 ) {
   const founderBuild = founder ? (c.buildHours / 160) * (founder.skills.product / 60) : 0;
-  const total = outputOf(c, ['engineer']) + outputOf(c, ['product']) * 0.6 + founderBuild;
+  // Round 7: engineers and a technical co-founder build faster (gameplay note).
+  const total = buildOutput(roadmap?.world, c, founderBuild);
   // The roadmap (§6.3) takes its share of the same capacity; without one, share is 0.
   const share = roadmap && c.roadmap ? roadmapShare(c) : 0;
-  if (roadmap && c.roadmap) advanceRoadmap(roadmap.world, c, total * share, roadmap.month);
+  if (roadmap && c.roadmap) {
+    advanceRoadmap(roadmap.world, c, total * share, roadmap.month);
+    // Round 7: who put in how many person-weeks, for the recap.
+    logRoadmapWork(roadmap.world, c, total * share * ROADMAP.weeksPerOutput, roadmap.month);
+  }
   const output = share > 0 ? total * (1 - share) : total;
   const discovery =
     c.targetSegments.reduce((a, k) => a + (c.product.discovery[k] ?? 0), 0) /
@@ -395,7 +403,8 @@ function settleFinances(world: World, c: Company, rng: Rng, month: number): Mont
     tax,
     net: totalRevenue - expenses - tax - paidPrincipal,
     cashEnd: account(world, c.account).balance,
-    customers,
+    // Round 7: the month's books count every paying customer, like everything else.
+    customers: payingCustomers(world, c),
   };
   c.lastFlaggedRevenue = b2b.flaggedRevenue;
   c.ledgerThisMonth = { playerRevenue: 0, supplierCost: 0, flaggedRevenue: 0 };
@@ -532,6 +541,8 @@ export function settleCompany(world: World, c: Company, rng: Rng, month: number)
   else settleProduct(c, founder, { world, month });
   roadmapFeedback(world, c, month);
   settleSales(world, c, month);
+  // Round 7: salespeople bring leads and run discovery; everyone gets better.
+  settleTeam(world, c, month);
   settleHiring(world, c, month);
   // Founder setup: a loan condition met releases the rest (set-up companies only).
   if (c.setup) settleSetup(world, c, month);

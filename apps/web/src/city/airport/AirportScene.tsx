@@ -113,12 +113,16 @@ function Board({ marketId, day, start }: { marketId: string; day: string; start:
   const now = clock.base + clock.tick * 6;
   let rows = boardRows(schedule, now);
   const mine = schedule.find((f) => isHeld(f, held));
+  // Past its time on the game clock (as the ticket says: the time of day alone
+  // wraps at midnight, and a flight held since the evening looked "to come").
+  const late = useWaitedFor(held, marketId);
   // Long past its time, it stays on the board (in its place among the gone).
-  if (mine && !rows.some((r) => isHeld(r, held)) && now >= mine.at + mine.late)
-    rows = [...rows.slice(1), { ...mine, status: flightStatus(mine, now) }].sort(
-      (a, b) => a.at - b.at || a.flight.localeCompare(b.flight),
-    );
-  const waited = rows.find((r) => isHeld(r, held) && r.status === 'Departed');
+  if (mine && !rows.some((r) => isHeld(r, held)) && (late || now >= mine.at + mine.late))
+    rows = [
+      ...rows.slice(1),
+      { ...mine, status: late ? 'Departed' : flightStatus(mine, now) },
+    ].sort((a, b) => a.at - b.at || a.flight.localeCompare(b.flight));
+  const waited = rows.find((r) => isHeld(r, held) && (late || r.status === 'Departed'));
   return (
     <section className="board" aria-label={t('Departures board')}>
       <header className="board-head">
