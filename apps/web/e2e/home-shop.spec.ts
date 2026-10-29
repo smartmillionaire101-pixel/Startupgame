@@ -175,16 +175,19 @@ test('Home and social: no empty "Games with other players" heading; a van with U
     ],
     delivery: 'express',
   });
-  const v = await state(page);
-  expect(v.playRooms.filter((r) => r.status === 'waiting' || r.status === 'playing')).toHaveLength(
-    0,
-  );
   // Me → Home & friends.
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: /^Me/ }).click();
   await page.locator('[data-open-living]').click();
   const sheet = page.getByRole('dialog', { name: 'Home and social experiences' });
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole('heading', { name: 'Games with other players' })).toHaveCount(0);
+  // The heading only over games (a deployed world has other players' games open).
+  const shown = await sheet.evaluate((el) => ({
+    heading: [...el.querySelectorAll('h2')].some(
+      (h) => h.textContent === 'Games with other players',
+    ),
+    games: el.querySelectorAll('.experience-rooms > button').length,
+  }));
+  expect(shown.heading).toBe(shown.games > 0);
   const van = sheet.locator('.living-delivery[data-van]');
   await expect(van).toHaveCount(1);
   await expect(van).toHaveAttribute('data-van-items', '3');
