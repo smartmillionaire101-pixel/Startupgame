@@ -47,27 +47,34 @@ async function founder(page: Page) {
  * Resting needs the clock to move, so close a month that's (nearly) over.
  */
 async function clockMoving(page: Page) {
-  const left = await page.evaluate(async () => {
-    const r = await fetch('/api/state', { headers: { 'x-runway': '1' }, cache: 'no-store' });
-    const c = (
-      (await r.json()) as { view?: { clock?: { nextSettlementAt: number; serverNow: number } } }
-    ).view?.clock;
-    return c ? c.nextSettlementAt - c.serverNow : null;
-  });
-  if (left === null || left > 3 * 60_000) return;
-  for (let i = 0; i < 3; i++) {
-    const status = await page.evaluate(async () => {
-      const r = await fetch('/api/dev/settle', {
-        method: 'POST',
-        headers: { 'x-runway': '1', 'content-type': 'application/json' },
-        body: JSON.stringify({ market: 'lagos' }),
-      });
-      return r.status;
+  // Game minutes left in the city's month (resting needs a few hours); at 23:59 on day 30 it waits.
+  const left = async () =>
+    page.evaluate(async () => {
+      const r = await fetch('/api/state', { headers: { 'x-runway': '1' }, cache: 'no-store' });
+      const v = (await r.json()) as {
+        view?: {
+          market?: { cityPlaces?: { now?: { day: number; hour: number; minute: number } } | null };
+        };
+      };
+      const n = v.view?.market?.cityPlaces?.now;
+      return n ? 30 * 1440 - ((n.day - 1) * 1440 + n.hour * 60 + n.minute) : null;
     });
-    if (status !== 504) break;
+  for (let i = 0; i < 3; i++) {
+    const l = await left();
+    if (l === null || l > 4 * 60) return;
+    for (let j = 0; j < 3; j++) {
+      const status = await page.evaluate(async () => {
+        const r = await fetch('/api/dev/settle', {
+          method: 'POST',
+          headers: { 'x-runway': '1', 'content-type': 'application/json' },
+          body: JSON.stringify({ market: 'lagos' }),
+        });
+        return r.status;
+      });
+      if (status !== 504) break;
+    }
+    await page.reload();
   }
-  await page.reload();
-  await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
 }
 
 // The 3D checks draw with software WebGL.
@@ -94,6 +101,7 @@ test('sit on the cushions until you get up (stress falls), nap lying on the mat'
   test.setTimeout(150_000);
   await founder(page);
   await clockMoving(page);
+  await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
   await tapPlace(page, '[data-place="home"]', 'cycle');
   const scene = page.locator('.home-scene');
   await expect(scene).toBeVisible({ timeout: 20_000 });
