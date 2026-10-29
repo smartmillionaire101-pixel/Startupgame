@@ -120,7 +120,8 @@ async function clockOn(page: Page, min: number) {
     const v = body?.view;
     const now = v?.market?.cityPlaces?.now;
     if (now) {
-      const at = (now.day - 1) * 1440 + now.hour * 60 + now.minute + min;
+      // The game clock stops at the month's last minute (the month settles first).
+      const at = Math.min((now.day - 1) * 1440 + now.hour * 60 + now.minute + min, 30 * 1440 - 1);
       Object.assign(now, {
         day: Math.min(30, Math.floor(at / 1440) + 1),
         hour: Math.floor((at % 1440) / 60),

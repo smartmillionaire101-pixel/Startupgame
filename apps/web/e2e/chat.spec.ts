@@ -437,11 +437,13 @@ test('players chat with emoji and voice notes, pay, date, visit, go out and give
  */
 test('Messages has its own slate colours, and only Messages', async ({ page, browser }) => {
   test.slow();
-  await player(page, 'Sade Slate');
+  // Unique names: a deployed world keeps the players of earlier runs.
+  const tomi = `Tomi${letters(4)} Teal`;
+  await player(page, `Sade${letters(4)} Slate`);
   const ctx = await browser.newContext({ baseURL: test.info().project.use.baseURL });
   const other = await ctx.newPage();
   await withoutNetlifyDrawer(other);
-  await player(other, 'Tomi Teal');
+  await player(other, tomi);
   const toId = (await state(other)).me.id;
   const post = (url: string, data: unknown) =>
     page.evaluate(
@@ -461,7 +463,7 @@ test('Messages has its own slate colours, and only Messages', async ({ page, bro
     (await command(page, { type: 'money.send', toPlayerId: toId, amount: 20000 })).status,
   ).toBe(200);
 
-  const phone = await openChat(page, 'Tomi Teal');
+  const phone = await openChat(page, tomi);
   const css = (l: Locator, prop: string) =>
     l.evaluate((e, p) => getComputedStyle(e).getPropertyValue(p), prop);
   const mine = phone.locator('.bubble.mine').first();
