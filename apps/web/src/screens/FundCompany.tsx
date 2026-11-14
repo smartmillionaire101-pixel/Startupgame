@@ -88,8 +88,8 @@ export function FundingChooser({
   onTab,
 }: {
   c: Company;
-  /** Switch the Money screen's tab (the Raise tab holds investors and the bank loan). */
-  onTab: (tab: 'raise') => void;
+  /** Switch the Money screen's tab (the Raise tab holds investors and the bank loan), on that list. */
+  onTab: (tab: 'raise', focus: 'angels' | 'funds' | 'loan') => void;
 }) {
   const { view, send } = useView();
   const nav = useNav();
@@ -183,7 +183,7 @@ export function FundingChooser({
             ? t('No angels are investing here right now.')
             : '',
       goLabel: t('Pitch an angel'),
-      go: () => onTab('raise'),
+      go: () => onTab('raise', 'angels'),
     },
     {
       id: 'loan',
@@ -205,7 +205,7 @@ export function FundingChooser({
       ok: okLoan.length > 0,
       reason: okLoan.length ? '' : tx(companyLoans.find((x) => x.p.you.reason)?.p.you.reason ?? ''),
       goLabel: t('Ask for a loan'),
-      go: () => onTab('raise'),
+      go: () => onTab('raise', 'loan'),
     },
     {
       id: 'grant',
@@ -294,7 +294,7 @@ export function FundingChooser({
             ? t('Possible, but VCs want traction: revenue helps a lot.')
             : '',
       goLabel: t('Pitch a fund'),
-      go: () => onTab('raise'),
+      go: () => onTab('raise', 'funds'),
     },
   ];
 
