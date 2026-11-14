@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
   # them as one check.
   e2e-shard:
     name: e2e (${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     needs: check
     strategy:
@@ -64,7 +64,7 @@ jobs:
           path: apps/web/test-results
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: e2e-shard
     if: always()
     steps:
