@@ -18,6 +18,7 @@ import { money, pct } from '../format';
 import { t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import { openCompanyTab } from './Company';
+import { useNav } from '../phone/bus';
 import { Button, Card, Sheet, Stat } from '../ui';
 import { ScoreRing, markIcon, useLine } from './Interview';
 import { HoldingBack, LossReason, lossLabel } from './SalesReasons';
@@ -561,6 +562,7 @@ function ResultView({
 }) {
   const ln = useLine();
   const { send, busy } = useView();
+  const nav = useNav();
   const findLeads = () =>
     void send<{ leads: { id: string; name: string }[] }>(
       { type: 'sales.prospect', companyId },
@@ -624,8 +626,11 @@ function ResultView({
               chance={r.chance}
               onFindLeads={busy ? undefined : findLeads}
               onRoadmap={() => {
-                openCompanyTab('roadmap');
+                // From any screen (the talk can open over a place in the City):
+                // go to the Company tab, on the Roadmap.
                 onClose();
+                if (nav) nav.go({ kind: 'tab', tab: 'company', section: 'roadmap' });
+                else openCompanyTab('roadmap');
               }}
             />
           )}
