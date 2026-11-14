@@ -102,7 +102,6 @@ export const convo: Record<string, string> = {
   'Deal won: {name}': 'Affaire gagnée : {name}',
   'Deal lost: {name}': 'Affaire perdue : {name}',
   // The talk result: chance and talk side by side.
-  'Chance to win': 'Chance de signer',
   'and it came in': 'et c’est signé',
   'what decided it': 'c’est ce qui a décidé',
   'Your talk': 'Votre échange',
