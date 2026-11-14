@@ -20,7 +20,7 @@ import { useView, type Company } from '../store';
 import { openCompanyTab } from './Company';
 import { useNav } from '../phone/bus';
 import { Button, Card, Sheet, Stat } from '../ui';
-import { ScoreRing, markIcon, useLine } from './Interview';
+import { markIcon, useLine } from './Interview';
 import { HoldingBack, LossReason, lossLabel } from './SalesReasons';
 import { DelegateTalk, SitsIn, TeamTip } from './SalesTeam';
 import './convo.css';
@@ -589,26 +589,37 @@ function ResultView({
             </Button>
           }
         >
-          <div
-            className="convo-score"
-            data-talk-result={r.won ? 'won' : 'lost'}
-            data-talk-score={r.score}
-          >
-            <ScoreRing score={r.score} />
-            <div>
-              <strong>
-                {r.score} / 100 · {ln(r.grade)}
-              </strong>
-              <div className="small muted" data-talk-chance={Math.round(r.chance * 100)}>
-                {r.guess !== null && Math.round(r.guess * 100) !== Math.round(r.chance * 100)
-                  ? t(
-                      'You guessed {guess}; with their real budget and needs it was {p}. A discovery meeting shows them before you ask.',
-                      { guess: pct(r.guess), p: pct(r.chance) },
-                    )
-                  : t('Chance when you asked: {p}', { p: pct(r.chance) })}
-              </div>
-            </div>
+          <div className="kpis" data-talk-result={r.won ? 'won' : 'lost'} data-talk-score={r.score}>
+            <Stat
+              label={t('Chance to win')}
+              value={<span data-talk-chance={Math.round(r.chance * 100)}>{pct(r.chance)}</span>}
+              hint={r.won ? t('and it came in') : t('what decided it')}
+              tone={r.won ? 'good' : r.chance < 0.5 ? 'bad' : 'warn'}
+            />
+            <Stat
+              label={t('Your talk')}
+              value={<>{r.score}/100</>}
+              hint={ln(r.grade)}
+              tone={r.score >= 60 ? 'good' : undefined}
+            />
           </div>
+          {!r.won && r.score >= 60 && (
+            <p className="small muted" data-talk-why>
+              {t(
+                'A good talk can’t beat a product that doesn’t fit them yet. The chance decides the deal; your talk only moves it.',
+              )}
+            </p>
+          )}
+          {r.guess !== null && Math.round(r.guess * 100) !== Math.round(r.chance * 100) && (
+            <p className="small muted">
+              {t(
+                'You guessed {guess} before discovery. A discovery meeting shows their real budget and needs before you ask.',
+                {
+                  guess: pct(r.guess),
+                },
+              )}
+            </p>
+          )}
           <div className="kpis">
             <Stat
               label={t('Deal size')}

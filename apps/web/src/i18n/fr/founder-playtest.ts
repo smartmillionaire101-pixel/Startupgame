@@ -17,8 +17,6 @@ export const founderPlaytest: Record<string, string> = {
   // The sales conversation's chance before discovery.
   'Win chance now (your guess until discovery)':
     'Chance de signer (votre estimation avant la découverte)',
-  'You guessed {guess}; with their real budget and needs it was {p}. A discovery meeting shows them before you ask.':
-    'Vous estimiez {guess} ; avec leur vrai budget et leurs vrais besoins, c’était {p}. Un rendez-vous de découverte vous les montre avant de demander.',
   // Fundraising: the model valuation and the pitch builder.
   'Mostly team and market at this stage · ARR {arr}':
     'Surtout l’équipe et le marché à ce stade · ARR {arr}',
