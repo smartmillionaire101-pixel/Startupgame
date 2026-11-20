@@ -274,6 +274,15 @@ export class KvGame implements Game {
     throw new Error('The world is busy. Try again.');
   }
 
+  /**
+   * A month whose period ended more than `graceMs` ago and is still not
+   * settled: the scheduled clock is late (or, on a preview, there is none).
+   */
+  overdue(now: number, graceMs: number): boolean {
+    const monthMs = this.opts.monthMs ?? DEFAULT_MONTH_MS;
+    return dueSettlements(this.current, now, monthMs).some((d) => now - d.at > graceMs);
+  }
+
   async openMarkets(ids: readonly MarketId[]) {
     await this.refresh();
     for (const market of ids) {
@@ -286,20 +295,23 @@ export class KvGame implements Game {
   /**
    * Run any settlements that are due (a game month's period boundary has
    * passed): all of them in one batch, oldest first per market, as if settled
-   * one after another. Returns how many were due.
+   * one after another. Returns how many were due. `max` settles at most that
+   * many (the oldest), for a request catching up a late clock.
    */
-  async tick() {
+  async tick(max = Infinity) {
     await this.refresh();
     const monthMs = this.opts.monthMs ?? DEFAULT_MONTH_MS;
     let due = 0;
     // Worked out again on the world each attempt commits on: another clock
     // run may have settled some meanwhile.
     const r = await this.commitFirst(null, (world, now) => {
-      const settlements = dueSettlements(world, now, monthMs).map(({ market, at }) => ({
-        market,
-        at,
-        monthMs,
-      }));
+      const settlements = dueSettlements(world, now, monthMs)
+        .slice(0, max)
+        .map(({ market, at }) => ({
+          market,
+          at,
+          monthMs,
+        }));
       due = settlements.length;
       if (due === 0) return null;
       return settlements.length === 1

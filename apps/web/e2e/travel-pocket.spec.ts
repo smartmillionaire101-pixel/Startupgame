@@ -215,7 +215,21 @@ test('a booked flight waits for you: past its time, check in and board', async (
   await page.locator('.airport-scene').getByRole('button', { name: 'Close' }).first().click();
 
   // The ride to the airport takes a while: the game clock is past the departure.
-  await clockOn(page, ((dep - nowMin + 1440) % 1440) + 75);
+  const wait = ((dep - nowMin + 1440) % 1440) + 75;
+  // In a world of its own (a preview's test worker) the dev tools move the
+  // city's real game clock on; against a local server, shared by parallel
+  // tests, only the state this page reads is moved.
+  if (process.env.E2E_WORLD) {
+    const moved = await page.evaluate(async (minutes) => {
+      const r = await fetch('/api/dev/clock', {
+        method: 'POST',
+        headers: { 'x-runway': '1', 'content-type': 'application/json' },
+        body: JSON.stringify({ market: 'lagos', minutes }),
+      });
+      return r.status;
+    }, wait);
+    expect(moved).toBe(200);
+  } else await clockOn(page, wait);
   await page.reload();
   await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
     timeout: 60_000,

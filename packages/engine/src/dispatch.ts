@@ -185,7 +185,7 @@ import {
   startBankerTutorial,
   withdrawBank,
 } from './bankers.js';
-import { bookAppointment, useService } from './places.js';
+import { MONTH_MIN, bookAppointment, gameMinute, useService } from './places.js';
 import { doErrand } from './errands.js';
 import {
   bankerTalk,
@@ -616,6 +616,12 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     return { month: m.month };
   }
   if (cmd.type === 'market.data') return applyMarketData(world, cmd);
+  if (cmd.type === 'market.devClock') {
+    // Dev tools: the city's clock runs ahead (never past the month's last minute).
+    const m = getMarket(world, cmd.market);
+    m.devClockMin = Math.min((m.devClockMin ?? 0) + cmd.minutes, MONTH_MIN - 1);
+    return { minute: gameMinute(m, ctx.now) };
+  }
   if (cmd.type === 'player.anonymize') return anonymize(world, cmd.playerId);
   if (cmd.type === 'system.announce') return announce(world, cmd);
 

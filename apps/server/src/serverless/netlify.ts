@@ -224,6 +224,16 @@ export async function handle(
   startedAt = Date.now(),
 ): Promise<Response> {
   await rt.game.refresh();
+  // The scheduled clock settles each month within a minute. When it is late
+  // (or, on a preview, absent), the request settles the oldest overdue month
+  // itself, one per request, rather than the city waiting at its last minute.
+  if (rt.game.overdue(Date.now(), OVERDUE_GRACE_MS)) {
+    try {
+      await rt.game.tick(1);
+    } catch (err) {
+      console.warn('overdue settlement failed', (err as Error).message);
+    }
+  }
   const url = new URL(req.url);
   if (url.pathname === '/api/dev/kv-selftest' && rt.config.DEV_TOOLS)
     return Response.json(await kvSelfTest(rt));
@@ -257,6 +267,8 @@ export async function handle(
 }
 
 export const FX_EVERY_MS = 6 * 3_600_000;
+/** How late the scheduled clock may be before a request settles a month itself. */
+export const OVERDUE_GRACE_MS = 3 * 60_000;
 
 /** The scheduled clock: open configured markets, run due settlements, refresh FX. */
 export async function runClock(rt: Runtime, now = Date.now()) {

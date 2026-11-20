@@ -246,6 +246,8 @@ export function settleMarket(
   m.economicNote = economicNote(world, marketId);
   // Investor career: the month's real length, for insiders' results blackout.
   if (clock.monthMs && investorOn(world)) m.monthMs = clock.monthMs;
+  // A new month: the dev tools' clock shift is over.
+  delete m.devClockMin;
   if (clock.at !== undefined) {
     m.settledAt = clock.at;
     m.lastSettledDate = localDate(clock.at, m.data.timeZone);
