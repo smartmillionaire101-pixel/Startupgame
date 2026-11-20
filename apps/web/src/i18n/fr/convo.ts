@@ -101,7 +101,14 @@ export const convo: Record<string, string> = {
   'Ask for the deal ({h}h)': 'Demander la signature ({h} h)',
   'Deal won: {name}': 'Affaire gagnée : {name}',
   'Deal lost: {name}': 'Affaire perdue : {name}',
-  'Chance when you asked: {p}': 'Chances au moment de demander : {p}',
+  // The talk result: chance and talk side by side.
+  'and it came in': 'et c’est signé',
+  'what decided it': 'c’est ce qui a décidé',
+  'Your talk': 'Votre échange',
+  'A good talk can’t beat a product that doesn’t fit them yet. The chance decides the deal; your talk only moves it.':
+    'Un bon échange ne compense pas un produit qui ne leur convient pas encore. La chance décide de l’affaire ; votre échange ne fait que la faire bouger.',
+  'You guessed {guess} before discovery. A discovery meeting shows their real budget and needs before you ask.':
+    'Vous estimiez {guess} avant la découverte. Un rendez-vous de découverte montre leur vrai budget et leurs vrais besoins avant de demander.',
   'Deal size': 'Montant de l’affaire',
   'Why they said no': 'Pourquoi ils ont dit non',
   'Your calls': 'Vos choix',

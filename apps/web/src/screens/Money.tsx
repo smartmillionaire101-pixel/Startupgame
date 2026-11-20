@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { amountInput, money, parseAmount, teamText, titleCase } from '../format';
 import { locale, t, tx } from '../i18n';
 import { useView, type Company } from '../store';
@@ -19,6 +19,8 @@ import { PitchResult, passWhyCopy } from './FounderGuide';
 import { MeetingResume, PitchMeetingSheet, isLiveMeeting } from './PitchMeeting';
 
 type Tab = 'fund' | 'raise' | 'deals' | 'cap table' | 'finance' | 'acquire' | 'exit';
+/** What a funding option asked the Raise tab to show: the angels, the funds or the bank loan. */
+export type RaiseFocus = 'angels' | 'funds' | 'loan';
 
 const tabLabel = (x: Tab) =>
   ({
@@ -79,6 +81,12 @@ const holderKindLabel = (x: string) =>
 export function MoneyScreen() {
   const { view } = useView();
   const [tab, setTab] = useState<Tab>('raise');
+  // Where the Raise tab opens when a funding option sends you there.
+  const [focus, setFocus] = useState<RaiseFocus | null>(null);
+  const go = (to: Tab, f?: RaiseFocus) => {
+    setFocus(f ?? null);
+    setTab(to);
+  };
   const c = view.companies.find((x) => x.status === 'active');
   const myTurn = view.deals.filter((d) => d.yourTurn).length;
   if (!c)
@@ -94,7 +102,7 @@ export function MoneyScreen() {
       <div className="tabs" role="tablist">
         {(['fund', 'raise', 'deals', 'cap table', 'finance', 'acquire', 'exit'] as Tab[]).map(
           (x) => (
-            <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)}>
+            <button key={x} role="tab" aria-selected={tab === x} onClick={() => go(x)}>
               {tabLabel(x)}
               {x === 'deals' && myTurn ? ` (${myTurn})` : ''}
             </button>
@@ -103,12 +111,12 @@ export function MoneyScreen() {
       </div>
       {tab === 'fund' && (
         <>
-          <FundingChooser c={c} onTab={setTab} />
+          <FundingChooser c={c} onTab={go} />
           <FriendsRoundCard c={c} />
           <FriendsBacking />
         </>
       )}
-      {tab === 'raise' && <Raise c={c} onTab={setTab} />}
+      {tab === 'raise' && <Raise c={c} onTab={go} focus={focus} />}
       {tab === 'deals' && <DealList />}
       {tab === 'cap table' && <CapTable c={c} />}
       {tab === 'finance' && <Finance c={c} />}
@@ -123,8 +131,22 @@ export function MoneyScreen() {
   );
 }
 
-function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
+function Raise({
+  c,
+  onTab,
+  focus,
+}: {
+  c: Company;
+  onTab: (tab: Tab) => void;
+  focus: RaiseFocus | null;
+}) {
   const { view, cur } = useView();
+  // Sent here by "Pitch an angel", "Pitch a fund" or "Ask for a loan": that list, in view.
+  useEffect(() => {
+    if (!focus) return;
+    const el = document.getElementById(focus === 'loan' ? 'raise-loan' : 'raise-investors');
+    el?.scrollIntoView({ block: 'start' });
+  }, [focus]);
   const [target, setTarget] = useState<{
     fundId?: string;
     investorId?: string;
@@ -150,16 +172,26 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
   const warmIntro = (fundId: string) =>
     intros.find((x) => x.fundId === fundId && x.pitchId === null);
   // Warm intros first, then the ones that fit your stage and sector; the rest fold away.
+  // Sent by "Pitch an angel": the angels first; by "Pitch a fund": the funds first.
+  const wanted = (f: (typeof funds)[number]) =>
+    focus === 'angels' ? !!f.angel : focus === 'funds' ? !f.angel : false;
   const sorted = [...funds].sort(
     (a, b) =>
-      Number(!!warmIntro(b.id)) - Number(!!warmIntro(a.id)) || Number(fits(b)) - Number(fits(a)),
+      Number(wanted(b)) - Number(wanted(a)) ||
+      Number(!!warmIntro(b.id)) - Number(!!warmIntro(a.id)) ||
+      Number(fits(b)) - Number(fits(a)),
   );
   const shown = sorted.slice(0, 3);
   const more = sorted.slice(3);
   const fundRow = (f: (typeof funds)[number]) => {
     const intro = warmIntro(f.id);
     return (
-      <li key={f.id} className="spread" {...(intro ? { 'data-fund-intro': intro.by } : {})}>
+      <li
+        key={f.id}
+        className="spread"
+        data-fund-row={f.angel ? 'angel' : 'fund'}
+        {...(intro ? { 'data-fund-intro': intro.by } : {})}
+      >
         <div>
           <div className="item-title">
             {f.name} {intro && <Pill tone="info">{t('Warm intro')}</Pill>}{' '}
@@ -234,6 +266,7 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
       {liveMeeting && <MeetingResume p={liveMeeting} onOpen={() => setMeetingId(liveMeeting.id)} />}
       {openPitch && !openPitch.meeting && <PitchFlow pitchId={openPitch.id} />}
       {scored && <PitchResult p={scored} cur={c.currency} />}
+      <div id="raise-investors" />
       <Card title={t('Investors in town')}>
         <ul className="list">{shown.map(fundRow)}</ul>
         {more.length > 0 && (
@@ -312,7 +345,9 @@ function Raise({ c, onTab }: { c: Company; onTab: (tab: Tab) => void }) {
           </ul>
         </Fold>
       )}
-      <LoanCard c={c} folded />
+      <div id="raise-loan">
+        <LoanCard c={c} folded={focus !== 'loan'} />
+      </div>
       {target && <PitchSheet c={c} target={target} onClose={() => setTarget(null)} />}
       {meetingId && <PitchMeetingSheet pitchId={meetingId} onClose={() => setMeetingId(null)} />}
     </>

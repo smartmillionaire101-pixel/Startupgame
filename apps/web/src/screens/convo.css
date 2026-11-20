@@ -428,6 +428,21 @@
   .sheet-convo .sheet-body {
     padding: var(--sp-4) var(--sp-5) var(--sp-5);
   }
+}
+@media (min-width: 900px) {
+  /* Room for the nav pill at the left edge of a laptop. */
+  .sheet.sheet-convo {
+    max-width: min(1080px, calc(100vw - 2 * 7.5rem));
+  }
+}
+/* Two columns only when the panel itself is wide enough: on a wide screen a
+   conversation can still open in a narrow panel (over a place in the city,
+   or over the phone), where two columns squeezed the conversation to a
+   sliver a letter wide (player feedback). */
+.sheet-convo .sheet-body {
+  container: convo / inline-size;
+}
+@container convo (min-width: 620px) {
   .sheet-convo .convo:has(> .convo-side) {
     grid-template-columns: minmax(0, 1fr) 280px;
     align-items: start;
@@ -460,11 +475,7 @@
     border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   }
 }
-@media (min-width: 900px) {
-  /* Room for the nav pill at the left edge of a laptop. */
-  .sheet.sheet-convo {
-    max-width: min(1080px, calc(100vw - 2 * 7.5rem));
-  }
+@container convo (min-width: 820px) {
   .sheet-convo .convo:has(> .convo-side) {
     grid-template-columns: minmax(0, 1fr) 340px;
   }

@@ -281,6 +281,24 @@ test.describe('a conversation on a laptop (1440×900)', () => {
   });
 });
 
+test.describe('a conversation in a narrow panel on a laptop (1440×900)', () => {
+  test.use({ viewport: { width: 1440, height: 900 }, ...desktop });
+
+  test('one column, never a conversation squeezed to a sliver', async ({ page }) => {
+    // Player feedback: opened over a place in the city, the panel was narrow
+    // while the screen was wide, and two columns left the talk a letter wide.
+    await founder(page);
+    const sheet = await talkOpen(page);
+    await page.addStyleTag({ content: '.sheet.sheet-convo { max-width: 480px !important; }' });
+    await expect
+      .poll(async () => (await sheet.locator('[data-turn="lead"]').boundingBox())!.width)
+      .toBeGreaterThan(380);
+    const who = (await sheet.locator('.convo-first').boundingBox())!;
+    const lead = (await sheet.locator('[data-turn="lead"]').boundingBox())!;
+    expect(lead.y).toBeGreaterThan(who.y);
+  });
+});
+
 test.describe('a conversation on a tablet held upright (768×1024)', () => {
   test.use({ viewport: { width: 768, height: 1024 }, ...desktop });
 
