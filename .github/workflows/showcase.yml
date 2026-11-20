@@ -1,0 +1,81 @@
+name: Showcase day
+
+# Once a day the showcase characters (a founder, an investor and a banker)
+# play a day in their private world, record their clips and open an issue of
+# draft posts for approval. Nothing is posted anywhere: posting waits for the
+# accounts, and then only ticked posts go out.
+#
+# The world (its database), the characters' memory and the media live on the
+# showcase-data branch: one commit, replaced each day; media is kept 14 days.
+
+on:
+  schedule:
+    - cron: '41 19 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: showcase
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  day:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      DATA_BRANCH: showcase-data
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npx -y npm@11 ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build -w @runway/web
+
+      - name: Get the showcase world
+        run: |
+          if git ls-remote --exit-code origin "refs/heads/$DATA_BRANCH" >/dev/null; then
+            git fetch --depth 1 origin "$DATA_BRANCH"
+            git worktree add showcase-data FETCH_HEAD
+          else
+            mkdir showcase-data
+          fi
+
+      - name: Play the day
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SHOWCASE_MODEL: ${{ vars.SHOWCASE_MODEL }}
+        run: >-
+          npm run day -w @runway/showcase --
+          --data "$GITHUB_WORKSPACE/showcase-data"
+          --media-base "https://github.com/${{ github.repository }}/raw/$DATA_BRANCH"
+
+      - name: Save the world
+        working-directory: showcase-data
+        run: |
+          # Keep 14 days of media; the world and the characters' memory stay.
+          find days -mindepth 1 -maxdepth 1 -type d | sort | head -n -14 | xargs -r rm -rf
+          # Netlify must never build this branch.
+          printf '[build]\n  ignore = "exit 0"\n' > netlify.toml
+          rm -f showcase.db-wal showcase.db-shm
+          # One fresh commit each day (no history), so the repo doesn't grow.
+          rm -rf .git
+          git init -q -b "$DATA_BRANCH"
+          git add -A
+          git -c user.name="showcase-bot" -c user.email="showcase-bot@users.noreply.github.com" \
+            commit -q -m "Showcase day $(jq .day state.json)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "HEAD:$DATA_BRANCH"
+
+      - name: Open the approval issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          day_dir="showcase-data/days/$(ls showcase-data/days | sort | tail -n 1)"
+          gh issue create --repo "${{ github.repository }}" \
+            --title "$(cat "$day_dir/title.txt")" \
+            --body-file "$day_dir/issue.md"
