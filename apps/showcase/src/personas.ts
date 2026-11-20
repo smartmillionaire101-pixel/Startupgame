@@ -26,17 +26,17 @@ export interface Persona {
 export const PERSONAS: readonly Persona[] = [
   {
     role: 'founder',
-    name: 'Ada Okafor',
-    handle: 'ada_builds',
-    bio: 'A software engineer from Lagos who moved to San Francisco to build Paylane, payroll and staff payments for small shops. Careful with money, obsessed with talking to customers, impatient to ship.',
+    name: 'Maya Collins',
+    handle: 'maya_builds',
+    bio: 'A software engineer who left a fintech job in San Francisco to build Paylane, payroll and staff payments for small shops. Careful with money, obsessed with talking to customers, impatient to ship.',
     voice:
       'First person, candid build-in-public founder. Specific numbers, small wins and honest setbacks. Warm, a little wry, never hype.',
     workTab: 'Company',
     market: /San Francisco/,
     setup: {
       type: 'player.create',
-      handle: 'ada_builds',
-      name: 'Ada Okafor',
+      handle: 'maya_builds',
+      name: 'Maya Collins',
       role: 'founder',
       backgroundId: 'f-engineer',
       gender: 'female',
@@ -51,17 +51,17 @@ export const PERSONAS: readonly Persona[] = [
   },
   {
     role: 'investor',
-    name: 'Kemi Adeyemi',
-    handle: 'kemi_backs',
-    bio: 'A former operator turned San Francisco angel investor backing pre-seed and seed fintech and SaaS. Writes small cheques, asks hard questions, cares about founders and terms.',
+    name: 'Sarah Whitman',
+    handle: 'sarah_backs',
+    bio: 'A former operator turned San Francisco angel investor backing pre-seed and seed fintech and SaaS. Writes small checks, asks hard questions, cares about founders and terms.',
     voice:
       'First person angel investor. Shares what she looked for, why she passed or invested, and lessons on terms and valuation. Thoughtful, generous, direct.',
     workTab: 'Portfolio',
     market: /San Francisco/,
     setup: {
       type: 'player.create',
-      handle: 'kemi_backs',
-      name: 'Kemi Adeyemi',
+      handle: 'sarah_backs',
+      name: 'Sarah Whitman',
       role: 'investor',
       backgroundId: 'i-operator',
       gender: 'female',
@@ -70,17 +70,17 @@ export const PERSONAS: readonly Persona[] = [
   },
   {
     role: 'banker',
-    name: 'Tunde Bello',
-    handle: 'tunde_banks',
-    bio: 'An ex-commercial banker founding Harbour Trust in Dubai, a commercial bank for growing businesses. Thinks in risk, capital and relationships.',
+    name: 'Omar Al Mansoori',
+    handle: 'omar_banks',
+    bio: 'A Dubai-born ex-commercial banker founding Harbour Trust, a commercial bank for growing businesses. Thinks in risk, capital and relationships.',
     voice:
       'First person banker. Explains lending, capital and risk decisions in plain words, with the occasional dry joke. Calm and practical.',
     workTab: 'Bank',
     market: /Dubai/,
     setup: {
       type: 'player.create',
-      handle: 'tunde_banks',
-      name: 'Tunde Bello',
+      handle: 'omar_banks',
+      name: 'Omar Al Mansoori',
       role: 'banker',
       backgroundId: 'b-commercial',
       gender: 'male',
