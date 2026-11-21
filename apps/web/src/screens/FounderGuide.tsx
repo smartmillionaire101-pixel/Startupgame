@@ -30,6 +30,8 @@ import { useView, type Company } from '../store';
 import { Button, Card, Pill } from '../ui';
 import { awayFromHere, useJourneyGo } from '../city/journeyGo';
 import type { JourneyGo } from '../city/journey';
+import type { CompanySection } from '../phone/navigate';
+import { stageGo } from './stageFocus';
 
 type Pitch = PlayerView['pitches'][number];
 type Sales = Company['sales'];
@@ -280,9 +282,10 @@ export function taskRow(x: FounderTask, cur: string): { title: string; meta: str
 }
 
 /** The next step's button: what you do there, in a few words. */
-function goAction(x: FounderTask): { icon: string; label: string } | null {
-  const g = x.go;
+export function goAction(x: FounderTask): { icon: string; label: string } | null {
+  const g = stageGo(x);
   if (!g) return null;
+  if (g.kind === 'company') return companyAction(x.id, g.section);
   if (g.kind === 'place') {
     if (g.place === 'market')
       return x.id === 'idea.discovery'
@@ -297,10 +300,175 @@ function goAction(x: FounderTask): { icon: string; label: string } | null {
       ? { icon: '📇', label: t('Open Sales') }
       : { icon: '📱', label: t('Open it') };
   }
+  if (g.kind === 'sky') return { icon: '📍', label: t('Go there') };
   if (g.section === 'roadmap') return { icon: '🧭', label: t('Open the Roadmap') };
   if (g.section === 'team') return { icon: '👥', label: t('Open your team') };
   if (g.tab === 'money') return { icon: '💷', label: t('Open Money') };
   return { icon: '✏️', label: t('Do it now') };
+}
+
+/** A step done on the Company screen: the button says what you'll do in its section. */
+function companyAction(id: string, section: CompanySection): { icon: string; label: string } {
+  switch (id) {
+    case 'first.revenue':
+    case 'growth.revenue':
+    case 'a.revenue':
+    case 'fit.growth':
+      return { icon: '📈', label: t('Grow your revenue') };
+    case 'idea.price':
+      return { icon: '🏷', label: t('Set your price') };
+    case 'first.margin':
+      return { icon: '🏷', label: t('Check price and costs') };
+    case 'first.retention':
+      return { icon: '🤝', label: t('Keep your customers') };
+    case 'growth.profit':
+      return { icon: '💷', label: t('Check price and spend') };
+    case 'a.city':
+      return { icon: '🏙', label: t('Open a second city') };
+  }
+  if (section === 'roadmap') return { icon: '🧭', label: t('Open the Roadmap') };
+  if (section === 'team') return { icon: '👥', label: t('Open your team') };
+  return { icon: '✏️', label: t('Do it now') };
+}
+
+/** What a step asks of you, once its Company section is open (StepHint). */
+function stepHintText(id: string, fallback: string): string {
+  switch (id) {
+    case 'first.revenue':
+    case 'growth.revenue':
+    case 'a.revenue':
+    case 'fit.growth':
+      return t(
+        'Revenue is what paying customers pay you each month. Three ways to grow it: win more deals in Sales, check your price against what customers can pay, and spend on marketing to reach more of them.',
+      );
+    case 'idea.price':
+      return t(
+        'Set a price inside your customers’ budget: their budgets are under the price box below. Save, and it applies at month end.',
+      );
+    case 'first.margin':
+      return t(
+        'Each customer costs you something to serve. Charge more than that: raise the price below, or build features on the Roadmap that make each customer cheaper to serve.',
+      );
+    case 'first.retention':
+      return t(
+        'Customers leave over outages, slow support and high prices. See who may leave below, keep your price inside their budget, and fix reliability on the Roadmap.',
+      );
+    case 'growth.profit':
+      return t(
+        'Earn more than you spend in a month: grow revenue, or spend less on marketing, salaries and staff (below and on Team).',
+      );
+    case 'fit.product':
+      return t(
+        'Build what customers ask for: add a feature from Customer feedback or the catalogue, then release it when it is ready.',
+      );
+    case 'fit.team':
+    case 'growth.team':
+      return t('Hire for the job that takes most of your time: post a role below.');
+    case 'a.city':
+      return t(
+        'Open in a second city with the card below. It costs money up front, so check how long your money lasts first.',
+      );
+    default:
+      return fallback;
+  }
+}
+
+/**
+ * A stage step's hint (round 4): shown at the top of the Company section its
+ * "Do it now" opened, so the tap visibly leads somewhere: what is left, what
+ * to do here, and the other places that move the number.
+ */
+export function StepHint({
+  c,
+  step,
+  onClose,
+  onOpen,
+}: {
+  c: Company;
+  step: string;
+  onClose: () => void;
+  /** Open another Company section (or a part of one). */
+  onOpen: (section: CompanySection, anchor?: string) => void;
+}) {
+  const goTo = useJourneyGo();
+  const x = c.guide.stages.flatMap((s) => s.tasks).find((y) => y.id === step);
+  if (!x) return null;
+  const cur = c.currency;
+  const row = taskRow(x, cur);
+  const gap = taskGap(x, cur);
+  const revenue = ['first.revenue', 'growth.revenue', 'a.revenue', 'fit.growth'].includes(step);
+  return (
+    <section className="card fg-stephint" data-step-hint={step} role="status">
+      <div className="fg-stephint-head">
+        <strong>
+          <span aria-hidden="true">🚩 </span>
+          {row.title}
+          {row.meta && !x.done && <span className="small muted"> · {row.meta}</span>}
+        </strong>
+        <button
+          type="button"
+          className="fg-stephint-x"
+          aria-label={t('Hide this tip')}
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </div>
+      {x.done ? (
+        <p className="small good">{t('Done: this step is ticked off.')}</p>
+      ) : (
+        gap && <p className="small fg-stephint-gap">{gap}</p>
+      )}
+      <p className="small">{stepHintText(step, taskCopy(x, cur).why)}</p>
+      {(revenue ||
+        step === 'first.retention' ||
+        step === 'first.margin' ||
+        step === 'growth.profit') && (
+        <div className="row fg-stephint-btns">
+          {(revenue || step === 'growth.profit') && (
+            <Button size="sm" data-hint-go="sales" onClick={() => onOpen('sales')}>
+              {t('Win deals in Sales')}
+            </Button>
+          )}
+          {(revenue || step === 'first.retention') && (
+            <Button
+              size="sm"
+              variant="subtle"
+              data-hint-go="pricing"
+              onClick={() => onOpen('customers', 'pricing')}
+            >
+              {t('Price and marketing')}
+            </Button>
+          )}
+          {(step === 'first.retention' || step === 'first.margin') && (
+            <Button
+              size="sm"
+              variant="subtle"
+              data-hint-go="roadmap"
+              onClick={() => onOpen('roadmap')}
+            >
+              {t('Open the Roadmap')}
+            </Button>
+          )}
+          {step === 'growth.profit' && (
+            <Button size="sm" variant="subtle" data-hint-go="team" onClick={() => onOpen('team')}>
+              {t('Open your team')}
+            </Button>
+          )}
+          {revenue && (
+            <Button
+              size="sm"
+              variant="subtle"
+              data-hint-go="market"
+              onClick={() => goTo({ kind: 'place', place: 'market' })}
+            >
+              {t('Find customers at the Market')}
+            </Button>
+          )}
+        </div>
+      )}
+    </section>
+  );
 }
 
 /**
@@ -433,7 +601,11 @@ export function StageTracker({ c }: { c: Company }) {
                 type="button"
                 className="fg-go"
                 data-next-task={g.next.id}
-                onClick={() => g.next?.go && goTo(g.next.go)}
+                onClick={() => {
+                  // On the Company screen itself, a step here opens its own section (stageFocus.ts).
+                  const go = g.next ? stageGo(g.next) : null;
+                  if (go) goTo(go);
+                }}
                 disabled={!g.next.go}
                 title={taskGap(g.next, cur) ?? undefined}
               >
@@ -759,7 +931,12 @@ export function FounderMentor({
               const step = g.next;
               if (!step?.go) return;
               // A step at this very place (more staff, at the Hub): its Company section.
-              goTo(awayFromHere(step.go, here, step.id === 'growth.team' ? 'team' : undefined));
+              const go = awayFromHere(
+                step.go,
+                here,
+                step.id === 'growth.team' ? 'team' : undefined,
+              );
+              goTo(stageGo({ id: step.id, go: go as FounderTask['go'] }) ?? go);
             }}
           >
             {t('Do the next step')}

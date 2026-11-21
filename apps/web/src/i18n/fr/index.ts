@@ -7,6 +7,7 @@ import { app } from './app';
 import { city } from './city';
 import { company } from './company';
 import { customers } from './customers';
+import { round4 } from './round4';
 import { economy } from './economy';
 import { entry } from './entry';
 import { home } from './home';
@@ -239,6 +240,7 @@ export const FR_PARTS: Record<string, Record<string, string>> = {
   engineTexts,
   introsR7,
   customers,
+  round4,
 };
 
 export const FR: Record<string, string> = Object.assign({}, ...Object.values(FR_PARTS));

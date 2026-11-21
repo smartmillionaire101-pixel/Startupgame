@@ -145,6 +145,8 @@ export {
   shopOn,
   CUSTOMERS_NOTE,
   customersOn,
+  DEAL_NEEDS_NOTE,
+  dealNeedsOn,
   RELEASES,
 } from './releases.js';
 // Bankers: negotiating with shareholders, the licence process, the first session.

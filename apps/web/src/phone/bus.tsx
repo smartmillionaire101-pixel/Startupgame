@@ -2,7 +2,7 @@
  * Opening the phone from anywhere (a person card's "Chat", a contact), and
  * the navigation the phone and the Home inbox share.
  */
-import { createContext, useContext } from 'react';
+import { createContext, useCallback, useContext } from 'react';
 import type { PlayerView } from '@runway/engine';
 import type { Target } from './navigate';
 
@@ -125,3 +125,24 @@ export const NavContext = createContext<Nav | null>(null);
 
 /** Null outside the game screen (tests, onboarding). */
 export const useNav = () => useContext(NavContext);
+
+/** Inside the phone: closes it. Null anywhere else. */
+export const PhoneCloseContext = createContext<(() => void) | null>(null);
+
+/**
+ * Go to a tab, a section or a place from anywhere, the phone included: a
+ * button inside a phone app (the Sales app's "Open the Roadmap") closes the
+ * phone first, so the screen it opens is not left hidden behind it (round
+ * 4: "Open the Roadmap" from a lost deal in the phone did nothing).
+ */
+export function useLeaveTo(): (target: Target) => void {
+  const nav = useNav();
+  const close = useContext(PhoneCloseContext);
+  return useCallback(
+    (target: Target) => {
+      close?.();
+      nav?.go(target);
+    },
+    [nav, close],
+  );
+}

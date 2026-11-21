@@ -3,7 +3,10 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  *
  * Logging a note is also a switch (see the engine's releases.ts): this one
- * turns on customers you can see (signed customers pay every month end and
+ * turns on what customers need the product to do (a lead who buys on fit
+ * names one or two roadmap features, discovery shows which you have, a deal
+ * lost on fit names what is missing, and shipping it wins the deal back)
+ * and, being later, customers you can see (signed customers pay every month end and
  * count in that month's revenue, one customer count everywhere, the
  * Customers view, waking a hibernating company) and, being later, round
  * 7's gameplay (leads that fit the industry, lost deals with their real reason, one customer count, hires that do their job, investor pitch meetings, resting at home, one van per
@@ -26,16 +29,15 @@
  * events, Founder Journey 5 (exits) and 4a (decision events and visible
  * rivals) for new worlds.
  */
-import { CUSTOMERS_NOTE } from '@runway/engine';
+import { DEAL_NEEDS_NOTE } from '@runway/engine';
 
 export const RELEASE_NOTE = {
-  id: CUSTOMERS_NOTE,
+  id: DEAL_NEEDS_NOTE,
   text:
-    'Update from your feedback: your customers, and their money, in one place. Customers you ' +
-    'sign in Sales now pay their monthly price at every month end, straight into your company ' +
-    'account, and it counts in that month’s revenue. Company → Customers lists everyone who ' +
-    'pays you, with what they pay, when they signed, what they have paid so far and who may ' +
-    'leave, plus your monthly recurring revenue and how it is worked out. Every screen shows the ' +
-    'same number of customers. A company that went to sleep while you were away now says so on ' +
-    'the Company screen, with a button to wake it up. Refresh to get it; your game is saved.',
+    'Update from your feedback: your customers now say what they need your product to do. A ' +
+    'discovery meeting in Sales shows the features a customer needs by name, and which of them ' +
+    'you already have. A deal lost because the product doesn’t do what they need names the ' +
+    'missing feature, and “Open the Roadmap” takes you straight to it. Build it, show them a ' +
+    'new demo or try again, and your chance goes up. On the Company screen, “Do it now” on your ' +
+    'stage now opens the place to work on that step. Refresh to get it; your game is saved.',
 } as const;

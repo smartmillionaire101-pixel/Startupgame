@@ -21,7 +21,7 @@ import { openCompanyTab } from './Company';
 import { useNav } from '../phone/bus';
 import { Button, Card, Sheet, Stat } from '../ui';
 import { markIcon, useLine } from './Interview';
-import { HoldingBack, LossReason, lossLabel } from './SalesReasons';
+import { HoldingBack, LossReason, lossLabel, useOpenRoadmapFor } from './SalesReasons';
 import { DelegateTalk, SitsIn, TeamTip } from './SalesTeam';
 import './convo.css';
 
@@ -563,6 +563,7 @@ function ResultView({
   const ln = useLine();
   const { send, busy, view } = useView();
   const nav = useNav();
+  const openRoadmap = useOpenRoadmapFor();
   // Customers note: signed customers pay at every month end.
   const monthEnd =
     view.companies.find((x) => x.id === companyId)?.customerBook?.billing === 'month-end';
@@ -640,10 +641,11 @@ function ResultView({
               chance={r.chance}
               onFindLeads={busy ? undefined : findLeads}
               onRoadmap={() => {
-                // From any screen (the talk can open over a place in the City):
-                // go to the Company tab, on the Roadmap.
+                // From any screen (the talk can open over a place in the City, or in
+                // the phone, which closes too): the Company tab's Roadmap, on the
+                // feature they need (round 4).
                 onClose();
-                if (nav) nav.go({ kind: 'tab', tab: 'company', section: 'roadmap' });
+                if (nav) openRoadmap(d);
                 else openCompanyTab('roadmap');
               }}
             />

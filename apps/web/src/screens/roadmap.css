@@ -155,3 +155,17 @@
     display: none;
   }
 }
+
+/* Round 4: the feature a customer needs, opened from a deal lost on fit. */
+.rm-wanted-card {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.rm-wanted-card h3 {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-md, 1rem);
+}
+.rm-wanted {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+}

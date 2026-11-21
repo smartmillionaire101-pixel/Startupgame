@@ -3376,6 +3376,12 @@ export interface SalesCustomer {
   currentName?: string;
   /** 0–1, grows with every good interaction. */
   trust: number;
+  /**
+   * Deal-needs note: the roadmap features (ids, data/roadmap.ts) a customer
+   * who buys on fit needs the product to have. Seeded when the lead is made;
+   * absent on older leads and on customers who buy on price, brand or uptime.
+   */
+  wants?: string[];
 }
 
 export interface SalesDeal {

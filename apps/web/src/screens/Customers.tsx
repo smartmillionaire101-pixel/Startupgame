@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import { gameMonth, money } from '../format';
 import { t } from '../i18n';
-import { useNav } from '../phone/bus';
+import { useLeaveTo, useNav } from '../phone/bus';
 import { useView, type Company } from '../store';
 import { Button, Confirm, Fold, Icon, Pill } from '../ui';
 import { openCompanyTab } from './Company';
@@ -48,9 +48,11 @@ export const customersLabel = (n: number) =>
 /** Opens Company → Customers from anywhere, and brings the list into view. */
 export function useOpenCustomers() {
   const nav = useNav();
+  // Round 4: from the phone's Sales app the phone closes first (it hid the list).
+  const leave = useLeaveTo();
   return () => {
-    openCompanyTab('customers');
-    nav?.go({ kind: 'tab', tab: 'company', section: 'customers' });
+    if (nav) leave({ kind: 'tab', tab: 'company', section: 'customers' });
+    else openCompanyTab('customers');
     // On the Company screen already: the list is below the numbers.
     setTimeout(() => {
       document
