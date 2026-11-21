@@ -11,6 +11,8 @@
  * Self-contained: only three.js and a plain look object.
  */
 import * as THREE from 'three';
+import { Human, kitNow } from './humans/kit';
+import { outfitFor } from './humans/outfit';
 import { facialHairColour } from '../avatar/tone';
 import {
   BAG_COLOUR,
@@ -106,7 +108,10 @@ export interface Character {
   dispose: () => void;
 }
 
-export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {}): Character {
+export function makeCharacter(
+  look: CharacterLook,
+  opts: { ring?: string; procedural?: boolean } = {},
+): Character {
   const g = geoms();
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -282,7 +287,7 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
     ring.name = 'ring';
     root.add(ring);
   }
-  const pose = (walk: number, phase: number) => {
+  const procPose = (walk: number, phase: number) => {
     const s = Math.sin(phase) * 0.6 * walk;
     legs[0]!.rotation.x = s;
     legs[1]!.rotation.x = -s;
@@ -290,10 +295,42 @@ export function makeCharacter(look: CharacterLook, opts: { ring?: string } = {})
     arms[1]!.rotation.x = s * 0.8;
     body.position.y = Math.abs(Math.cos(phase)) * 0.04 * walk;
   };
+  // The CC0 person (./humans), once its kit has arrived: idle and walk
+  // clips blended by how much they walk. Until then (or if it never comes),
+  // the low-poly person above. At map scale our own hair isn't drawn on it.
+  const outfit = opts.procedural ? null : outfitFor(look, { ownHair: false });
+  let human: Human | null = null;
+  let last = 0;
+  let stride = 0;
+  // Each passer-by a little out of step with the next.
+  let seed = 0;
+  for (const ch of `${look.skin}${look.top}${look.hair}${look.bottom}`)
+    seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+  const offset = (seed % 1000) / 1000;
+  const pose = (walk: number, phase: number) => {
+    procPose(walk, phase);
+    if (!outfit) return;
+    if (!human) {
+      const kit = kitNow(outfit.kit);
+      if (!kit) return;
+      human = new Human(kit, outfit);
+      root.add(human.object);
+      body.visible = false;
+      last = 0;
+    }
+    const now = performance.now();
+    const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+    last = now;
+    stride += (walk - stride) * Math.min(1, dt * 6);
+    if (dt === 0) stride = walk;
+    human.blend('Idle', 'Walk', stride, 1.25, offset);
+    human.update(dt);
+  };
   return {
     root,
     pose,
     dispose: () => {
+      human?.dispose();
       root.removeFromParent();
     },
   };

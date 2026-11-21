@@ -697,9 +697,11 @@ export function disposeTree(root: THREE.Object3D) {
   root.traverse((o) => {
     if (o !== root && o.userData.keep) keep.push(o);
     const m = o as THREE.Mesh;
-    if (m.geometry) m.geometry.dispose();
+    // (The CC0 models' geometry and colours are shared by everyone drawn from them.)
+    if (m.geometry && !m.geometry.userData.shared) m.geometry.dispose();
     const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
     for (const x of mats) {
+      if (x.userData.shared) continue;
       let cached = false;
       for (const v of MATS.values()) if (v === x) cached = true;
       if (!cached) x.dispose();

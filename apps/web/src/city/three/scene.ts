@@ -9,6 +9,7 @@ import { citySun } from '../solar';
  * at all with reduced motion when nothing changes or while the tab is hidden.
  */
 import * as THREE from 'three';
+import { onKitReady } from '../../three-kit/humans/kit';
 import { fromLatLon } from '../geo';
 import { geoMetres, HELIPAD_CLEAR, type GeoWorld } from '../geoLayout';
 import type { CityLayout, Place, Pt } from '../layout';
@@ -281,6 +282,8 @@ export class CityScene {
   ) {
     const t0 = performance.now();
     if (!layout.geo) throw new Error('A 3D city needs a real map');
+    // The CC0 people and cars arrive after the first frames: draw again when they do.
+    this.offKit = onKitReady(() => this.invalidate());
     this.layout = layout;
     this.geo = layout.geo;
     this.look = cityLook(layout.marketId);
@@ -1734,14 +1737,16 @@ export class CityScene {
     for (const cb of this.onFrameCbs) cb();
   }
 
+  private offKit: () => void;
   dispose() {
     this.disposed = true;
+    this.offKit();
     cancelAnimationFrame(this.raf);
     document.removeEventListener('visibilitychange', this.onVis);
     this.actors.dispose();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
-      m.geometry?.dispose?.();
+      if (!m.geometry?.userData?.shared) m.geometry?.dispose?.();
       const mat = m.material as THREE.Material | THREE.Material[] | undefined;
       if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
       else mat?.dispose?.();

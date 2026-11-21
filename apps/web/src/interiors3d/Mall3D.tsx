@@ -901,7 +901,7 @@ function buildUnits(names: Record<MallShopId, string>, units: UnitShop[]) {
         ] as const) {
           const p = at(-1.0, l);
           k.cyl(0.32, 0.34, 0.14, '#f5efe4', p.x, 0, p.z, { seg: 20 });
-          const m = makeCharacter(look);
+          const m = makeCharacter(look, '', { procedural: true });
           pose(m, 'stand', 0);
           m.shadow.visible = false;
           m.root.position.set(p.x, 0.14, p.z);
@@ -1706,6 +1706,8 @@ export default function Mall3D(props: Mall3DProps): ReactElement | null {
               gender: m.z > SPOT.fashion.z ? 'male' : 'female',
             },
             'mannequin',
+            // A mannequin stays a mannequin (not a person from the kit).
+            { procedural: true },
           );
           c.root.position.set(m.x, 0, m.z);
           c.root.rotation.y = Math.PI / 2;

@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { shade, type AvatarLook } from '../city/art';
 import { mat, contactShadow } from './kit';
+import { attachModel, posedModel, refreshModel } from './characterModel';
 import { facialHairColour } from '../avatar/tone';
 import {
   BAG_COLOUR,
@@ -133,6 +134,8 @@ function buildHair(look: AvatarLook): THREE.Group {
     o.position.set(x, y, z);
     o.scale.set(sx, sy, sz);
     o.castShadow = true;
+    // The hairstyle itself (hidden when the CC0 model wears its own hair).
+    if (m === hm) o.userData.hairPiece = true;
     g.add(o);
     return o;
   };
@@ -318,11 +321,16 @@ function buildHair(look: AvatarLook): THREE.Group {
       );
   }
   g.userData.style = look.hairStyle;
+  g.userData.acc = true;
   return g;
 }
 
 /** A person with this look. */
-export function makeCharacter(look: AvatarLook, id = ''): Character {
+export function makeCharacter(
+  look: AvatarLook,
+  id = '',
+  opts: { procedural?: boolean } = {},
+): Character {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -420,6 +428,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
         mat(band, { rough: 0.35 }),
       );
       w.position.y = -FORE + 0.05;
+      w.userData.acc = true;
       fore.add(w);
     }
     a.rotation.z = side * 0.08;
@@ -471,6 +480,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
               glasses === 'shades' ? gm : mat('#e2e8f0', { rough: 0.2, opacity: 0.35 }),
             );
       r.position.set(sx * 0.052, 0.215, 0.14);
+      r.userData.acc = true;
       head.add(r);
     }
     const b = new THREE.Mesh(
@@ -478,6 +488,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       gm,
     );
     b.position.set(0, 0.22, 0.145);
+    b.userData.acc = true;
     head.add(b);
   }
   // A cap (Phase 6a headwear, or an outfit's).
@@ -488,12 +499,14 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       cm,
     );
     c.position.y = 0.23;
+    c.userData.acc = true;
     head.add(c);
     const brim = new THREE.Mesh(
       geo('brim', () => new THREE.BoxGeometry(0.2, 0.015, 0.14)),
       cm,
     );
     brim.position.set(0, 0.24, 0.17);
+    brim.userData.acc = true;
     head.add(brim);
     hair.visible =
       look.hairStyle === 'long' || look.hairStyle === 'braids' || look.hairStyle === 'locs';
@@ -523,6 +536,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     );
     n.rotation.x = Math.PI / 2 - 0.5;
     n.position.set(0, 0.44, 0.03);
+    n.userData.acc = true;
     torso.add(n);
   }
   if (look.scarf === 'silk') {
@@ -532,6 +546,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     );
     s.rotation.x = Math.PI / 2;
     s.position.y = 0.47;
+    s.userData.acc = true;
     torso.add(s);
   }
   if (look.belt === 'leather') {
@@ -548,6 +563,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       const e = new THREE.Mesh(SKIN_GEO, mat(SILVER, { rough: 0.2 }));
       e.scale.setScalar(0.014);
       e.position.set(sx * 0.14, 0.16, 0.0);
+      e.userData.acc = true;
       head.add(e);
     }
   // A bag on the shoulder (a briefcase is carried and a folio held: ./dressBody).
@@ -564,6 +580,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     // Hung from the right shoulder, at the hip.
     bag.position.set(-0.27, look.bag === 'gymbag' ? -0.02 : 0.02, 0);
     bag.castShadow = true;
+    bag.userData.acc = true;
     torso.add(bag);
     const strap = new THREE.Mesh(
       geo('strap', () => new THREE.BoxGeometry(0.02, 0.48, 0.02)),
@@ -571,6 +588,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     );
     strap.position.set(-0.2, 0.3, 0);
     strap.rotation.z = -0.3;
+    strap.userData.acc = true;
     torso.add(strap);
   }
   // Outfit accessories.
@@ -589,6 +607,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       const s = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.035, 6, 14), mat('#e11d48'));
       s.rotation.x = Math.PI / 2;
       s.position.y = 0.47;
+      s.userData.acc = true;
       torso.add(s);
       break;
     }
@@ -599,9 +618,11 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       );
       l.rotation.z = Math.PI;
       l.position.set(0, 0.44, 0.105);
+      l.userData.acc = true;
       torso.add(l);
       const card = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.01), mat('#f8fafc'));
       card.position.set(0, 0.28, 0.12);
+      card.userData.acc = true;
       torso.add(card);
       break;
     }
@@ -636,6 +657,15 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
   };
   root.userData.character = id;
   root.traverse((o) => (o.userData.character = id));
+  // The low-poly body (hidden under the CC0 model): every mesh but the hair
+  // and what's worn on it (`acc`: glasses, a cap, a bag…).
+  const tag = (o: THREE.Object3D) => {
+    if (o.userData.acc) return;
+    if ((o as THREE.Mesh).isMesh) o.userData.procBody = true;
+    for (const ch of o.children) tag(ch);
+  };
+  tag(body);
+  if (!opts.procedural) attachModel(c, (x) => pose(x, 'stand', 0));
   return c;
 }
 
@@ -985,6 +1015,7 @@ function dressBody(look: AvatarLook, b: Body) {
     );
     bc.position.set(0, -0.18, 0);
     bc.castShadow = true;
+    bc.userData.acc = true;
     b.handR.add(bc);
     const handle = new THREE.Mesh(
       geo('briefcase-handle', () => new THREE.TorusGeometry(0.04, 0.008, 6, 12, Math.PI)),
@@ -992,12 +1023,14 @@ function dressBody(look: AvatarLook, b: Body) {
     );
     handle.rotation.y = Math.PI / 2;
     handle.position.set(0, -0.04, 0);
+    handle.userData.acc = true;
     b.handR.add(handle);
     const clasp = new THREE.Mesh(
       geo('clasp', () => new THREE.BoxGeometry(0.085, 0.02, 0.03)),
       mat('#c8a25a', { metal: 0.8, rough: 0.3 }),
     );
     clasp.position.set(0, -0.08, 0);
+    clasp.userData.acc = true;
     b.handR.add(clasp);
   } else if (look.bag === 'folio') {
     const f = new THREE.Mesh(
@@ -1006,6 +1039,7 @@ function dressBody(look: AvatarLook, b: Body) {
     );
     f.position.set(0.06, -0.12, 0.04);
     f.castShadow = true;
+    f.userData.acc = true;
     b.foreL.add(f);
   }
 }
@@ -1022,6 +1056,7 @@ export function setHair(c: Character, look: AvatarLook) {
   c.hair.traverse((o) => (o.userData.character = c.id));
   parent.add(c.hair);
   c.look = { ...c.look, ...look };
+  refreshModel(c);
 }
 
 const S = Math.sin;
@@ -1235,4 +1270,5 @@ export function pose(
       c.armL.rotation.x = S(tt * 1.1) * 0.03;
       c.armR.rotation.x = -S(tt * 1.1) * 0.03;
   }
+  posedModel(c, p, o.phase ?? 0);
 }
