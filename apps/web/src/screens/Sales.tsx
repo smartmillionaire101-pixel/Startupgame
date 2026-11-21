@@ -6,7 +6,7 @@
  * what you know about the customer ('?' until discovery), the chance to win,
  * and the next step with its time and cost before you confirm.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Command } from '@runway/engine';
 import { amountInput, gameMonth, money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
@@ -17,9 +17,18 @@ import { useSpotlight } from '../tutorial/spotlight';
 import { DemoBreakdown } from './FounderGuide';
 import { SalesTalkSheet } from './SalesTalk';
 import { DealOwner } from './SalesTeam';
-import { openCompanyTab } from './Company';
 import { useOpenCustomers } from './Customers';
-import { LossReason, lossAdvice, lossLabel, type LossReason as LossReasonId } from './SalesReasons';
+import { SalesCityBar } from './SalesCities';
+import { onSalesCity, takeSalesCity } from './salesCity';
+import {
+  LossReason,
+  lossAdvice,
+  lossLabel,
+  listOf,
+  useOpenRoadmapFor,
+  wantsLine,
+  type LossReason as LossReasonId,
+} from './SalesReasons';
 import './sales.css';
 
 type Sales = NonNullable<Company['sales']>;
@@ -69,15 +78,18 @@ export const churnLabel = (r: 'reliability' | 'hibernation' | 'switched') =>
     switched: t('they moved to another supplier'),
   })[r];
 
-const needLabel = (n: string | null) =>
+const needLabel = (n: string | null, wants: DealV['known']['wants'] = null) =>
   n === null
     ? '?'
-    : ({
-        fit: t('A product that fits how they work'),
-        price: t('A low price'),
-        stars: t('A brand they trust'),
-        reliability: t('Something that never breaks'),
-      }[n] ?? n);
+    : n === 'fit' && wants?.length
+      ? // Round 4 (deal-needs note): what they need it to do, by name, and what you have.
+        wantsLine(wants)
+      : ({
+          fit: t('A product that fits how they work'),
+          price: t('A low price'),
+          stars: t('A brand they trust'),
+          reliability: t('Something that never breaks'),
+        }[n] ?? n);
 
 const level = (v: number | null) =>
   v === null ? '?' : v >= 0.67 ? t('High') : v >= 0.34 ? t('Medium') : t('Low');
@@ -99,6 +111,9 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
   const [filter, setFilter] = useState<BoardFilter>('all');
   // …and, with salespeople, whose deals: yours ("me") or one person's.
   const [owner, setOwner] = useState<string | null>(null);
+  // Branches note: …and which city (a branch's city, or every city).
+  const [city, setCity] = useState<string | null>(takeSalesCity);
+  useEffect(() => onSalesCity(setCity), []);
   const openCustomers = useOpenCustomers();
   const sales = c.sales;
   if (!sales) return <Empty>{t('The sales pipeline isn’t available yet.')}</Empty>;
@@ -106,7 +121,7 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
   const hoursLeft = view.me.hours.left;
   const salesStaff = c.staff.filter((s) => s.role === 'sales');
   const mine = (d: DealV) => owner === null || (owner === 'me' ? !d.owner : d.owner?.id === owner);
-  const shown = sales.deals.filter(mine);
+  const shown = sales.deals.filter((d) => mine(d) && (city === null || d.market === city));
   const groups = boardGroups(sales.stages, shown, filter);
   const prospect = () =>
     send<{ leads: { id: string; name: string }[] }>(
@@ -174,6 +189,7 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
         </div>
       </Card>
 
+      <SalesCityBar c={c} deals={sales.deals} city={city} setCity={setCity} blocked={!!blocker} />
       {sales.deals.length === 0 ? (
         <Empty>
           {t('No deals yet. Find leads: local businesses and buyers who might pay for {name}.', {
@@ -382,6 +398,8 @@ function DealCard({
     .filter((s) => s.role === 'sales')
     .map((s) => ({ id: s.id, name: s.name, skill: s.skill }));
   const [pending, setPending] = useState<Action | null>(null);
+  // Round 4: from the phone too (it closes first), on the feature they need.
+  const openRoadmap = useOpenRoadmapFor();
   const [price, setPrice] = useState(amountInput(d.price ?? d.listPrice));
   const [discount, setDiscount] = useState(Math.max(d.discountPct, 10));
   const k = d.known;
@@ -428,6 +446,7 @@ function DealCard({
     );
   };
   const step = pending ? d.actions.find((x) => x.action === pending) : undefined;
+  const missing = d.loss?.missing ?? [];
   return (
     <article
       className={`sales-deal sales-${d.stage}`}
@@ -440,6 +459,11 @@ function DealCard({
         <span className="small muted">
           {d.contact} · {tx(d.businessKind ?? d.segment)}
         </span>
+        {d.market !== c.market && (
+          <span className="small sales-deal-city" data-deal-city={d.market}>
+            📍 {d.city}
+          </span>
+        )}
       </header>
       <div className="sales-deal-line small">
         <span>
@@ -527,7 +551,12 @@ function DealCard({
           <strong className="bad small">
             {d.expired
               ? t('Ran out of time')
-              : t('Lost: {reason}', { reason: lossLabel(d.lossReason) })}
+              : missing.length
+                ? t('Lost: {reason}: missing {features}', {
+                    reason: lossLabel(d.lossReason),
+                    features: listOf(missing.map((x) => tx(x.name))),
+                  })
+                : t('Lost: {reason}', { reason: lossLabel(d.lossReason) })}
           </strong>
           {d.loss ? (
             <LossReason
@@ -539,7 +568,7 @@ function DealCard({
                   : undefined
               }
               onFindLeads={onFindLeads}
-              onRoadmap={() => openCompanyTab('roadmap')}
+              onRoadmap={() => openRoadmap(d)}
             />
           ) : d.canRecover ? (
             <span className="small">{lossAdvice(d.lossReason)}</span>
@@ -681,8 +710,13 @@ function DealCard({
  * hidden, so the card reads the same to a screen reader once known).
  */
 function KnownFacts({ k, cur }: { k: DealV['known']; cur: string }) {
+  const wants = k.wants ?? null;
   const rows: { id: string; label: string; value: string }[] = [
-    { id: 'need', label: t('Needs'), value: needLabel(k.need) },
+    { id: 'need', label: t('Needs'), value: needLabel(k.need, wants) },
+    // Round 4: a customer who buys on something else can still name features they need.
+    ...(wants?.length && k.need !== 'fit'
+      ? [{ id: 'wants', label: t('Must do'), value: wantsLine(wants) }]
+      : []),
     {
       id: 'budget',
       label: t('Budget'),
@@ -703,7 +737,19 @@ function KnownFacts({ k, cur }: { k: DealV['known']; cur: string }) {
         {rows.map((r) => (
           <div key={r.id} className={r.value === '?' ? 'is-unknown' : undefined}>
             <dt>{r.label}</dt>
-            <dd data-known={r.id}>{r.value}</dd>
+            <dd
+              data-known={r.id}
+              data-missing={
+                (r.id === 'need' && k.need === 'fit') || r.id === 'wants'
+                  ? wants
+                      ?.filter((w) => !w.have)
+                      .map((w) => w.id)
+                      .join(' ')
+                  : undefined
+              }
+            >
+              {r.value}
+            </dd>
           </div>
         ))}
       </dl>

@@ -450,3 +450,56 @@
 .tab-later {
   opacity: 0.7;
 }
+
+/* Round 4: a stage step's hint, at the top of the Company section it opened. */
+.fg-stephint {
+  border: 2px solid var(--accent);
+}
+.fg-stephint-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.fg-stephint-x {
+  flex: none;
+  min-width: 2rem;
+  min-height: 2rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.fg-stephint-gap {
+  font-weight: var(--fw-bold);
+}
+.fg-stephint-btns {
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* The Company section a button opened: clear of the top edge, and the part asked for flashes. */
+[data-company-panel],
+[data-company-focus] {
+  scroll-margin-top: 0.75rem;
+}
+.company-flash {
+  border-radius: var(--radius, 0.75rem);
+  animation: company-flash 2.4s ease-out;
+}
+@keyframes company-flash {
+  0%,
+  40% {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .company-flash {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}

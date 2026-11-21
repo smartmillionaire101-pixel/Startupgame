@@ -35,6 +35,11 @@ export function runJourneyGo(g: JourneyGo, h: JourneyGoHandlers) {
       if (g.section) openCompanyTab(g.section);
       h.tab(g.tab);
       return;
+    case 'company':
+      // The section opens (at once on the Company screen) and scrolls into view.
+      openCompanyTab(g.section, g.focus ?? {});
+      h.tab('company');
+      return;
     case 'sky':
       h.beforeSky?.();
       openSky(g.id);

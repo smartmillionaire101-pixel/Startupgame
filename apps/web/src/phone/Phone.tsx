@@ -23,7 +23,14 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { visitPlace } from '../city/goto';
 import { hereOf } from '../city/travel';
-import { onPhone, setPhoneBadge, useNav, type PhoneApp, type PhoneOpen } from './bus';
+import {
+  PhoneCloseContext,
+  onPhone,
+  setPhoneBadge,
+  useNav,
+  type PhoneApp,
+  type PhoneOpen,
+} from './bus';
 import { inboxTarget } from './navigate';
 import { Icon, type IconName } from './icons';
 import { applySavedSettings, prefersReducedMotion, useSimple } from './settings';
@@ -700,7 +707,8 @@ function PhoneScreen(props: {
           </header>
         )}
         <div className={`phone-screen${home ? ' phone-home-screen' : ''}`} key={app}>
-          {body}
+          {/* A step inside an app that leads to a screen behind the phone closes it first. */}
+          <PhoneCloseContext.Provider value={onClose}>{body}</PhoneCloseContext.Provider>
         </div>
       </div>
     </div>

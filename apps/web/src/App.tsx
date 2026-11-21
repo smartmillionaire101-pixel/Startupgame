@@ -367,7 +367,7 @@ function Game() {
         window.scrollTo({ top: 0 });
         return;
       case 'tab':
-        if (target.section) openCompanyTab(target.section);
+        if (target.section) openCompanyTab(target.section, target.focus);
         setTab(target.tab);
         window.scrollTo({ top: 0 });
         setFocusDeal(target.dealId ?? null);

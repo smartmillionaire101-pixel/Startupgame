@@ -3268,8 +3268,38 @@ export interface Branch {
   monthlyOpex: number;
   /** What opening it cost (branch-market local minor). */
   setupCost: number;
-  lastMonth: { month: number; revenue: number; opex: number };
+  lastMonth: {
+    month: number;
+    revenue: number;
+    opex: number;
+    /** Branches note: local marketing and branch staff paid (branch-market minor). */
+    marketing?: number;
+    staff?: number;
+    /** Branches note: customers at the month end, won, lost, and leads the reps brought. */
+    customers?: number;
+    won?: number;
+    lost?: number;
+    leads?: number;
+  };
   closedReason?: string;
+  /** Branches note: local marketing budget a month (branch-market minor). Missing = none. */
+  budget?: number;
+  /** Branches note: branch staff beyond the shop team in the running costs. */
+  staff?: BranchStaff[];
+  staffSeq?: number;
+  /** Branches note: the branch's own local customers now. Missing = not counted yet. */
+  customers?: number;
+}
+
+/** Branches note: someone hired for a branch, paid from the company each month. */
+export interface BranchStaff {
+  id: Id;
+  role: 'rep' | 'manager';
+  name: string;
+  /** Monthly salary, branch-market minor units. */
+  salary: number;
+  /** Branch-market month hired. */
+  since: number;
 }
 
 export interface CompetitionJudge {
@@ -3376,6 +3406,14 @@ export interface SalesCustomer {
   currentName?: string;
   /** 0–1, grows with every good interaction. */
   trust: number;
+  /**
+   * Deal-needs note: the roadmap features (ids, data/roadmap.ts) a customer
+   * who buys on fit needs the product to have. Seeded when the lead is made;
+   * absent on older leads and on customers who buy on price, brand or uptime.
+   */
+  wants?: string[];
+  /** Branches note: the city this customer is in, when it isn't the company's own. */
+  market?: MarketId;
 }
 
 export interface SalesDeal {
@@ -3494,6 +3532,8 @@ export interface SalesAccount {
   /** The local business this customer is, when it is one. */
   businessId?: Id;
   segmentKey: string;
+  /** Branches note: the city this customer is in, when it isn't the company's own. */
+  market?: MarketId;
   /** Agreed monthly price, local minor units. */
   monthly: number;
   since: number;

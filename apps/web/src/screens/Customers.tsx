@@ -14,11 +14,12 @@
  */
 import { useState } from 'react';
 import { gameMonth, money } from '../format';
-import { t } from '../i18n';
-import { useNav } from '../phone/bus';
+import { t, tx } from '../i18n';
+import { useLeaveTo, useNav } from '../phone/bus';
 import { useView, type Company } from '../store';
 import { Button, Confirm, Fold, Icon, Pill } from '../ui';
 import { openCompanyTab } from './Company';
+import { useOpenBranches } from './Branches';
 import { churnLabel } from './Sales';
 import './customers.css';
 
@@ -38,6 +39,7 @@ export function customerParts(b: Book): string {
         ? t('1 company buyer')
         : t('{n} company buyers', { n: b.breakdown.buyers })),
     b.breakdown.market > 0 && t('{n} from the market', { n: b.breakdown.market }),
+    (b.breakdown.branches ?? 0) > 0 && t('{n} at branches', { n: b.breakdown.branches }),
   ].filter(Boolean);
   return parts.join(' · ');
 }
@@ -48,9 +50,11 @@ export const customersLabel = (n: number) =>
 /** Opens Company → Customers from anywhere, and brings the list into view. */
 export function useOpenCustomers() {
   const nav = useNav();
+  // Round 4: from the phone's Sales app the phone closes first (it hid the list).
+  const leave = useLeaveTo();
   return () => {
-    openCompanyTab('customers');
-    nav?.go({ kind: 'tab', tab: 'company', section: 'customers' });
+    if (nav) leave({ kind: 'tab', tab: 'company', section: 'customers' });
+    else openCompanyTab('customers');
     // On the Company screen already: the list is below the numbers.
     setTimeout(() => {
       document
@@ -93,6 +97,7 @@ const kindLabel = (k: Row['kind']) =>
     business: t('Local business'),
     buyer: t('Company buyer'),
     market: t('From the market'),
+    branch: t('Branch customers'),
   })[k];
 
 const riskLabel = (r: NonNullable<Row['risk']>) =>
@@ -109,9 +114,26 @@ function StatusPill({ row }: { row: Row }) {
   return <Pill tone="good">{t('Active')}</Pill>;
 }
 
-function CustomerRow({ row, cur, month }: { row: Row; cur: string; month: number }) {
+function CustomerRow({
+  row,
+  cur,
+  month,
+  home,
+}: {
+  row: Row;
+  cur: string;
+  month: number;
+  /** The company's own city: a customer elsewhere says where. */
+  home: string;
+}) {
   const lines: string[] = [kindLabel(row.kind)];
-  if (row.kind === 'market')
+  if (row.kind === 'branch')
+    lines.push(
+      row.count === 1
+        ? t('1 customer at the branch')
+        : t('{n} customers at the branch', { n: row.count }),
+    );
+  else if (row.kind === 'market')
     lines.push(
       row.count === 1
         ? t('1 paying customer in {segment}', { segment: row.segment ?? '' })
@@ -119,15 +141,26 @@ function CustomerRow({ row, cur, month }: { row: Row; cur: string; month: number
     );
   else if (row.segment) lines.push(row.segment);
   return (
-    <li className={`customer-row is-${row.status}`} data-customer-row={row.kind}>
+    <li
+      className={`customer-row is-${row.status}`}
+      data-customer-row={row.kind}
+      data-customer-city={row.market}
+    >
       <div className="spread">
-        <b className="customer-name">{row.name}</b>
+        <b className="customer-name">{row.kind === 'branch' ? tx(row.name) : row.name}</b>
         <StatusPill row={row} />
       </div>
-      <div className="small muted">{lines.join(' · ')}</div>
+      <div className="small muted">
+        {lines.join(' · ')}
+        {row.market && row.market !== home && (
+          <span className="customer-city" data-customer-away="">
+            {' · '}📍 {row.city}
+          </span>
+        )}
+      </div>
       <dl className="customer-facts small">
         <div>
-          <dt>{row.kind === 'market' ? t('Pays (all)') : t('Pays')}</dt>
+          <dt>{row.kind === 'market' || row.kind === 'branch' ? t('Pays (all)') : t('Pays')}</dt>
           <dd data-customer-monthly={row.monthly}>
             {t('{amount}/mo', { amount: money(row.monthly, cur) })}
           </dd>
@@ -168,13 +201,15 @@ function CustomerRow({ row, cur, month }: { row: Row; cur: string; month: number
 export function CustomerBook({ c }: { c: Company }) {
   const { view } = useView();
   const [showAll, setShowAll] = useState(false);
+  const openBranches = useOpenBranches();
   const b = c.customerBook;
   if (!b) return null;
   const cur = c.currency;
   const month = view.market.month;
   const active = b.rows.filter((r) => r.status !== 'churned');
   const churned = b.rows.filter((r) => r.status === 'churned');
-  const order: Row['kind'][] = ['signed', 'business', 'buyer', 'market'];
+  const order: Row['kind'][] = ['signed', 'business', 'buyer', 'branch', 'market'];
+  const branches = (c.expansion?.branches ?? []).filter((x) => x.status === 'open' && x.run);
   active.sort((x, y) => order.indexOf(x.kind) - order.indexOf(y.kind) || y.monthly - x.monthly);
   const shown = showAll ? active : active.slice(0, 12);
   const lm = b.lastMonth;
@@ -224,7 +259,7 @@ export function CustomerBook({ c }: { c: Company }) {
       ) : (
         <ul className="customer-list" aria-label={t('Paying customers')}>
           {shown.map((r) => (
-            <CustomerRow key={r.id} row={r} cur={cur} month={month} />
+            <CustomerRow key={r.id} row={r} cur={cur} month={month} home={c.market} />
           ))}
         </ul>
       )}
@@ -232,6 +267,17 @@ export function CustomerBook({ c }: { c: Company }) {
         <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
           {t('Show all {n}', { n: active.length })}
         </Button>
+      )}
+      {branches.length > 0 && (
+        <button
+          type="button"
+          className="customer-branches-link small"
+          data-customers-branches=""
+          onClick={openBranches}
+        >
+          <span aria-hidden="true">🏙</span>{' '}
+          {t('{n} at your branches: grow them in Branches', { n: b.breakdown.branches ?? 0 })} ›
+        </button>
       )}
       {churned.length > 0 && (
         <Fold
@@ -241,7 +287,7 @@ export function CustomerBook({ c }: { c: Company }) {
         >
           <ul className="customer-list">
             {churned.map((r) => (
-              <CustomerRow key={r.id} row={r} cur={cur} month={month} />
+              <CustomerRow key={r.id} row={r} cur={cur} month={month} home={c.market} />
             ))}
           </ul>
         </Fold>
@@ -271,7 +317,7 @@ export function CustomerBook({ c }: { c: Company }) {
             {lm.branches > 0 && (
               <li className="spread">
                 <span>{t('Branches')}</span>
-                <span>{money(lm.branches, cur)}</span>
+                <span data-revenue="branches">{money(lm.branches, cur)}</span>
               </li>
             )}
             <li className="spread">
@@ -315,6 +361,11 @@ export function CustomerBook({ c }: { c: Company }) {
           <li>
             {t(
               'Customers from the market pay your price every month (business segments on 30–90 day terms). Local businesses pay what they spend with you each month.',
+            )}
+          </li>
+          <li>
+            {t(
+              'Branch customers: the people and businesses each branch has won in its city. They pay at every month end; a branch row shows what they all paid last month.',
             )}
           </li>
           <li>
