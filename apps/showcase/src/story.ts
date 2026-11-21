@@ -31,9 +31,9 @@ const SCREEN = { width: 360, height: 640 };
 const SCALE = 3;
 
 const OVERLAY_CSS = `
-#sc-touch{position:fixed;z-index:2147483647;left:0;top:0;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;background:rgba(255,255,255,.5);border:1.5px solid rgba(20,32,27,.35);box-shadow:0 3px 10px rgba(0,0,0,.28);pointer-events:none;opacity:0;transition:opacity .25s ease,transform .12s ease}
-#sc-touch.on{opacity:1}#sc-touch.press{transform:scale(.72);background:rgba(255,255,255,.75)}
-.sc-ripple{position:fixed;z-index:2147483646;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:2px solid rgba(255,255,255,.85);pointer-events:none;animation:sc-ripple .45s ease-out forwards}
+#sc-touch{position:fixed;z-index:2147483647;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:rgba(40,44,42,.38);border:2.5px solid rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(0,0,0,.25),0 4px 12px rgba(0,0,0,.3);pointer-events:none;opacity:0;transition:opacity .25s ease,transform .12s ease}
+#sc-touch.on{opacity:1}#sc-touch.press{transform:scale(.78);background:rgba(40,44,42,.55)}
+.sc-ripple{position:fixed;z-index:2147483646;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:2.5px solid rgba(40,44,42,.55);pointer-events:none;animation:sc-ripple .45s ease-out forwards}
 @keyframes sc-ripple{from{transform:scale(.6);opacity:.9}to{transform:scale(2.2);opacity:0}}
 #sc-end{position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:16px;text-align:center;background:linear-gradient(160deg,#0b5446,#07201a);color:#fff;opacity:0;animation:sc-fade .6s ease forwards}
 #sc-end b{font:800 44px/1 "Inter",system-ui,sans-serif;letter-spacing:-.02em}
