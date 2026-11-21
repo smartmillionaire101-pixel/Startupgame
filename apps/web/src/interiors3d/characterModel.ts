@@ -22,6 +22,7 @@
 import * as THREE from 'three';
 import { Human, kitNow, AIMED, type AimedBone } from '../three-kit/humans/kit';
 import { outfitFor } from '../three-kit/humans/outfit';
+import { softwareGl } from '../three-kit/quality';
 import type { Character, PoseId } from './character';
 
 type JointKey =
@@ -223,7 +224,8 @@ function measureRest(c: Character, restPose: (c: Character) => void) {
 
 function build(c: Character, st: State, restPose: (c: Character) => void) {
   const outfit = outfitFor(c.look);
-  const kit = kitNow(outfit.kit);
+  // On a software GPU (a phone that has no GPU worth the name): the far copy for everyone.
+  const kit = kitNow(outfit.kit, softwareGl());
   if (!kit) return false;
   if (!st.rest) {
     // (Measuring poses the person: keep what `pose` said this frame.)

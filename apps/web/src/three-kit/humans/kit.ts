@@ -45,9 +45,11 @@ const base = (): string => {
     return '/';
   }
 };
-const loads = new Map<Kit, Promise<KitData | null>>();
-const ready = new Map<Kit, KitData>();
-const failed = new Set<Kit>();
+/** A kit file: the full people, or their far copy (`-lod`, about a third of the triangles). */
+type KitFile = Kit | `${Kit}-lod`;
+const loads = new Map<KitFile, Promise<KitData | null>>();
+const ready = new Map<KitFile, KitData>();
+const failed = new Set<KitFile>();
 const listeners = new Set<() => void>();
 
 /** Called whenever a kit arrives (views redraw so their people change). */
@@ -74,29 +76,32 @@ export function humansEnabled(): boolean {
 }
 
 /** The kit if it has arrived (and starts fetching it if not). */
-export function kitNow(kit: Kit): KitData | null {
-  const k = ready.get(kit);
+export function kitNow(kit: Kit, far = false): KitData | null {
+  const file: KitFile = far ? `${kit}-lod` : kit;
+  const k = ready.get(file);
   if (k) return k;
-  if (!failed.has(kit) && humansEnabled()) void loadKit(kit);
-  return null;
+  if (!failed.has(file) && humansEnabled()) void loadKit(kit, far);
+  // The far copy failed: the full one will do.
+  return far && failed.has(file) ? kitNow(kit) : null;
 }
 
-export function loadKit(kit: Kit): Promise<KitData | null> {
-  let p = loads.get(kit);
+export function loadKit(kit: Kit, far = false): Promise<KitData | null> {
+  const file: KitFile = far ? `${kit}-lod` : kit;
+  let p = loads.get(file);
   if (!p) {
     p = new GLTFLoader()
-      .loadAsync(`${base()}models/people/${kit}.glb`)
+      .loadAsync(`${base()}models/people/${file}.glb`)
       .then((g) => {
         const data = prepare(kit, g.scene, g.animations);
-        ready.set(kit, data);
+        ready.set(file, data);
         emitKitReady();
         return data;
       })
       .catch(() => {
-        failed.add(kit);
+        failed.add(file);
         return null;
       });
-    loads.set(kit, p);
+    loads.set(file, p);
   }
   return p;
 }
@@ -105,7 +110,10 @@ function prepare(kit: Kit, scene: THREE.Group, animations: THREE.AnimationClip[]
   const clips = new Map(animations.map((a) => [a.name, a]));
   scene.traverse((o) => {
     const g = (o as THREE.Mesh).geometry;
-    if (g) g.userData.shared = true;
+    if (!g) return;
+    g.userData.shared = true;
+    // The far copy has no normals (dropped to simplify it): smooth ones.
+    if (!g.getAttribute('normal')) g.computeVertexNormals();
   });
   // The reference pose: Idle's first frame (the rest pose is a T-ish pose).
   const mixer = new THREE.AnimationMixer(scene);

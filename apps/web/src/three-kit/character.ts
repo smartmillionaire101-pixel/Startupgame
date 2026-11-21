@@ -311,7 +311,8 @@ export function makeCharacter(
     procPose(walk, phase);
     if (!outfit) return;
     if (!human) {
-      const kit = kitNow(outfit.kit);
+      // At map scale: the far copy (a third of the triangles), a busy street stays smooth.
+      const kit = kitNow(outfit.kit, true);
       if (!kit) return;
       human = new Human(kit, outfit);
       // At map scale a person's shadow is a speck: not worth drawing them twice.

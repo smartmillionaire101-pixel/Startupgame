@@ -9,6 +9,7 @@ we credit the author anyway. Each pack's own `License.txt` says CC0.
 | --- | --- | --- | --- | --- |
 | `people/men.glb` | Ultimate Modular Men (outfits Casual 2, Casual Hoodie, Suit, Beach, Worker) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatemodularcharacters.html |
 | `people/women.glb` | Ultimate Modular Women (outfits Casual, Formal, Suit, Punk, Worker) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatemodularwomen.html |
+| `people/men-lod.glb`, `people/women-lod.glb` | The same people, simplified (far copies for the city and software GPUs) | Quaternius | CC0 1.0 | as above |
 | `vehicles/cars.glb` | Cars (NormalCar1, NormalCar2, SUV, SportsCar, SportsCar2, Taxi, Cop) | Quaternius | CC0 1.0 | https://quaternius.com/packs/cars.html |
 | `vehicles/cars-lod.glb` | The same cars, simplified for traffic | Quaternius | CC0 1.0 | https://quaternius.com/packs/cars.html |
 | `props/furniture.glb` | Ultimate Furniture (beds, closets, desk, office chair, bookcase, sofas, chairs, tables, stools) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatefurniture.html |
@@ -23,7 +24,9 @@ we credit the author anyway. Each pack's own `License.txt` says CC0.
   Idle_Neutral, Walk, Run, Wave, Interact, Kick_Right, Punch_Right,
   HitRecieve, Death. Then `@gltf-transform` dedup, prune, weld, resample and
   quantize (KHR_mesh_quantization; no Draco or meshopt, so no decoder needed).
-  The weapon props were dropped.
+  The weapon props were dropped. The `-lod` copies drop the normals (smooth
+  ones are worked out in game), weld and run meshoptimizer's simplifier
+  (about 30% of the triangles), keeping the skeleton and clips.
 - **Cars:** the pack's FBX files, read with three.js's FBXLoader and written
   with GLTFExporter: centimetres to metres, Z-up to Y-up, the front towards
   +Z, each wheel on its own centre, the body colour's material renamed
