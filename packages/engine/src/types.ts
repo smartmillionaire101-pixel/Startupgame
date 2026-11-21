@@ -1315,6 +1315,12 @@ export interface MonthlyPnl {
   businessRevenue?: number;
   /** Wave 10: branch takings (part of revenue) and branch running costs. Missing = none. */
   branches?: { revenue: number; opex: number };
+  /**
+   * Customers note: of revenue, what customers signed in the Sales pipeline
+   * paid this month (their monthly price, and any first payment up front).
+   * Missing in older months and worlds without the note.
+   */
+  signedRevenue?: number;
   payroll: number;
   founderSalary: number;
   office: number;
@@ -3014,7 +3020,14 @@ export interface LocalBusiness {
   monthlyTakings: number;
   /** 0..1: drives growth and closure. */
   health: number;
-  suppliers: { companyId: Id; sector: Industry; monthlyMinor: number; since: number }[];
+  suppliers: {
+    companyId: Id;
+    sector: Industry;
+    monthlyMinor: number;
+    since: number;
+    /** Customers note: everything this business has paid the company, local minor units. */
+    paid?: number;
+  }[];
   openedMonth: number;
   closedMonth?: number;
   /**
@@ -3490,6 +3503,14 @@ export interface SalesAccount {
    * leave before it. Missing = month to month.
    */
   committedUntil?: number;
+  /**
+   * Customers note: the last market month whose service is paid for (a
+   * month-end bill pays for the month just ended; a first payment taken up
+   * front pays for the month it was signed in). Missing = not billed yet.
+   */
+  paidThrough?: number;
+  /** Customers note: everything this customer has paid, local minor units. */
+  paid?: number;
 }
 
 /** Why a pipeline customer stopped buying. */
@@ -3501,6 +3522,8 @@ export interface SalesChurn {
   monthly: number;
   month: number;
   reason: SalesChurnReason;
+  /** Customers note: everything they paid before they left. */
+  paid?: number;
 }
 
 // ---------------------------------------------------------------- Decision events & rivals (Journey 4a)

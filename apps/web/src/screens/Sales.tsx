@@ -18,6 +18,7 @@ import { DemoBreakdown } from './FounderGuide';
 import { SalesTalkSheet } from './SalesTalk';
 import { DealOwner } from './SalesTeam';
 import { openCompanyTab } from './Company';
+import { useOpenCustomers } from './Customers';
 import { LossReason, lossAdvice, lossLabel, type LossReason as LossReasonId } from './SalesReasons';
 import './sales.css';
 
@@ -98,6 +99,7 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
   const [filter, setFilter] = useState<BoardFilter>('all');
   // …and, with salespeople, whose deals: yours ("me") or one person's.
   const [owner, setOwner] = useState<string | null>(null);
+  const openCustomers = useOpenCustomers();
   const sales = c.sales;
   if (!sales) return <Empty>{t('The sales pipeline isn’t available yet.')}</Empty>;
   const cur = c.currency;
@@ -237,8 +239,13 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
             ))}
           </ul>
           <p className="small muted">
-            {t('They’re invoiced every month and pay on 30–90 day terms.')}
+            {c.customerBook?.billing === 'month-end'
+              ? t('They pay every month end, straight into the company account.')
+              : t('They’re invoiced every month and pay on 30–90 day terms.')}
           </p>
+          <Button variant="subtle" size="sm" data-see-customers="" onClick={openCustomers}>
+            {t('See all customers')}
+          </Button>
         </Card>
       )}
     </div>

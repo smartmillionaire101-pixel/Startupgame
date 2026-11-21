@@ -39,7 +39,7 @@ import { outputOf } from './staff.js';
 import { barEdgeIn } from './lifebars.js';
 import { rivalPressure } from './rivals.js';
 import { firstPayment, starterIdeaEdge } from './firstsession.js';
-import { feedbackOn, gameplayOn } from './releases.js';
+import { customersOn, feedbackOn, gameplayOn } from './releases.js';
 import { TEAM, businessCofounderOf, ctoOf, ownerOf } from './cofounders.js';
 import type {
   Company,
@@ -835,6 +835,12 @@ export function closeDeal(
     me.skills.sales = Math.min(100, me.skills.sales + 2);
     // Founder Journey 6: the first customer pays its first month now (idea companies only).
     const paidNow = firstPayment(world, c, d.customer.name, monthly);
+    // Customers note: a first month paid up front covers the month it was signed in.
+    if (paidNow > 0 && customersOn(world)) {
+      const a = c.salesAccounts.find((x) => x.dealId === d.id)!;
+      a.paidThrough = month;
+      a.paid = paidNow;
+    }
     return {
       dealId: d.id,
       stage: d.stage,
@@ -995,10 +1001,15 @@ export function settleSales(world: World, c: Company, month: number) {
     // Feedback note: a customer committed to a pilot then a year (or a year up
     // front) stays until it ends, and one who leaves is recorded with why.
     const on = feedbackOn(world);
+    // Customers note: a customer signed last month pays its first bill at this
+    // settlement before it can leave (it was signed while the market month
+    // read `month - 1`).
+    const paysFirst = customersOn(world);
     const kept = [];
     for (const a of c.salesAccounts) {
       const committed = on && a.committedUntil !== undefined && month <= a.committedUntil;
-      if (a.since < month && !committed && rng.chance(p)) {
+      const fresh = paysFirst ? a.since >= month - 1 : a.since >= month;
+      if (!fresh && !committed && rng.chance(p)) {
         const reason: SalesChurnReason = !on
           ? 'switched'
           : c.hibernation
@@ -1018,7 +1029,14 @@ export function settleSales(world: World, c: Company, month: number) {
           const d = c.deals?.find((x) => x.id === a.dealId);
           if (d) d.churned = { month, reason };
           const list = (c.salesChurn ??= []);
-          list.push({ dealId: a.dealId, name: a.name, monthly: a.monthly, month, reason });
+          list.push({
+            dealId: a.dealId,
+            name: a.name,
+            monthly: a.monthly,
+            month,
+            reason,
+            ...(paysFirst && a.paid ? { paid: a.paid } : {}),
+          });
           if (list.length > SALES.keepChurned) list.splice(0, list.length - SALES.keepChurned);
         }
         continue;
@@ -1053,9 +1071,37 @@ export const CHURN_WHY: Record<SalesChurnReason, string> = {
   switched: 'they moved to another supplier',
 };
 
-/** Monthly invoices from pipeline customers (settleFinances adds them to B2B billing). */
+/**
+ * Monthly invoices from pipeline customers. Before the customers note,
+ * settleFinances adds them to B2B billing (30–90 day terms); with it, they
+ * pay at month end (billSignedCustomers).
+ */
 export const salesBilling = (c: Company): number =>
   (c.salesAccounts ?? []).reduce((a, x) => a + x.monthly, 0);
+
+/**
+ * Customers note: every signed customer pays its agreed monthly price at the
+ * month end, from the market's customers into the company account, once per
+ * month of service. Settlement `month` closes the month the market read as
+ * `month - 1`; a customer whose first month was paid up front (paidThrough)
+ * isn't billed for it again. Returns what was paid.
+ */
+export function billSignedCustomers(world: World, c: Company, month: number): number {
+  const m = getMarket(world, c.market);
+  const period = month - 1;
+  let total = 0;
+  for (const a of c.salesAccounts ?? []) {
+    if (a.paidThrough !== undefined && a.paidThrough >= period) continue;
+    if (a.monthly <= 0) continue;
+    // A customer signed before the note was invoiced every month since it signed.
+    if (a.paid === undefined) a.paid = a.monthly * Math.max(0, period - a.since);
+    transfer(world, m.ext.customers, c.account, a.monthly, `${a.name} (monthly)`, month);
+    a.paid += a.monthly;
+    a.paidThrough = period;
+    total += a.monthly;
+  }
+  return total;
+}
 
 // ---------------------------------------------------------------- View
 

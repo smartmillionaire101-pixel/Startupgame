@@ -52,14 +52,16 @@ import { rulesFor } from './data/rules.js';
 import { markValue, ownership, waterfall } from './captable.js';
 import { clockView, gameDate } from './clock.js';
 import {
+  FURLOUGH_PAY,
   companyRunway,
   defaultAlive,
   forwardRunway,
+  marketingSpend,
   monthlyCosts,
   payrollThisMonth,
   projectedBurn,
 } from './company.js';
-import { rescuePlan } from './rescue.js';
+import { HIBERNATE_HOURS, rescuePlan } from './rescue.js';
 import { spendRate } from './ledger.js';
 import { reliability, scoreOffer, segmentFit } from './customers.js';
 import { trackRecord } from './funds.js';
@@ -91,6 +93,7 @@ import { chatIdOf } from './people.js';
 import { contactWarmth, eventCost } from './events.js';
 import { businessCustomersOf, businessesView, economyView, jobsView } from './economy.js';
 import { customerFacts, payingCustomers } from './traction.js';
+import { customerBook } from './customerbook.js';
 import { bringsOf, teamBringsView } from './team.js';
 import { introsView } from './intros.js';
 import { restView } from './rest.js';
@@ -329,6 +332,8 @@ export function companyDetail(world: World, c: Company) {
     planBase: founderPlanBase(world, c),
     /** Real paying customers and how well the founder knows them (traction.ts). */
     traction: customerFacts(world, c),
+    /** Every customer, the one total, MRR and the month's revenue from customers (customerbook.ts). */
+    customerBook: customerBook(world, c),
     /** Founder Journey 6: the café idea, the first up-front payment and small expenses. */
     ...firstSessionView(world, c),
     rules: rulesFor(c.market, c.industry).map((r) => ({ ...r, done: !!c.compliance[r.id] })),
@@ -1044,6 +1049,21 @@ export function playerView(
         /** Founder setup (feedback note): the tracker's steps, money, plan, answers and offices. */
         setup: c.status === 'active' ? setupView(world, c, p) : null,
         hibernating: !!c.hibernation,
+        /** Since when it hibernates, and staff pay a month asleep and awake (the Wake card). */
+        hibernation:
+          c.status === 'active'
+            ? {
+                since: c.hibernation?.since ?? null,
+                payNow: payrollThisMonth(c),
+                payFull: c.staff.reduce((a, s) => a + s.salary, 0),
+                /** About what a month asleep saves (furlough pay, no marketing). */
+                saves:
+                  c.staff.reduce((a, s) => a + s.salary - Math.round(s.salary * FURLOUGH_PAY), 0) +
+                  (c.hibernation ? 0 : marketingSpend(c)),
+                /** Founder hours it takes to furlough the team. */
+                hours: HIBERNATE_HOURS,
+              }
+            : null,
         officeDownsized: !!c.officeDownsized,
         /** Local businesses buying from this company (Wave 3), with last month's amount. */
         businessCustomers: businessCustomersOf(world, c),
