@@ -14,6 +14,7 @@
  * The root sits at the feet and faces +z; turn it with `root.rotation.y`.
  */
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { shade, type AvatarLook } from '../city/art';
 import { mat, contactShadow } from './kit';
 import { attachModel, posedModel, refreshModel } from './characterModel';
@@ -148,16 +149,8 @@ function buildHair(look: AvatarLook): THREE.Group {
   if (!covered)
     switch (look.hairStyle) {
       case 'afro':
-        if (!hatted)
-          add(
-            geo('afro', () => new THREE.SphereGeometry(0.2, 12, 10)),
-            0,
-            0.1,
-            -0.07,
-            1,
-            0.9,
-            1,
-          );
+        // A full, softly lumpy afro, open at the face (it sits on the CC0 heads too).
+        if (!hatted) add(geo('afro2', afroGeometry), 0, 0.09, -0.05, 1.04, 0.94, 1);
         break;
       case 'bun':
         add(CAP(), 0, 0.005, 0, 1.02, 1.02, 1.05);
@@ -191,12 +184,8 @@ function buildHair(look: AvatarLook): THREE.Group {
       }
       case 'twists':
         add(CAP(), 0, 0.005, 0, 1.03, 1.03, 1.05);
-        if (!hatted)
-          for (let i = 0; i < 8; i++) {
-            const a = (i / 8) * Math.PI * 2;
-            const t = add(strand(0.12), Math.cos(a) * 0.08, 0.15, Math.sin(a) * 0.08 - 0.02);
-            t.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
-          }
+        // Short twists all over the crown, each standing out along the head (one merged mesh).
+        if (!hatted) add(geo('twists2', twistsGeometry), 0, 0, 0);
         break;
       case 'curly':
         add(CAP(), 0, 0.01, -0.005, 1.04, 1.06, 1.06);
@@ -527,6 +516,20 @@ export function makeCharacter(
     skirt.position.y = dress ? -0.2 : tunic ? -0.07 : -0.16;
     skirt.castShadow = true;
     hips.add(skirt);
+    // Over the CC0 model's T-shirt, a man's tunic from the waist to mid-thigh (a kaftan,
+    // not a tee): drawn only with the model (the low-poly body has its own above).
+    if (tunic) {
+      const t = new THREE.Mesh(
+        geo('tunic-cc0', () => new THREE.CylinderGeometry(0.16, 0.24, 0.46, 14, 1, true)),
+        mat(top, { rough: 0.85, side: THREE.DoubleSide }),
+      );
+      t.position.y = 0.0;
+      t.castShadow = true;
+      t.visible = false;
+      t.userData.acc = true;
+      t.userData.modelOnly = true;
+      hips.add(t);
+    }
   }
   // From the wardrobe: a necklace, a silk scarf, a belt, earrings and a bag.
   if (look.necklace && look.necklace !== 'none') {
@@ -1042,6 +1045,54 @@ function dressBody(look: AvatarLook, b: Body) {
     f.userData.acc = true;
     b.foreL.add(f);
   }
+}
+
+/** An afro: a lumpy sphere (deterministic bumps), pulled back clear of the face. */
+function afroGeometry(): THREE.BufferGeometry {
+  const g = new THREE.SphereGeometry(0.2, 22, 16);
+  const p = g.getAttribute('position') as THREE.BufferAttribute;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    const n =
+      Math.sin(v.x * 41 + v.y * 13) * Math.sin(v.z * 37 - v.y * 29) * Math.cos(v.x * 23 + v.z * 17);
+    v.multiplyScalar(1 + n * 0.07);
+    // The face: below the brow and in front, the hair is pushed back to the hairline.
+    if (v.z > 0.06 && v.y < 0.06) v.z = 0.06 + (v.z - 0.06) * 0.25;
+    p.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Twists: tapered cones over the crown and sides, along the head's normal, clear of the face. */
+function twistsGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const up = new THREE.Vector3(0, 1, 0);
+  const q = new THREE.Quaternion();
+  for (let i = 0; i < 70; i++) {
+    // A spiral over the upper head.
+    const y = 1 - ((i + 0.5) / 70) * 1.15;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const a = i * 2.39996;
+    const n = new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
+    if (n.y < -0.1 || (n.z > 0.45 && n.y < 0.55)) continue;
+    const len = 0.035 + ((i * 7) % 5) * 0.007;
+    const c = new THREE.CapsuleGeometry(0.021, len, 2, 6);
+    c.translate(0, len / 2, 0);
+    // Droop: tilt towards down at the back and sides.
+    const dir = n
+      .clone()
+      .add(new THREE.Vector3(0, -0.6, 0))
+      .normalize();
+    q.setFromUnitVectors(up, dir);
+    c.applyQuaternion(q);
+    c.translate(n.x * 0.14, n.y * 0.15 + 0.005, n.z * 0.145 - 0.005);
+    parts.push(c.toNonIndexed());
+  }
+  const g = mergeGeometries(parts, false)!;
+  g.computeVertexNormals();
+  return g;
 }
 
 /** Swap a person's hair (a haircut). */

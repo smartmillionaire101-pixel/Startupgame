@@ -201,6 +201,7 @@ function show(c: Character, body: boolean, hair: boolean) {
   c.body.traverse((o) => {
     if (o.userData.procBody) o.visible = body;
     else if (o.userData.hairPiece) o.visible = hair;
+    else if (o.userData.modelOnly) o.visible = !body;
   });
 }
 
