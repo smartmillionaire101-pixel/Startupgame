@@ -243,7 +243,7 @@ export class Story {
 
   /**
    * Tap like a player: a pause to take in the screen, the fingertip glides to
-   * the control (resting just below its middle, so its label stays readable),
+   * the control (resting at its right end, so its label stays readable),
    * presses, and lifts off. The next tap starts from where this one was.
    */
   async tap(locator: Locator, opts: { lookMs?: number; moveMs?: number } = {}) {
@@ -254,7 +254,12 @@ export class Story {
     await this.hold(lookMs);
     const box = await target.boundingBox();
     if (box) {
-      const to = { x: box.x + box.width / 2, y: box.y + box.height * 0.72 };
+      // Towards the right end of the button (where its arrow usually is), so
+      // the fingertip never sits on the words.
+      const to = {
+        x: box.x + box.width - Math.min(28, box.width * 0.25),
+        y: box.y + box.height / 2,
+      };
       const from = this.finger ?? { x: to.x + 40, y: Math.min(to.y + 160, 600) };
       await this.page.evaluate(({ x, y }) => {
         let dot = document.getElementById('sc-touch');
