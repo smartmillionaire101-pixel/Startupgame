@@ -133,9 +133,9 @@ const NEXT: Partial<Record<SalesAction, SalesStage>> = {
 // ---------------------------------------------------------------- Helpers
 
 const salesOutput = (c: Company) => outputOf(c, ['sales']);
-const prospectLimit = (c: Company) => SALES.prospectsPerMonth + Math.floor(salesOutput(c));
+export const prospectLimit = (c: Company) => SALES.prospectsPerMonth + Math.floor(salesOutput(c));
 const openDealLimit = (c: Company) => SALES.openDeals + Math.floor(salesOutput(c) * 3);
-const prospectsUsed = (c: Company, month: number) =>
+export const prospectsUsed = (c: Company, month: number) =>
   c.salesProspects?.month === month ? c.salesProspects.count : 0;
 
 const actionCost = (m: MarketState, action: SalesAction): number =>
@@ -824,6 +824,8 @@ export function closeDeal(
       name: d.customer.name,
       segmentKey: d.customer.segmentKey,
       ...(d.customer.businessId ? { businessId: d.customer.businessId } : {}),
+      // Branches note: a customer in a branch's city keeps its city.
+      ...(d.customer.market ? { market: d.customer.market } : {}),
       monthly,
       since: month,
     });
@@ -1144,7 +1146,9 @@ export function salesView(world: World, c: Company, viewer?: Player) {
   const view = deals.map((d) => {
     const known = d.revealed;
     const seg = m.segments[d.customer.segmentKey];
-    const biz = d.customer.businessId ? businessesOf(m)[d.customer.businessId] : undefined;
+    // Branches note: a lead from a branch's city is one of that city's businesses.
+    const city = (d.customer.market && world.markets[d.customer.market]) || m;
+    const biz = d.customer.businessId ? businessesOf(city)[d.customer.businessId] : undefined;
     const actions: SalesNextAction[] = (Object.keys(ACTION_FROM) as SalesAction[])
       .filter((a) => ACTION_FROM[a].includes(d.stage))
       .filter((a) => (a === 'recover' ? !d.recovered && !d.expired : month <= d.deadline))
@@ -1157,6 +1161,9 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       name: d.customer.name,
       contact: d.customer.contact,
       businessId: d.customer.businessId ?? null,
+      /** Branches note: the city the customer is in (the company's own unless tagged). */
+      market: city.id,
+      city: city.data.name,
       segment: seg?.name ?? '',
       /** Why this kind of customer buys (the segment's needs: "Records, billing, data protection"). */
       segmentNeeds: seg?.needsLabel ?? '',

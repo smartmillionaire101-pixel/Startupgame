@@ -3,7 +3,10 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  *
  * Logging a note is also a switch (see the engine's releases.ts): this one
- * turns on customers you can see (signed customers pay every month end and
+ * turns on branches you can run (a branch's own customers, its local
+ * marketing budget and staff, leads from its city in Sales, pitching its
+ * businesses in person, and "Sell in a second city" counting customers
+ * there) and, being later, customers you can see (signed customers pay every month end and
  * count in that month's revenue, one customer count everywhere, the
  * Customers view, waking a hibernating company) and, being later, round
  * 7's gameplay (leads that fit the industry, lost deals with their real reason, one customer count, hires that do their job, investor pitch meetings, resting at home, one van per
@@ -26,16 +29,16 @@
  * events, Founder Journey 5 (exits) and 4a (decision events and visible
  * rivals) for new worlds.
  */
-import { CUSTOMERS_NOTE } from '@runway/engine';
+import { BRANCHES_NOTE } from '@runway/engine';
 
 export const RELEASE_NOTE = {
-  id: CUSTOMERS_NOTE,
+  id: BRANCHES_NOTE,
   text:
-    'Update from your feedback: your customers, and their money, in one place. Customers you ' +
-    'sign in Sales now pay their monthly price at every month end, straight into your company ' +
-    'account, and it counts in that month’s revenue. Company → Customers lists everyone who ' +
-    'pays you, with what they pay, when they signed, what they have paid so far and who may ' +
-    'leave, plus your monthly recurring revenue and how it is worked out. Every screen shows the ' +
-    'same number of customers. A company that went to sleep while you were away now says so on ' +
-    'the Company screen, with a button to wake it up. Refresh to get it; your game is saved.',
+    'Update from your feedback: branches you can run. Company → Branches shows each branch ' +
+    'with its customers, revenue, costs and profit, and how to grow it. Give a branch a local ' +
+    'marketing budget, hire a local sales rep or a manager, or close it. Sales now finds leads ' +
+    'in your branch cities, with a city filter, and when you are in that city you can pitch its ' +
+    'businesses in person. Branch customers count in your customer total and show in Customers ' +
+    'with their city, and "Sell in a second city" is done once a branch in another city has ' +
+    'customers. Refresh to get it; your game is saved.',
 } as const;

@@ -18,6 +18,7 @@ import { locale, t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Fold, Pill, Segmented, Sheet } from '../ui';
 import { ExpansionCard } from './Expansion';
+import { BranchesSection } from './Branches';
 import { Roadmap } from './Roadmap';
 import { SalesPipeline } from './Sales';
 import { InterviewSheet } from './Interview';
@@ -38,7 +39,16 @@ import {
   stageTitle,
 } from './FounderGuide';
 
-type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
+type Tab =
+  | 'product'
+  | 'roadmap'
+  | 'sales'
+  | 'customers'
+  | 'branches'
+  | 'team'
+  | 'suppliers'
+  | 'board'
+  | 'rules';
 
 const tabLabel = (tab: Tab) =>
   ({
@@ -46,6 +56,7 @@ const tabLabel = (tab: Tab) =>
     roadmap: t('Roadmap'),
     sales: t('Sales'),
     customers: t('Customers'),
+    branches: t('Branches'),
     team: t('Team'),
     suppliers: t('Suppliers'),
     board: t('Board'),
@@ -66,12 +77,14 @@ const TAB_STAGE: Record<Tab, number> = {
   roadmap: stageAt('product-fit'),
   board: stageAt('seed'),
   suppliers: stageAt('growth'),
+  branches: stageAt('growth'),
 };
 const TABS: Tab[] = [
   'product',
   'roadmap',
   'sales',
   'customers',
+  'branches',
   'team',
   'suppliers',
   'board',
@@ -328,6 +341,7 @@ export function CompanyScreen() {
         {tab === 'roadmap' && <Roadmap c={c} />}
         {tab === 'sales' && <SalesPipeline c={c} />}
         {tab === 'customers' && <Customers c={c} />}
+        {tab === 'branches' && <BranchesSection c={c} />}
         {tab === 'team' && <Team c={c} />}
         {tab === 'suppliers' && <Suppliers c={c} />}
         {tab === 'board' && <Board c={c} />}

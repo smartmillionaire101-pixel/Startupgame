@@ -1,0 +1,141 @@
+/* Branches you can run: Company → Branches. */
+.branches {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.branch-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.branch-kpis > div {
+  display: grid;
+  gap: 2px;
+}
+.branch-kpis strong {
+  font-size: 1.25rem;
+}
+.branch-step {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-soft, rgb(255 200 0 / 0.08));
+}
+.branch-step.is-done {
+  background: var(--good-soft, rgb(0 160 90 / 0.08));
+}
+.branch-step > span:nth-child(2) {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.branch-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.branch-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.branch-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.branch-title b {
+  overflow-wrap: anywhere;
+}
+.branch-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+}
+.branch-facts > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.branch-facts dt {
+  font-size: 0.8rem;
+  color: var(--muted, inherit);
+}
+.branch-facts dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.branch-facts dd.small {
+  font-weight: 400;
+}
+.branch-next {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--accent-soft, rgb(0 120 255 / 0.06));
+}
+.branch-manage {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line, rgb(0 0 0 / 0.1));
+  padding-top: 10px;
+  min-width: 0;
+}
+.branch-manage h3 {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+}
+.branch-pnl-total {
+  border-top: 1px solid var(--line, rgb(0 0 0 / 0.1));
+  padding-top: 4px;
+}
+.branch-budget {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.branch-budget .field {
+  width: 100%;
+}
+.branch-staff {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.branch-hire {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sales-cities {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+}
+.sales-deal-city {
+  display: block;
+  color: var(--accent, inherit);
+}
+.customer-city {
+  white-space: nowrap;
+}
+.customer-branches-link {
+  justify-self: start;
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  color: var(--accent, inherit);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}

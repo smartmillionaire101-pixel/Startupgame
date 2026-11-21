@@ -49,7 +49,7 @@ export type JourneyGo =
       kind: 'tab';
       tab: 'company' | 'money' | 'me' | 'portfolio' | 'deals' | 'bank';
       /** A section of that tab (the Company tab's Team, say). */
-      section?: 'team' | 'roadmap';
+      section?: 'team' | 'roadmap' | 'branches';
     }
   | { kind: 'app'; app: string };
 

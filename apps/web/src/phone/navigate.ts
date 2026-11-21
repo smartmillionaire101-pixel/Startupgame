@@ -13,7 +13,15 @@ export type TabId =
 
 /** The Company screen's tabs (screens/Company.tsx). */
 type CompanySection =
-  'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
+  | 'product'
+  | 'roadmap'
+  | 'sales'
+  | 'customers'
+  | 'branches'
+  | 'team'
+  | 'suppliers'
+  | 'board'
+  | 'rules';
 
 export type Target =
   | {
