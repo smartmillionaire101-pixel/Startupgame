@@ -1,0 +1,113 @@
+/* Customers you can see: the count link, the Customers view and the hibernation banner. */
+.customer-count {
+  min-width: 0;
+}
+.customer-count .link-card-main b {
+  font-size: 1.05rem;
+}
+.customer-count-go {
+  flex: none;
+  color: var(--accent, inherit);
+  font-weight: 600;
+}
+@media (max-width: 420px) {
+  .customer-count-go {
+    display: none;
+  }
+}
+
+.customer-book {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.customer-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.customer-kpis > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  align-content: start;
+}
+.customer-kpis strong {
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+.customer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.customer-row {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, rgb(0 0 0 / 0.1));
+  border-radius: 10px;
+  min-width: 0;
+}
+.customer-row.is-risk {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+  background: var(--warn-soft);
+}
+.customer-row.is-churned {
+  opacity: 0.8;
+}
+.customer-name {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.customer-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 2px 0 0;
+}
+.customer-facts > div {
+  min-width: 0;
+}
+.customer-facts dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.customer-facts dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.customer-month h3 {
+  margin: 4px 0 6px;
+  font-size: 0.95rem;
+}
+.customer-month-total {
+  border-top: 1px solid var(--line, rgb(0 0 0 / 0.1));
+  padding-top: 6px;
+}
+.how-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 6px;
+}
+.warn-text {
+  color: var(--warn);
+}
+
+.hibernation-banner {
+  display: grid;
+  gap: 8px;
+}
+.hibernation-banner h2 {
+  margin: 0;
+}
+.hibernation-banner p {
+  margin: 0;
+}
+.hibernation-banner .btn {
+  justify-self: start;
+}

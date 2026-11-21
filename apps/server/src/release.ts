@@ -3,8 +3,10 @@
  * game plays. Bump `id` for each new note; the engine sends each id once.
  *
  * Logging a note is also a switch (see the engine's releases.ts): this one
- * turns on round 7's gameplay (leads that fit the industry, lost deals with
- * their real reason, one customer count, hires that do their job, investor pitch meetings, resting at home, one van per
+ * turns on customers you can see (signed customers pay every month end and
+ * count in that month's revenue, one customer count everywhere, the
+ * Customers view, waking a hibernating company) and, being later, round
+ * 7's gameplay (leads that fit the industry, lost deals with their real reason, one customer count, hires that do their job, investor pitch meetings, resting at home, one van per
  * order and quiz tables across the city) and, being
  * later, the game-feedback round (a 30-day banking licence review, a
  * bigger quiz bank, tasks at work, named hotels, outfits by role and the Suit
@@ -24,21 +26,16 @@
  * events, Founder Journey 5 (exits) and 4a (decision events and visible
  * rivals) for new worlds.
  */
-import { GAMEPLAY_NOTE } from '@runway/engine';
+import { CUSTOMERS_NOTE } from '@runway/engine';
 
 export const RELEASE_NOTE = {
-  id: GAMEPLAY_NOTE,
+  id: CUSTOMERS_NOTE,
   text:
-    'Update from your feedback. Sales leads are now the customers your industry really sells ' +
-    'to, with openings that fit your idea and their business. Before you ask for a deal you see ' +
-    'what is holding the chance back, and a lost deal tells you the real reason and what to do ' +
-    'next. Won customers count everywhere at once. Your hires do their job: a salesperson brings ' +
-    'leads from their sector, runs discovery and gives you tips; a technical co-founder lifts ' +
-    'demos; a business co-founder brings warmer leads and introduces investors who fit your round; ' +
-    'engineers ship faster. ' +
-    'Pitching an investor is now a real meeting with questions about your numbers and a term ' +
-    'sheet you can counter once. Sit on your sofa to lower stress or nap to get energy back, ' +
-    'sit on your bed, visit your leased office, order several things in one delivery (now with ' +
-    'bathroom and hallway pieces), find quiz opponents across ' +
-    'the city and invite friends to a game from Messages. Refresh to get it; your game is saved.',
+    'Update from your feedback: your customers, and their money, in one place. Customers you ' +
+    'sign in Sales now pay their monthly price at every month end, straight into your company ' +
+    'account, and it counts in that month’s revenue. Company → Customers lists everyone who ' +
+    'pays you, with what they pay, when they signed, what they have paid so far and who may ' +
+    'leave, plus your monthly recurring revenue and how it is worked out. Every screen shows the ' +
+    'same number of customers. A company that went to sleep while you were away now says so on ' +
+    'the Company screen, with a button to wake it up. Refresh to get it; your game is saved.',
 } as const;

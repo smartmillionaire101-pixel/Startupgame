@@ -92,7 +92,8 @@ test('a founder eats out, works a shift and pitches a local business', async ({ 
   const nav = page.getByRole('navigation', { name: 'Main' });
   await nav.getByRole('button', { name: 'Company', exact: true }).click();
   await page.getByRole('tab', { name: 'Customers' }).click();
-  await expect(page.getByText('Business customers')).toBeVisible();
+  // Round 3: one Customers view lists everyone who pays, local businesses included.
+  await expect(page.locator('[data-customer-book]')).toBeVisible();
 
   // Events can be held at a hotel or event venue in town.
   await nav.getByRole('button', { name: 'City', exact: true }).click();

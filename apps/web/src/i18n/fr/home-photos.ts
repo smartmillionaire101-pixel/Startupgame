@@ -3,6 +3,7 @@ export const homePhotos: Record<string, string> = {
   'Look and take photos': 'Regarder et prendre des photos',
   Turn: 'Tourner',
   'Look around': 'Faire le tour',
+  'Stop looking around': 'Arrêter le tour',
   Photo: 'Photo',
   'Photo of your home': 'Photo de votre maison',
   'Your home, as you saw it': 'Votre maison, telle que vous l’avez vue',

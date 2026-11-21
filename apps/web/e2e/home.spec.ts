@@ -130,12 +130,25 @@ test('the HUD over your home on a 412px phone: one row of pills, the room’s ra
     expect(r.bottom).toBeLessThanOrEqual(box.y + box.height + 0.5);
   }
   await expect(top).not.toContainText('Small flat');
-  // The room's own buttons are a rail of named icons (Turn and Look around in
-  // 3D too); the phone is the HUD's.
+  // Round 3 ("these buttons are distracting"): like the map, the room shows
+  // only Go out and ⋯ (the phone is the HUD's); the rest is one tap away in
+  // ⋯'s compact panel, Buy first.
   const rail = scene.getByRole('group', { name: 'Home actions' });
-  for (const name of ['Go out', 'Buy', 'More'])
+  for (const name of ['Go out', 'More'])
     await expect(rail.getByRole('button', { name, exact: true })).toBeVisible();
+  await expect(rail.locator(':scope > .hud-ib')).toHaveCount(2);
+  await expect(rail.getByRole('button', { name: 'Buy', exact: true })).toHaveCount(0);
   await expect(page.locator('[data-phone-button]')).toBeVisible();
+  await hudMore(scene);
+  const panel = rail.locator('.hud-rail-extra');
+  await expect(panel.getByRole('button', { name: 'Buy', exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+  // The panel fits the phone's width, beside the rail.
+  const pb = (await panel.boundingBox())!;
+  expect(pb.x).toBeGreaterThanOrEqual(0);
+  expect(pb.x + pb.width).toBeLessThanOrEqual(412.5);
+  await rail.locator('[data-hud-more]').click();
+  await expect(panel).toHaveCount(0);
   // Mood, energy and the four needs: the time pill's sheet.
   const energy = await scene.getAttribute('data-energy');
   await page.locator('[data-hud-life]').click();

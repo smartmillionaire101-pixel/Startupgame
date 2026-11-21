@@ -1,5 +1,5 @@
 import type { PlayerView } from '@runway/engine';
-import { expect, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
+import { expect, hudMore, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
 
 /**
  * Round 7, item 20 (home shopping): how many of a thing in the basket
@@ -61,6 +61,7 @@ test('three plants in the basket: one van, Unpack all, three plants placed and o
   test.setTimeout(150_000);
   await founder(page);
   const scene = await home(page);
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   const sheet = page.getByRole('dialog', { name: 'Buy mode' });
   await sheet.locator('[data-buy-tab="all"]').click();
@@ -132,6 +133,7 @@ test('three plants in the basket: one van, Unpack all, three plants placed and o
     ).not.toBeNull();
   expect(after.me.home!.items.filter((i) => i.itemId === 'plants-1')).toHaveLength(1);
   expect(after.me.homeStyle!.extras.map((x) => x.itemId)).toEqual(['plants-1', 'plants-1']);
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   await expect(sheet.locator('[data-buy-item="plants-1"] [data-have]')).toHaveAttribute(
     'data-have',

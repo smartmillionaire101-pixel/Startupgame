@@ -18,6 +18,8 @@ import {
 import { reliability } from './customers.js';
 import { CHURN_WHY } from './sales.js';
 import { getMarket, lastPnl, totalCustomers } from './helpers.js';
+import { customersOn } from './releases.js';
+import { payingCustomers } from './traction.js';
 import { account } from './ledger.js';
 import { formatMoney } from './money.js';
 import { isOverloaded, outputOf } from './staff.js';
@@ -480,7 +482,7 @@ export function buildStory(
   const pads: StoryItem[] = [
     {
       tone: 'neutral',
-      text: `${plural(totalCustomers(c), 'paying customer')} now.`,
+      text: `${plural(customersOn(world) ? payingCustomers(world, c) : totalCustomers(c), 'paying customer')} now.`,
       cause: 'Where your customer base stands.',
       metric: 'customers',
     },

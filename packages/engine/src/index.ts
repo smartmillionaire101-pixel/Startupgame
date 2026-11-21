@@ -143,6 +143,8 @@ export {
   gameplayOn,
   SHOP_NOTE,
   shopOn,
+  CUSTOMERS_NOTE,
+  customersOn,
   RELEASES,
 } from './releases.js';
 // Bankers: negotiating with shareholders, the licence process, the first session.
@@ -506,6 +508,8 @@ export {
 } from './founderguide.js';
 export { TRACTION, customerFacts } from './traction.js';
 export type { CustomerFacts } from './traction.js';
+export { customerBook } from './customerbook.js';
+export type { CustomerBook, CustomerRow, CustomerStatus } from './customerbook.js';
 export { HIRING, AI_COFOUNDER_PROFILES, trialFee } from './hiring.js';
 export type { AiCofounderOffer, RetentionRisk } from './hiring.js';
 export {

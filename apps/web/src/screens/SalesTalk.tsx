@@ -561,8 +561,11 @@ function ResultView({
   onClose: () => void;
 }) {
   const ln = useLine();
-  const { send, busy } = useView();
+  const { send, busy, view } = useView();
   const nav = useNav();
+  // Customers note: signed customers pay at every month end.
+  const monthEnd =
+    view.companies.find((x) => x.id === companyId)?.customerBook?.billing === 'month-end';
   const findLeads = () =>
     void send<{ leads: { id: string; name: string }[] }>(
       { type: 'sales.prospect', companyId },
@@ -708,7 +711,11 @@ function ResultView({
           </p>
           <p className="small">
             {r.won
-              ? t('A paying customer: billed every settlement on 30-day terms.')
+              ? monthEnd
+                ? t(
+                    'A paying customer: they pay every month end, counted in that month’s revenue. See them in Company → Customers.',
+                  )
+                : t('A paying customer: billed every settlement on 30-day terms.')
               : d.canRecover
                 ? t(
                     'You can try once more from Sales: answer their objection and get back to the table.',

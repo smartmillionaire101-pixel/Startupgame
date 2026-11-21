@@ -1,6 +1,7 @@
 import { priceWithOptions, groupsFor, type PlayerView } from '@runway/engine';
 import {
   expect,
+  hudMore,
   letters,
   openTogether,
   playAsGuest,
@@ -192,6 +193,7 @@ test('a wall: ordered, unpacked, put up in Buy mode at home', async ({ page }) =
   await tapPlace(page, '[data-place="home"]', 'cycle');
   const scene = page.locator('.home-scene');
   await expect(scene).toBeVisible({ timeout: 20_000 });
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   await page.locator('[data-buy-tab="design"]').click();
   const row = page.locator(`[data-wall="${wall.id}"]`);
@@ -215,6 +217,7 @@ test('a wall: ordered, unpacked, put up in Buy mode at home', async ({ page }) =
   await tapPlace(page, '[data-place="home"]', 'cycle');
   await expect(scene).toBeVisible({ timeout: 20_000 });
   await expect(scene.locator('[data-room-name="Lounge"]')).toHaveCount(0);
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   await expect(scene.locator('[data-room-name="Lounge"]')).toBeAttached();
 });

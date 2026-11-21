@@ -131,6 +131,21 @@ export const FEEDBACK_NOTE = 'release-2026-10-25-game-feedback';
  */
 export const GAMEPLAY_NOTE = 'release-2026-10-28-gameplay';
 
+/**
+ * Customers you can see (round 3 player feedback: "six paying customers but
+ * their monies are not counted, and I can't see how to track my customers").
+ * A customer signed in the Sales pipeline pays its agreed monthly price at
+ * every month end, straight into the company account, and counts in that
+ * month's revenue (before: invoiced on 30–90 day terms with a bad-debt cut,
+ * so a new customer's money showed up in revenue months later, if at all).
+ * A first payment taken up front covers its month (no second bill), a signed
+ * customer pays at least once before they can leave, and every count of
+ * customers (an investor's pass reason, the month's story, customers kept)
+ * is the one total the Customers view shows. Worlds without this note play
+ * exactly as before.
+ */
+export const CUSTOMERS_NOTE = 'release-2026-11-21-customers';
+
 /** Every behaviour-switching note, oldest first. */
 export const RELEASES = [
   JOURNEY_EVENTS_NOTE,
@@ -145,6 +160,7 @@ export const RELEASES = [
   SHOP_NOTE,
   FEEDBACK_NOTE,
   GAMEPLAY_NOTE,
+  CUSTOMERS_NOTE,
 ] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
@@ -165,3 +181,4 @@ export const bankersOn = (w: World): boolean => releaseOn(w, BANKERS_NOTE);
 export const shopOn = (w: World): boolean => releaseOn(w, SHOP_NOTE);
 export const feedbackOn = (w: World): boolean => releaseOn(w, FEEDBACK_NOTE);
 export const gameplayOn = (w: World): boolean => releaseOn(w, GAMEPLAY_NOTE);
+export const customersOn = (w: World): boolean => releaseOn(w, CUSTOMERS_NOTE);

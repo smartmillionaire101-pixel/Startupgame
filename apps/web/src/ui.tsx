@@ -420,7 +420,7 @@ const TOAST_ICON: Record<'ok' | 'error' | 'info', IconName> = {
 };
 
 export function Toasts() {
-  const { toasts } = useGame();
+  const { toasts, send } = useGame();
   return (
     <div className="toasts" aria-live="polite">
       {toasts.map((x) => (
@@ -429,6 +429,16 @@ export function Toasts() {
             <Icon name={TOAST_ICON[x.tone]} size={16} />
           </span>
           <span>{x.text}</span>
+          {x.action && (
+            <button
+              type="button"
+              className="toast-action"
+              data-toast-action=""
+              onClick={() => void send(x.action!.command, x.action!.okText)}
+            >
+              {x.action.label}
+            </button>
+          )}
         </div>
       ))}
     </div>
@@ -979,6 +989,7 @@ export function HudButton({
 export function HudRail({
   label,
   extras,
+  grid = false,
   children,
   className,
   ...rest
@@ -986,6 +997,11 @@ export function HudRail({
   label: string;
   /** Behind ⋯ (none: no ⋯). */
   extras?: ReactNode;
+  /**
+   * ⋯ opens a compact panel of icons with their names under them (a home's
+   * many actions), instead of a tall column with names beside.
+   */
+  grid?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -1028,7 +1044,7 @@ export function HudRail({
   return (
     <div
       {...rest}
-      className={`hud-rail${open ? ' is-open' : ''}${tall ? ' is-tall' : ''}${className ? ` ${className}` : ''}`}
+      className={`hud-rail${open ? ' is-open' : ''}${tall ? ' is-tall' : ''}${grid ? ' is-grid' : ''}${className ? ` ${className}` : ''}`}
       role="group"
       aria-label={label}
       data-hud-rail=""

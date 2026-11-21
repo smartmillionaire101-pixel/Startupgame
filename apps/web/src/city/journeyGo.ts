@@ -42,6 +42,52 @@ export function runJourneyGo(g: JourneyGo, h: JourneyGoHandlers) {
 }
 
 /**
+ * A Go to the place you're standing in leads nowhere (the scene closes and
+ * the same room opens again: round 3, "Do the next step" at the Hub did
+ * nothing). Such a step is done from your Company screen instead: its stage
+ * checklist, or the step's own section of it.
+ */
+export function awayFromHere(
+  g: JourneyGo,
+  here: { id: string; kind: string } | null | undefined,
+  section?: 'team' | 'roadmap',
+): JourneyGo {
+  if (g.kind !== 'place' || !here || (g.place !== here.id && g.place !== here.kind)) return g;
+  return { kind: 'tab', tab: 'company', ...(section ? { section } : {}) };
+}
+
+/**
+ * Go from inside a place's scene: leave the scene first (a tab or another
+ * place closes it through the city's own handlers), so what the step opens
+ * is never hidden behind the room. A phone app opens over the scene.
+ */
+export function useSceneJourneyGo(scene: {
+  /** Walk to another place (closes the scene). */
+  onVisit?: (placeId: string) => void;
+  /** Switch to a tab (closes the scene). */
+  nav: (tab: TabId) => void;
+  /** Close the scene. */
+  onClose: () => void;
+}): (g: JourneyGo) => void {
+  const appNav = useNav();
+  const { onVisit, nav, onClose } = scene;
+  return useCallback(
+    (g: JourneyGo) =>
+      runJourneyGo(g, {
+        place: (place) => {
+          if (onVisit) return onVisit(place);
+          onClose();
+          appNav?.go({ kind: 'place', place });
+        },
+        app: (app) => appNav?.go({ kind: 'phone', open: { app } }),
+        tab: (tab) => nav(tab),
+        beforeSky: onClose,
+      }),
+    [appNav, onVisit, nav, onClose],
+  );
+}
+
+/**
  * Go from anywhere in the game screen (Today, the City HUD): through the
  * app's navigation, the same way a notification does.
  */

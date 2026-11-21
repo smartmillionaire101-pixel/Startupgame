@@ -1487,6 +1487,20 @@ input[type='range'] {
   place-items: center;
   background: rgb(255 255 255 / 0.16);
 }
+.toast-action {
+  margin-left: auto;
+  flex: none;
+  pointer-events: auto;
+  background: rgb(255 255 255 / 0.18);
+  color: inherit;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  border-radius: var(--r-sm, 8px);
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-weight: var(--fw-semibold, 600);
+  cursor: pointer;
+  min-height: 36px;
+}
 .toast-error {
   background: var(--bad);
   color: #fff;
@@ -3041,6 +3055,36 @@ main > .back-btn {
 }
 .hud-rail-extra .hud-tip {
   display: none;
+}
+/* A grid rail (round 3, the home): ⋯ opens a compact panel, three icons a
+   row with their names under them, instead of a tall column. */
+.hud-rail.is-grid .hud-rail-extra {
+  display: grid;
+  grid-template-columns: repeat(3, calc(var(--hud-ib) + 28px));
+  justify-items: center;
+  gap: calc(1.6rem + 8px) 0;
+  padding: 12px 6px calc(1.6rem + 14px);
+  border-radius: 22px;
+  background: var(--hud-bg-strong);
+  box-shadow: var(--hud-shadow);
+  pointer-events: auto;
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+.hud-rail.is-grid .hud-rail-extra .hud-lbl,
+[data-hud-labels] .hud-rail.is-grid .hud-rail-extra .hud-lbl {
+  top: calc(100% + 3px);
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(var(--hud-ib) + 26px);
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  text-align: center;
+  white-space: normal;
 }
 
 /* ---- Names under the icons: a first session, and Simple mode. */

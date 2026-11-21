@@ -18,6 +18,7 @@ import { useSimple } from '../phone/settings';
 import { HolidayCards } from '../phone/apps/Holiday';
 import { BankerToday } from './BankerToday';
 import { devToolsShown } from '../devflag';
+import { CustomerCountLink, HibernationBanner } from './Customers';
 
 /** Today (was "Home"): the dashboard and inbox. `onNews` opens the city's news. */
 export function Home({ onNews }: { onNews?: () => void } = {}) {
@@ -46,6 +47,7 @@ export function Home({ onNews }: { onNews?: () => void } = {}) {
               ))}
             </div>
           )}
+          <HibernationBanner c={c} />
           <CompanyKpis c={c} />
           {c.warnings.length > 0 && (
             <Card title={t('Warning signs')} tone="warn">
@@ -139,55 +141,59 @@ export function CompanyKpis({ c }: { c: Company }) {
   const preRevenue = c.monthlyRevenue <= 0 && c.runwayMonths === null;
   const fresh = ((c as { ageMonths?: number }).ageMonths ?? 1) < 1;
   return (
-    <div className="kpis">
-      <Stat
-        icon="wallet"
-        label={t('Company bank')}
-        value={money(c.cash, cur)}
-        hint={t('Spending {amount}/mo', { amount: money(c.spending, cur) })}
-      />
-      <Stat
-        icon="clock"
-        label={t('Money lasts')}
-        value={preRevenue ? t('Pre-revenue') : runway(c.runwayMonths)}
-        tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
-        hint={
-          preRevenue
-            ? t('No costs yet')
-            : c.finance.history.length === 0 && c.monthlyRevenue <= 0
-              ? // Costs are committed (rent, pay) but no month has settled yet.
-                t('Pre-revenue: no month settled yet')
-              : c.defaultAlive
-                ? t('On track to profit')
-                : t('Runs out before profit')
-        }
-      />
-      <Stat
-        icon="portfolio"
-        label={t('Monthly revenue')}
-        value={money(c.monthlyRevenue, cur)}
-        hint={
-          <Sparkline
-            values={c.finance.history.slice(-12).map((h) => h.revenue)}
-            label={t('Revenue, last 12 months')}
-          />
-        }
-      />
-      <Stat
-        icon="spark"
-        label={t('Stars')}
-        value={fresh ? t('New') : stars(c.stars)}
-        hint={
-          fresh ? (
-            t('After month 1')
-          ) : c.publicWarning ? (
-            <span className="bad">{t('Public warning')}</span>
-          ) : (
-            c.name
-          )
-        }
-      />
-    </div>
+    <>
+      <div className="kpis">
+        <Stat
+          icon="wallet"
+          label={t('Company bank')}
+          value={money(c.cash, cur)}
+          hint={t('Spending {amount}/mo', { amount: money(c.spending, cur) })}
+        />
+        <Stat
+          icon="clock"
+          label={t('Money lasts')}
+          value={preRevenue ? t('Pre-revenue') : runway(c.runwayMonths)}
+          tone={c.runwayMonths !== null && c.runwayMonths < 6 ? 'bad' : undefined}
+          hint={
+            preRevenue
+              ? t('No costs yet')
+              : c.finance.history.length === 0 && c.monthlyRevenue <= 0
+                ? // Costs are committed (rent, pay) but no month has settled yet.
+                  t('Pre-revenue: no month settled yet')
+                : c.defaultAlive
+                  ? t('On track to profit')
+                  : t('Runs out before profit')
+          }
+        />
+        <Stat
+          icon="portfolio"
+          label={t('Monthly revenue')}
+          value={money(c.monthlyRevenue, cur)}
+          hint={
+            <Sparkline
+              values={c.finance.history.slice(-12).map((h) => h.revenue)}
+              label={t('Revenue, last 12 months')}
+            />
+          }
+        />
+        <Stat
+          icon="spark"
+          label={t('Stars')}
+          value={fresh ? t('New') : stars(c.stars)}
+          hint={
+            fresh ? (
+              t('After month 1')
+            ) : c.publicWarning ? (
+              <span className="bad">{t('Public warning')}</span>
+            ) : (
+              c.name
+            )
+          }
+        />
+      </div>
+      {/* The one count of paying customers, and the way to the list (round 3). */}
+      <CustomerCountLink c={c} />
+    </>
   );
 }
 

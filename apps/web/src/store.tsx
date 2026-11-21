@@ -24,7 +24,15 @@ interface Toast {
   id: number;
   text: string;
   tone: 'ok' | 'error' | 'info';
+  /** A button on the toast that sends a command (e.g. "Wake up the company"). */
+  action?: { label: string; command: Command; okText: string };
 }
+
+/**
+ * Refusals that come from a hibernating company (a hire, a build, roadmap
+ * work): the toast offers to wake it up there and then.
+ */
+const HIBERNATING = new Set(['hire.hibernating', 'build.hibernating', 'roadmap.hibernating']);
 
 interface GameContext {
   status: Status;
@@ -39,7 +47,7 @@ interface GameContext {
     command: Command,
     okText?: string | ((r: R) => string | null),
   ) => Promise<R | null>;
-  toast: (text: string, tone?: Toast['tone']) => void;
+  toast: (text: string, tone?: Toast['tone'], action?: Toast['action']) => void;
   toasts: Toast[];
   busy: boolean;
   /** A screen that needs news fast (a knock at the door) asks for it; returns the undo. */
@@ -101,20 +109,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [streaming, setStreaming] = useState(true);
   const toastId = useRef(0);
 
-  const toast = useCallback((text: string, tone: Toast['tone'] = 'info') => {
-    if (tone === 'error') recordProblem(text);
-    const id = ++toastId.current;
-    // A new success replaces the last ones ("named… registered… funded" don't pile
-    // up over the screen); errors and notes stay until they time out.
-    setToasts((t) => [
-      ...(tone === 'ok' ? t.filter((x) => x.tone !== 'ok') : t).slice(-2),
-      { id, text, tone },
-    ]);
-    setTimeout(
-      () => setToasts((t) => t.filter((x) => x.id !== id)),
-      tone === 'error' ? 6000 : 3500,
-    );
-  }, []);
+  const toast = useCallback(
+    (text: string, tone: Toast['tone'] = 'info', action?: Toast['action']) => {
+      if (tone === 'error') recordProblem(text);
+      const id = ++toastId.current;
+      // A new success replaces the last ones ("named… registered… funded" don't pile
+      // up over the screen); errors and notes stay until they time out.
+      setToasts((t) => [
+        ...(tone === 'ok' ? t.filter((x) => x.tone !== 'ok') : t).slice(-2),
+        { id, text, tone, ...(action ? { action } : {}) },
+      ]);
+      setTimeout(
+        () => setToasts((t) => t.filter((x) => x.id !== id)),
+        action ? 10000 : tone === 'error' ? 6000 : 3500,
+      );
+    },
+    [],
+  );
 
   const apply = useCallback((s: Awaited<ReturnType<typeof api.state>>) => {
     setAccount(s.account ?? { guest: false, email: null });
@@ -253,7 +264,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
         await refresh();
         return r.result;
       } catch (e) {
-        toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error');
+        const companyId = (command as { companyId?: string }).companyId;
+        // A hibernating company: offer to wake it up right here.
+        const wake =
+          e instanceof ApiError && HIBERNATING.has(e.code) && companyId
+            ? {
+                label: t('Wake up the company'),
+                command: { type: 'company.hibernate', companyId, on: false } as Command,
+                okText: t('Your company is awake: full pay and growth restart.'),
+              }
+            : undefined;
+        toast(e instanceof Error ? tx(e.message) : t('Something went wrong.'), 'error', wake);
         return null;
       } finally {
         setBusy(false);

@@ -38,7 +38,8 @@ import { ROADMAP, advanceRoadmap, roadmapFeedback, roadmapShare } from './roadma
 import { releaseReserveIfShort, windDownFounderFinance } from './founderfinance.js';
 import { updateDistress } from './rescue.js';
 import { buildStory, storySnapshot } from './story.js';
-import { salesBilling, settleSales } from './sales.js';
+import { billSignedCustomers, salesBilling, settleSales } from './sales.js';
+import { customersOn } from './releases.js';
 import { inSetup, leaseRent, settleSetup } from './setup.js';
 import type {
   BuildMode,
@@ -222,8 +223,10 @@ function settleFinances(world: World, c: Company, rng: Rng, month: number): Mont
     if (seg.kind === 'b2b') b2bInvoiced += billed;
     else revenue += billed;
   }
-  // Founder Journey 2a: customers won in the sales pipeline invoice on B2B terms too.
-  b2bInvoiced += salesBilling(c);
+  // Founder Journey 2a: customers won in the sales pipeline invoice on B2B terms too
+  // (before the customers note; with it they pay at month end, below).
+  const signedPay = customersOn(world);
+  if (!signedPay) b2bInvoiced += salesBilling(c);
   // B2B invoices: paid on 30/60/90-day terms; some pay late, some never (§6).
   if (b2bInvoiced > 0) {
     const terms = rng.int(1, 3);
@@ -234,6 +237,8 @@ function settleFinances(world: World, c: Company, rng: Rng, month: number): Mont
   c.finance.receivables = c.finance.receivables.filter((r) => r.due > month);
   const collected = due.reduce((a, r) => a + r.amount, 0);
   transfer(world, m.ext.customers, c.account, revenue + collected, 'Customer revenue', month);
+  // Customers note: signed customers pay their monthly price now, into the account.
+  const signedBilled = signedPay ? billSignedCustomers(world, c, month) : 0;
   // Revenue from other player companies (already paid by settleContracts), reported separately (§6).
   const b2b = c.ledgerThisMonth;
   // Local businesses (Wave 3), already paid by settleEconomy this month.
@@ -244,7 +249,13 @@ function settleFinances(world: World, c: Company, rng: Rng, month: number): Mont
   // Founder Journey 6: a first customer's up-front payment (already in the account).
   const upfrontRevenue = b2b.upfrontRevenue ?? 0;
   const totalRevenue =
-    revenue + collected + b2b.playerRevenue + businessRevenue + branchRevenue + upfrontRevenue;
+    revenue +
+    collected +
+    b2b.playerRevenue +
+    businessRevenue +
+    branchRevenue +
+    upfrontRevenue +
+    signedBilled;
 
   // Costs. Cloud/processing is priced in dollars, so devaluation hurts local earners (§8).
   const customers = totalCustomers(c);
@@ -393,6 +404,8 @@ function settleFinances(world: World, c: Company, rng: Rng, month: number): Mont
     ...(branchRevenue || branchCost
       ? { branches: { revenue: branchRevenue, opex: branchCost } }
       : {}),
+    // Customers note: what signed customers paid (a first month up front included).
+    ...(signedPay ? { signedRevenue: signedBilled + upfrontRevenue } : {}),
     payroll: paid.payroll ?? 0,
     founderSalary: paid.founderSalary ?? 0,
     office: paid.office ?? 0,
