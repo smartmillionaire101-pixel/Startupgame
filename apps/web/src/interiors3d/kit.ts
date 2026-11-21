@@ -643,6 +643,9 @@ export class Kit {
     });
   }
 
+  /** Chairs were drawn (./furniture.ts chairAt): they become CC0 chairs when the models arrive. */
+  chairs = false;
+
   /** Forget the merged parts (a CC0 model stands in for them); kept meshes stay. */
   dropParts() {
     this.buckets.clear();

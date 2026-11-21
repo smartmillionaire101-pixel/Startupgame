@@ -725,7 +725,8 @@ export function buildEstateModel(id: string, o: ModelOpts): Model {
   b(k, o, m);
   const glb = carKind ? false : withGlb(k, id, o);
   m.group = k.build();
-  if (!glb && !carKind) swapLater(m.group, id, o, refinish);
+  if (!glb && !carKind)
+    swapLater(m.group, id, o, refinish, (i, x) => buildEstateModel(i, x).group, k.chairs);
   if (
     ![
       'sconce',

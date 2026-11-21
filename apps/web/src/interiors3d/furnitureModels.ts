@@ -150,7 +150,8 @@ const SPECS: Record<string, (o: ModelOpts) => Spec | null> = {
     ];
     for (const [x, z, ry] of diningChairs(o, w, d))
       parts.push({ m: o.tier === 3 ? 'Chair_2' : 'Chair', w: 0.5, d: 0.5, h: 0.95, x, z, ry });
-    return { parts };
+    // (Its own chairs: not the low-poly builder's as well.)
+    return { parts, keepExtras: false };
   },
   desk: (o) => {
     const w = Math.min(o.w - 0.1, 1.5);
@@ -196,15 +197,35 @@ const SPECS: Record<string, (o: ModelOpts) => Spec | null> = {
   }),
   'restaurant-table': () => ({ parts: [{ m: 'Table_RoundSmall', w: 1.0, d: 1.0, hTo: 0.76 }] }),
   'office-desk': (o) => ({
-    parts: [
-      { m: 'Desk', w: Math.min(o.w - 0.1, 1.4), d: 0.7, hTo: 0.74 },
-      { m: 'OfficeChair', w: 0.6, d: 0.6, h: 1.0, z: 0.62, ry: Math.PI },
-    ],
+    // (Its chair and screen are the low-poly builder's kept parts: chairAt draws the CC0 chair.)
+    parts: [{ m: 'Desk', w: Math.min(o.w - 0.1, 1.4), d: 0.7, hTo: 0.74 }],
   }),
   shelves: (o) => ({
     parts: [{ m: 'Shelf_Large', w: o.w - 0.05, d: Math.max(0.4, o.d - 0.05), h: 2.0, back: true }],
   }),
 };
+
+/** A chair by style (./furniture.ts chairAt), facing +z; null before the models arrive. */
+export function chairGlb(style: string, colour?: string): THREE.Group | null {
+  const [m, h, mat] =
+    style === 'bar'
+      ? ['Stool_HI', 0.8, 'Cushin']
+      : style === 'stool'
+        ? ['Stool', 0.48, 'Cushing']
+        : style === 'ergo'
+          ? ['OfficeChair', 1.0, 'Chair']
+          : style === 'fold' || style === 'plastic'
+            ? ['Chair_1', 0.9, 'Wood']
+            : ['Chair', 0.95, 'Cushing'];
+  const g = propFit('furniture', m, {
+    w: 0.6,
+    d: 0.6,
+    h,
+    ...(colour ? { colours: { [mat]: colour } } : {}),
+  });
+  if (g) g.userData.cc0 = true;
+  return g;
+}
 
 /** Whether this id has a CC0 model. */
 export const hasGlb = (id: string) => id in SPECS;
@@ -218,6 +239,7 @@ export function furnitureGlb(
   if (!spec || !propsNow('furniture')) return null;
   const g = new THREE.Group();
   g.name = 'cc0';
+  g.userData.cc0 = true;
   for (const p of spec.parts) {
     const m = propFit('furniture', p.m, p);
     if (!m) return null;
@@ -233,16 +255,26 @@ export function furnitureGlb(
  * this group when they arrive, unless the group has gone (disposed, or not
  * in a scene any more).
  */
-const waiting: { ref: WeakRef<THREE.Group>; id: string; o: ModelOpts }[] = [];
+const waiting: {
+  ref: WeakRef<THREE.Group>;
+  id: string;
+  o: ModelOpts;
+  refinish: (g: THREE.Object3D, swatch: string) => void;
+  rebuild: (id: string, o: ModelOpts) => THREE.Group;
+}[] = [];
 let listening = false;
 export function swapLater(
   group: THREE.Group,
   id: string,
   o: ModelOpts,
   refinish: (g: THREE.Object3D, swatch: string) => void,
+  /** The item built again (now with the models): its CC0 parts are taken. */
+  rebuild: (id: string, o: ModelOpts) => THREE.Group,
+  /** Whether the builder drew chairs (chairAt), which become CC0 chairs too. */
+  chairs = false,
 ) {
-  if (!hasGlb(id) || typeof WeakRef === 'undefined') return;
-  waiting.push({ ref: new WeakRef(group), id, o });
+  if ((!hasGlb(id) && !chairs) || typeof WeakRef === 'undefined') return;
+  waiting.push({ ref: new WeakRef(group), id, o, refinish, rebuild });
   if (listening) return;
   listening = true;
   void import('../three-kit/props').then(({ loadProps }) =>
@@ -251,15 +283,20 @@ export function swapLater(
       for (const w of waiting.splice(0)) {
         const g = w.ref.deref();
         if (!g) continue;
-        const glb = furnitureGlb(w.id, w.o);
-        if (!glb) continue;
+        const fresh = w.rebuild(w.id, w.o);
+        // Its CC0 parts, and (an item with no model of its own) its low-poly body without the chairs.
+        const cc0 = fresh.children.filter((c) => c.userData.cc0 || c.userData.kitPart);
+        if (!cc0.length) continue;
+        const keepExtras = SPECS[w.id]?.(w.o)?.keepExtras ?? true;
         for (const c of [...g.children])
-          if (c.userData.kitPart || (!glb.keepExtras && !c.userData.contactShadow))
+          if (c.userData.kitPart || (!keepExtras && !c.userData.contactShadow))
             c.removeFromParent();
-        g.add(glb.group);
-        if (g.userData.finish) refinish(glb.group, g.userData.finish as string);
         const obj = g.userData.obj;
-        if (obj !== undefined) glb.group.traverse((c) => (c.userData.obj = obj));
+        for (const c of cc0) {
+          g.add(c);
+          if (g.userData.finish) w.refinish(c, g.userData.finish as string);
+          if (obj !== undefined) c.traverse((x) => (x.userData.obj = obj));
+        }
       }
     }),
   );

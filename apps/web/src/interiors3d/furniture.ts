@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { CAR_FOR_MODEL, carModel as carGlb } from '../three-kit/vehicles';
 import { refinish } from './dividers';
-import { furnitureGlb, hasGlb, swapLater } from './furnitureModels';
+import { chairGlb, furnitureGlb, hasGlb, swapLater } from './furnitureModels';
 import {
   Kit,
   RUG_Y,
@@ -244,6 +244,16 @@ export function chairAt(
     z - lx * s + lz * c,
   ];
   const seatH = style === 'bar' ? 0.72 : style === 'stool' ? 0.46 : 0.45;
+  // The CC0 chair for this style, when the furniture models are here (restaurants,
+  // bars and clubs, offices, dining sets); the low-poly one otherwise.
+  k.chairs = true;
+  const glb = chairGlb(style, color);
+  if (glb) {
+    glb.position.set(x, 0, z);
+    glb.rotation.y = ry;
+    k.keep(glb);
+    return;
+  }
   const col =
     color ??
     (style === 'fold'
@@ -2037,7 +2047,7 @@ export function buildModel(id: string, o: ModelOpts): Model {
   else (BUILDERS[id] ?? fallback)(k, o, m);
   const glb = carKind ? null : withGlb(k, id, o);
   m.group = k.build();
-  if (!glb && !carKind) swapLater(m.group, id, o, refinish);
+  if (!glb && !carKind) swapLater(m.group, id, o, refinish, rebuildGroup, usesChairs(k));
   // A soft contact shadow under floor-standing things.
   if (!NO_SHADOW.includes(id)) {
     const sw = carKind ? 2.2 : Math.max(0.5, o.w * 0.95);
@@ -2050,6 +2060,10 @@ export function buildModel(id: string, o: ModelOpts): Model {
 }
 
 export const hasBuilder = (id: string) => id in BUILDERS || id.startsWith('car:');
+
+const rebuildGroup = (id: string, o: ModelOpts) => buildModel(id, o).group;
+/** Whether a builder drew chairs (they become CC0 chairs when the models arrive). */
+const usesChairs = (k: Kit) => k.chairs;
 
 /**
  * The CC0 model for this item in place of the builder's low-poly body (its

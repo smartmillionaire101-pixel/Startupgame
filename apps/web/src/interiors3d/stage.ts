@@ -137,6 +137,8 @@ export class Stage {
     (window as unknown as { __stage3d?: Stage }).__stage3d = this;
     // The CC0 people arrive after the first frames: draw again when they do.
     this.offKit = onKitReady(() => this.invalidate());
+    // The furniture models, fetched as soon as there's a room to draw.
+    void import('../three-kit/props').then((p) => p.propsNow('furniture'));
   }
   private offKit: () => void;
 
