@@ -685,6 +685,16 @@ export class TrafficSim {
       if (l.length > 1) l.sort((a, b) => a.s - b.s);
       l.forEach((v, i) => (v.qi = i));
     }
+    // Where everyone is (20 m cells), for the vehicle ahead whatever street it's on.
+    const near = this.near20;
+    near.clear();
+    for (const v of this.vehicles) {
+      if (v.e < 0) continue;
+      const k = ckey(Math.floor(v.x / 20), Math.floor(v.y / 20));
+      let l = near.get(k);
+      if (!l) near.set(k, (l = []));
+      l.push(v);
+    }
     // Driving: the area sits ahead of you (centre 0.4 r in front). Anything left
     // more than 60 m behind you comes back in on the road ahead, close enough to see.
     const driving = f.hx !== undefined;
@@ -729,6 +739,15 @@ export class TrafficSim {
         if (gap < 4) want = Math.min(want, Math.max(0, gap * 0.9));
         room = Math.min(room, gap + lead.v * dt);
       }
+      // And whoever is just ahead in this lane on the road (a street ahead of the next, as
+      // OSM roads come in short pieces), so a queue never piles up on itself.
+      const ahead2 = this.aheadOf(v);
+      if (ahead2) {
+        const gap = ahead2.along - ((LENGTH[ahead2.o.kind] + LENGTH[v.kind]) / 2) * this.size - 2;
+        want = Math.min(want, Math.max(0, ahead2.o.v + gap * 0.9));
+        if (gap < 4) want = Math.min(want, Math.max(0, gap * 0.9));
+        room = Math.min(room, gap + ahead2.o.v * dt);
+      }
       // Behind you: slow and wait.
       if (you) {
         const rx = you.x - v.x;
@@ -759,6 +778,29 @@ export class TrafficSim {
   }
 
   private busy = new Map<number, Vehicle[]>();
+  private near20 = new Map<number, Vehicle[]>();
+
+  /** The nearest vehicle ahead of `v` in its lane (going its way, within 30 m), by position. */
+  private aheadOf(v: Vehicle): { o: Vehicle; along: number } | null {
+    const i0 = Math.floor(v.x / 20);
+    const j0 = Math.floor(v.y / 20);
+    let best: { o: Vehicle; along: number } | null = null;
+    for (let i = i0 - 2; i <= i0 + 2; i++)
+      for (let j = j0 - 2; j <= j0 + 2; j++)
+        for (const o of this.near20.get(ckey(i, j)) ?? []) {
+          if (o === v) continue;
+          const rx = o.x - v.x;
+          const ry = o.y - v.y;
+          const along = rx * v.dx + ry * v.dy;
+          if (along <= 0 || along > 30) continue;
+          const across = Math.abs(-rx * v.dy + ry * v.dx);
+          if (across > 1.6 * this.size) continue;
+          // Going roughly its way (not one coming at it in the other lane, nor crossing).
+          if (o.dx * v.dx + o.dy * v.dy < 0.5) continue;
+          if (!best || along < best.along) best = { o, along };
+        }
+    return best;
+  }
 
   /** The streets a vehicle goes in and out of a junction by. */
   private pathAt(v: Vehicle, node: number): [number, boolean, number] {

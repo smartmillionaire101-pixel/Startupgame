@@ -229,6 +229,44 @@ test('your car and the traffic, driving', async ({ page }) => {
     if (size === 'phone') record('drive', await cityStats(page));
     mkdirSync(DIR!, { recursive: true });
     await page.screenshot({ path: `${DIR}/${TAG}-drive-${size}.png` });
+    if (process.env.ASSET_DEBUG)
+      console.log(
+        'near',
+        JSON.stringify(
+          await page.evaluate(() => {
+            type V = {
+              kind: string;
+              x: number;
+              y: number;
+              dx: number;
+              dy: number;
+              v: number;
+              e: number;
+            };
+            const a = (
+              window as unknown as {
+                __city3d: {
+                  actors: {
+                    pos: { x: number; y: number; heading: number };
+                    local: { vehicles: V[] };
+                  };
+                };
+              }
+            ).__city3d.actors;
+            return {
+              you: a.pos,
+              near: a.local.vehicles
+                .filter((v) => v.e >= 0 && Math.hypot(v.x - a.pos.x, v.y - a.pos.y) < 25)
+                .map((v) => ({
+                  k: v.kind,
+                  dx: +(v.x - a.pos.x).toFixed(1),
+                  dy: +(v.y - a.pos.y).toFixed(1),
+                  v: +v.v.toFixed(1),
+                })),
+            };
+          }),
+        ),
+      );
     await drive('brake', false);
   }
 });
