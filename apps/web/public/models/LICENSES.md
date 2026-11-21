@@ -10,6 +10,7 @@ we credit the author anyway. Each pack's own `License.txt` says CC0.
 | `people/men.glb` | Ultimate Modular Men (outfits Casual 2, Casual Hoodie, Suit, Beach, Worker) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatemodularcharacters.html |
 | `people/women.glb` | Ultimate Modular Women (outfits Casual, Formal, Suit, Punk, Worker) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatemodularwomen.html |
 | `vehicles/cars.glb` | Cars (NormalCar1, NormalCar2, SUV, SportsCar, SportsCar2, Taxi, Cop) | Quaternius | CC0 1.0 | https://quaternius.com/packs/cars.html |
+| `vehicles/cars-lod.glb` | The same cars, simplified for traffic | Quaternius | CC0 1.0 | https://quaternius.com/packs/cars.html |
 
 ## How they were made
 
@@ -24,4 +25,5 @@ we credit the author anyway. Each pack's own `License.txt` says CC0.
   with GLTFExporter: centimetres to metres, Z-up to Y-up, the front towards
   +Z, each wheel on its own centre, the body colour's material renamed
   `Paint` (recoloured in game). Then `@gltf-transform` dedup, weld and
-  quantize.
+  quantize. `cars-lod.glb` drops the normals (flat-shaded in game), welds and
+  runs meshoptimizer's simplifier (about 900 triangles a car).

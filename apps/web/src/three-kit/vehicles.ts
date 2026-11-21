@@ -66,12 +66,17 @@ export function carsNow(): CarKit | null {
 }
 
 export function loadCars(): Promise<CarKit | null> {
-  loading ??= new GLTFLoader()
-    .loadAsync(`${base()}models/vehicles/cars.glb`)
-    .then((g) => {
+  const loader = new GLTFLoader();
+  loading ??= Promise.all([
+    loader.loadAsync(`${base()}models/vehicles/cars.glb`),
+    // The traffic's lighter copy (about 900 triangles a car); the full cars if it fails.
+    loader.loadAsync(`${base()}models/vehicles/cars-lod.glb`).catch(() => null),
+  ])
+    .then(([g, lod]) => {
       const models = new Map<string, THREE.Group>();
       const merged = new Map<string, { geometry: THREE.BufferGeometry; length: number }>();
       const root = g.scene.getObjectByName('Cars') ?? g.scene;
+      const lodRoot = lod ? (lod.scene.getObjectByName('Cars') ?? lod.scene) : null;
       for (const car of [...root.children]) {
         car.position.set(0, 0, 0);
         car.updateMatrixWorld(true);
@@ -84,7 +89,12 @@ export function loadCars(): Promise<CarKit | null> {
           }
         });
         models.set(car.name, car as THREE.Group);
-        merged.set(car.name, mergeCar(car));
+        const light = lodRoot?.getObjectByName(car.name);
+        if (light) {
+          light.position.set(0, 0, 0);
+          light.updateMatrixWorld(true);
+        }
+        merged.set(car.name, mergeCar(light ?? car));
       }
       kit = { models, merged };
       emitKitReady();
@@ -135,7 +145,14 @@ function mergeCar(car: THREE.Object3D) {
     g.setAttribute('paint', new THREE.BufferAttribute(paint, 1));
     const idx = src.getIndex();
     g.setIndex(idx ? Array.from(idx.array as ArrayLike<number>) : [...Array(n).keys()]);
-    parts.push(g);
+    // The light copy has no normals: flat-shaded, as the cars are.
+    if (nor) parts.push(g);
+    else {
+      const flat = g.toNonIndexed();
+      flat.computeVertexNormals();
+      flat.setIndex([...Array(flat.getAttribute('position').count).keys()]);
+      parts.push(flat);
+    }
   });
   const geometry = mergeGeometries(parts, false)!;
   geometry.computeBoundingBox();

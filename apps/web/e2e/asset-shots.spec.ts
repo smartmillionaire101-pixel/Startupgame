@@ -22,6 +22,7 @@ const SIZES = [
 type Stats = { draws: number; tris: number };
 function record(view: string, s: Stats | null) {
   if (!DIR || !s) return;
+  mkdirSync(DIR, { recursive: true });
   const f = `${DIR}/${TAG}-stats.json`;
   const all = existsSync(f) ? (JSON.parse(readFileSync(f, 'utf8')) as Record<string, Stats>) : {};
   all[view] = s;
@@ -52,11 +53,17 @@ async function shots(page: Page, view: string, settle = 2500, before?: () => Pro
 }
 
 async function founder(page: Page, name: string, quality: '3d' | 'lite' = '3d') {
-  await page.addInitScript((q) => {
-    localStorage.setItem('runway.mapQuality', q);
-    // Full quality (antialiasing, shadows) on software WebGL, for pictures.
-    localStorage.setItem('runway.hq', '1');
-  }, quality);
+  await page.addInitScript(
+    ([q, before]) => {
+      localStorage.setItem('runway.mapQuality', q);
+      // Full quality (antialiasing, shadows) on software WebGL, for pictures.
+      localStorage.setItem('runway.hq', '1');
+      // "Before": the game's own low-poly people and cars (the models turned off).
+      if (before) localStorage.setItem('runway.models', 'off');
+      else localStorage.removeItem('runway.models');
+    },
+    [quality, TAG === 'before'] as const,
+  );
   await page.setViewportSize({ width: 390, height: 844 });
   await playAsGuest(page);
   await setupFounder(page, {
@@ -171,7 +178,7 @@ test('the wardrobe', async ({ page }) => {
 });
 
 test('your car and the traffic, driving', async ({ page }) => {
-  test.setTimeout(400_000);
+  test.setTimeout(600_000);
   await page.addInitScript(() => localStorage.setItem('runway.skipRides', '0'));
   await founder(page, 'Dayo Driver');
   const map = page.getByRole('application', { name: /Map of/ });
@@ -181,22 +188,34 @@ test('your car and the traffic, driving', async ({ page }) => {
     data: { command: { type: 'car.buy', modelId: 'hatchback' } },
   });
   expect(bought.ok(), await bought.text()).toBe(true);
-  await page.reload();
-  await expect(map).toHaveAttribute('data-map3d', 'ready', { timeout: 90_000 });
-  const far = map.locator('[data-label="airport"]');
-  await expect(far).toBeAttached({ timeout: 30_000 });
-  await far.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
-  await far.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
-  await map.locator('[data-badge-card="airport"]').getByRole('button', { name: 'Go' }).click();
-  const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
-  await expect(chooser).toBeVisible({ timeout: 15_000 });
-  await chooser.locator('[data-mode="drive"]').click();
-  const hud = map.locator('[data-drive-hud]');
-  await expect(hud).toBeVisible({ timeout: 30_000 });
   type D = { hold(p: string, on: boolean): void };
-  await page.evaluate(() => (window as unknown as { __drive?: D }).__drive!.hold('go', true));
-  await page.waitForTimeout(9000);
-  record('drive', await cityStats(page));
-  await shots(page, 'drive', 4000);
-  await page.evaluate(() => (window as unknown as { __drive?: D }).__drive!.hold('go', false));
+  const drive = (p: string, on: boolean) =>
+    page.evaluate(
+      ([p, on]) => (window as unknown as { __drive?: D }).__drive?.hold(p as string, !!on),
+      [p, on] as const,
+    );
+  // Each size its own drive (a new size ends a trip): off, then stopped so the chase camera settles.
+  for (const [size, w, h] of SIZES) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.reload();
+    await expect(map).toHaveAttribute('data-map3d', 'ready', { timeout: 90_000 });
+    const far = map.locator('[data-label="airport"]');
+    await expect(far).toBeAttached({ timeout: 30_000 });
+    await far.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+    await far.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+    await map.locator('[data-badge-card="airport"]').getByRole('button', { name: 'Go' }).click();
+    const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
+    await expect(chooser).toBeVisible({ timeout: 15_000 });
+    await chooser.locator('[data-mode="drive"]').click();
+    await expect(map.locator('[data-drive-hud]')).toBeVisible({ timeout: 30_000 });
+    await drive('go', true);
+    await page.waitForTimeout(2500);
+    await drive('go', false);
+    await drive('brake', true);
+    await page.waitForTimeout(6000);
+    if (size === 'phone') record('drive', await cityStats(page));
+    mkdirSync(DIR!, { recursive: true });
+    await page.screenshot({ path: `${DIR}/${TAG}-drive-${size}.png` });
+    await drive('brake', false);
+  }
 });

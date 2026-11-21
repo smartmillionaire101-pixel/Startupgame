@@ -314,6 +314,8 @@ export function makeCharacter(
       const kit = kitNow(outfit.kit);
       if (!kit) return;
       human = new Human(kit, outfit);
+      // At map scale a person's shadow is a speck: not worth drawing them twice.
+      for (const m of human.meshes) m.castShadow = false;
       root.add(human.object);
       body.visible = false;
       last = 0;
