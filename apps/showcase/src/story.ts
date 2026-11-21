@@ -37,6 +37,8 @@ const OVERLAY_CSS = `
 @keyframes sc-ripple{from{transform:scale(.6);opacity:.9}to{transform:scale(2.2);opacity:0}}
 #sc-end{position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:16px;text-align:center;background:linear-gradient(160deg,#0b5446,#07201a);color:#fff;opacity:0;animation:sc-fade .6s ease forwards}
 #sc-end b{font:800 44px/1 "Inter",system-ui,sans-serif;letter-spacing:-.02em}
+#sc-end img{width:96px;height:96px;border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.35);transform:scale(.6);opacity:0;animation:sc-pop .55s cubic-bezier(.2,1.4,.4,1) .15s forwards}
+@keyframes sc-pop{to{transform:none;opacity:1}}
 #sc-end i{font-style:normal;padding:13px 26px;border-radius:999px;background:#ffcf3f;color:#14201b;font:800 19px/1 "Inter",system-ui,sans-serif}
 #sc-end small{position:absolute;bottom:7%;font:500 12px/1 "Inter",system-ui,sans-serif;opacity:.65}
 @keyframes sc-fade{to{opacity:1}}
@@ -362,19 +364,23 @@ export class Story {
     await this.hold(settleMs);
   }
 
-  /** The closing card: the game's name and the invitation to play. */
+  /** The closing card: the game's logo and name, and the invitation to play. */
   async endCard(cta = 'Play free', small = 'AI character · Runway game') {
     await this.page.evaluate(
       ({ cta, small }) => {
         const end = document.createElement('div');
         end.id = 'sc-end';
+        // The game's own logo (the same file the app uses), above its name.
+        const logo = document.createElement('img');
+        logo.src = '/icon.svg';
+        logo.alt = '';
         const b = document.createElement('b');
         b.textContent = 'Runway';
         const i = document.createElement('i');
         i.textContent = cta;
         const s = document.createElement('small');
         s.textContent = small;
-        end.append(b, i, s);
+        end.append(logo, b, i, s);
         document.body.append(end);
       },
       { cta, small },
