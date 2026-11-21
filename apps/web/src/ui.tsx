@@ -979,6 +979,7 @@ export function HudButton({
 export function HudRail({
   label,
   extras,
+  grid = false,
   children,
   className,
   ...rest
@@ -986,6 +987,11 @@ export function HudRail({
   label: string;
   /** Behind ⋯ (none: no ⋯). */
   extras?: ReactNode;
+  /**
+   * ⋯ opens a compact panel of icons with their names under them (a home's
+   * many actions), instead of a tall column with names beside.
+   */
+  grid?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -1028,7 +1034,7 @@ export function HudRail({
   return (
     <div
       {...rest}
-      className={`hud-rail${open ? ' is-open' : ''}${tall ? ' is-tall' : ''}${className ? ` ${className}` : ''}`}
+      className={`hud-rail${open ? ' is-open' : ''}${tall ? ' is-tall' : ''}${grid ? ' is-grid' : ''}${className ? ` ${className}` : ''}`}
       role="group"
       aria-label={label}
       data-hud-rail=""

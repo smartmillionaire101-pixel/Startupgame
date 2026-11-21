@@ -1,5 +1,5 @@
 import type { PlayerView } from '@runway/engine';
-import { expect, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
+import { expect, hudMore, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
 
 /**
  * Buy mode at home as a picture catalogue (the feedback round): the home
@@ -61,6 +61,7 @@ test('Buy mode: picture cards, Owned, Design swatches, and a basket bought at on
   await tapPlace(page, '[data-place="home"]', 'cycle');
   const scene = page.locator('.home-scene');
   await expect(scene).toBeVisible({ timeout: 20_000 });
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   const sheet = page.getByRole('dialog', { name: 'Buy mode' });
   await expect(sheet).toBeVisible();
@@ -203,6 +204,7 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
   const before = (await state(page)).accounts.local!.balance;
   const price = (await state(page)).me.shop!.prices['sound-1']!;
   for (let n = 1; n <= 2; n++) {
+    await hudMore(scene);
     await scene.getByRole('button', { name: 'Buy' }).click();
     await expect(sheet).toBeVisible();
     const more = sheet.locator('[data-buy-another="sound-1"]');
@@ -225,6 +227,7 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
   const spots = await Promise.all(extras.map((x) => placedAt(`sound#${x.id}`)));
   expect(spots.every(Boolean)).toBe(true);
   expect(spots[0]).not.toEqual(spots[1]);
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   await expect(sheet.locator('[data-buy-item="sound-1"] [data-have]')).toHaveAttribute(
     'data-have',
@@ -272,6 +275,7 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
     const o = onWall(at);
     return !!o && windows.some((w) => w.wall === o.wall && Math.abs(o.at - w.c) < w.w / 2 + 0.66);
   };
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   await sheet.locator('[data-buy-item="art-1"]').click();
   await expect(sheet).toBeHidden();
@@ -314,6 +318,7 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
   expect(over(`${hung.x},${hung.y},${hung.rot}`)).toBe(false);
 
   // "Not all of the walls change": trying a paint on paints every wall.
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   await sheet.locator('[data-buy-tab="design"]').click();
   const was = ((await canvas.getAttribute('data-wall-paint')) ?? '').split(',');
@@ -345,6 +350,7 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
     .poll(async () => (await canvas.getAttribute('data-wall-paint'))?.split(','))
     .toEqual(was);
   // A paint that's yours (Sage green is free) goes on at once and stays (play-test #18).
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   await sheet.locator('[data-buy-tab="design"]').click();
   await sheet.locator('[data-finish="wall:sage"]').click();
@@ -355,6 +361,7 @@ test('player feedback: two speakers, a painting moved along a wall, every wall p
   await expect
     .poll(async () => (await canvas.getAttribute('data-wall-paint'))?.split(','))
     .toContain('#9fb59a');
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   await expect(sheet).toBeVisible();
   await page.keyboard.press('Escape');

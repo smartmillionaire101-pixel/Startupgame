@@ -1,5 +1,5 @@
 import type { PlayerView } from '@runway/engine';
-import { expect, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
+import { expect, hudMore, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
 
 /**
  * Round 7, item 22: on a phone the online catalogue is one tap away: its own
@@ -41,7 +41,7 @@ async function founder(page: Page) {
   await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
 }
 
-test('on a phone: Shop on the home rail and in Buy mode, and two plants from the Shop app in one van', async ({
+test('on a phone: Shop behind the home’s ⋯ and in Buy mode, and two plants from the Shop app in one van', async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -50,12 +50,14 @@ test('on a phone: Shop on the home rail and in Buy mode, and two plants from the
   const scene = page.locator('.home-scene');
   await expect(scene).toBeVisible({ timeout: 20_000 });
 
-  // The rail's own button, visible without opening ⋯.
+  // Behind ⋯ (round 3: the rail keeps only Go out in view), one tap away,
+  // with Buy, the first two in its panel.
   const rail = scene.locator('[data-hud-rail]');
   await expect(rail.locator('[data-hud-more]')).toHaveAttribute('aria-expanded', 'false');
-  const shop = rail.locator('[data-action="shop-online"]');
+  await expect(rail.locator('[data-action="shop-online"]')).toHaveCount(0);
+  await hudMore(scene);
+  const shop = rail.locator('.hud-rail-extra [data-action="shop-online"]');
   await expect(shop).toBeVisible();
-  await expect(rail.locator('.hud-rail-extra [data-action="shop-online"]')).toHaveCount(0);
   await shop.click();
   const sheet = page.locator('[data-catalogue-sheet]');
   await expect(sheet).toBeVisible();
@@ -65,6 +67,7 @@ test('on a phone: Shop on the home rail and in Buy mode, and two plants from the
   await expect(sheet).toBeHidden();
 
   // In Buy mode too.
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   const buy = page.getByRole('dialog', { name: 'Buy mode' });
   await expect(buy).toBeVisible();

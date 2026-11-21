@@ -3042,6 +3042,36 @@ main > .back-btn {
 .hud-rail-extra .hud-tip {
   display: none;
 }
+/* A grid rail (round 3, the home): ⋯ opens a compact panel, three icons a
+   row with their names under them, instead of a tall column. */
+.hud-rail.is-grid .hud-rail-extra {
+  display: grid;
+  grid-template-columns: repeat(3, calc(var(--hud-ib) + 28px));
+  justify-items: center;
+  gap: calc(1.6rem + 8px) 0;
+  padding: 12px 6px calc(1.6rem + 14px);
+  border-radius: 22px;
+  background: var(--hud-bg-strong);
+  box-shadow: var(--hud-shadow);
+  pointer-events: auto;
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+.hud-rail.is-grid .hud-rail-extra .hud-lbl,
+[data-hud-labels] .hud-rail.is-grid .hud-rail-extra .hud-lbl {
+  top: calc(100% + 3px);
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(var(--hud-ib) + 26px);
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  text-align: center;
+  white-space: normal;
+}
 
 /* ---- Names under the icons: a first session, and Simple mode. */
 [data-hud-labels] :is(.hud-sub, .hud-phone) .hud-lbl,

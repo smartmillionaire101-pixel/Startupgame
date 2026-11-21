@@ -2526,14 +2526,45 @@ export function HomeScene({
       </div>
       {/* Round 7: the van per order, "Unpack all" (then straight to placing). */}
       {!hotelTier && <DeliveryBanner owner={placeOwner} />}
-      {/* The room's buttons: a rail of icons on the right, the rest behind ⋯
-          (out of the way while you place something). */}
+      {/* The room's buttons (round 3, "these buttons are distracting"): like
+          the map, only the essentials show (Go out; a hotel's Sleep and
+          Freshen up), and everything else waits behind ⋯ in a compact panel,
+          the most used first (out of the way while you place something). */}
       {!placing && !wallPlacing && !naming && (
         <HudRail
           label={hotelTier ? t('Hotel room actions') : t('Home actions')}
           className="home-rail"
+          grid={!hotelTier}
           extras={
             <>
+              {!hotelTier && !hostView && (
+                <HudButton
+                  icon="cart"
+                  label={t('Buy')}
+                  aria-haspopup="dialog"
+                  onClick={() => setSheet('buy')}
+                />
+              )}
+              {!hotelTier && !hostView && view.me.shop && (
+                <HudButton
+                  label={t('Shop')}
+                  data-action="shop-online"
+                  aria-haspopup="dialog"
+                  onClick={() => setShopAll(true)}
+                >
+                  <span aria-hidden="true">🛍️</span>
+                </HudButton>
+              )}
+              {is3d && !hotelTier && (
+                <HudButton
+                  icon="eye"
+                  label={t('Look around')}
+                  data-action="look-around"
+                  data-looking={looking ? '1' : '0'}
+                  aria-pressed={looking}
+                  onClick={toggleLook}
+                />
+              )}
               {hotelTier && balcony && (
                 <HudButton
                   label={t('Balcony')}
@@ -2552,7 +2583,7 @@ export function HomeScene({
                   onClick={() => setHotelMore(true)}
                 />
               )}
-              {is3d && hotelTier && (
+              {is3d && (
                 <HudButton
                   icon="rotate"
                   label={t('Turn')}
@@ -2640,7 +2671,7 @@ export function HomeScene({
               onClick={onClose}
             />
           )}
-          {hotelTier ? (
+          {hotelTier && (
             <>
               <HudButton
                 label={t('Sleep')}
@@ -2659,44 +2690,14 @@ export function HomeScene({
                 <span aria-hidden="true">🚿</span>
               </HudButton>
             </>
-          ) : (
-            !hostView && (
-              <>
-                <HudButton
-                  icon="cart"
-                  label={t('Buy')}
-                  aria-haspopup="dialog"
-                  onClick={() => setSheet('buy')}
-                />
-                {view.me.shop && (
-                  <HudButton
-                    label={t('Shop')}
-                    data-action="shop-online"
-                    aria-haspopup="dialog"
-                    onClick={() => setShopAll(true)}
-                  >
-                    <span aria-hidden="true">🛍️</span>
-                  </HudButton>
-                )}
-              </>
-            )
           )}
-          {is3d && !hotelTier && (
-            <HudButton
-              icon="rotate"
-              label={t('Turn')}
-              data-action="turn"
-              onClick={() => {
-                endLook();
-                api3d.current?.turn(1);
-              }}
-            />
-          )}
-          {is3d && (
+          {/* A hotel room keeps Look around in view (its rail is short). A
+              home's is in the panel, and while it turns a Stop shows here. */}
+          {is3d && (hotelTier || looking) && (
             <HudButton
               icon="eye"
-              label={t('Look around')}
-              data-action="look-around"
+              label={hotelTier ? t('Look around') : t('Stop looking around')}
+              data-action={hotelTier ? 'look-around' : 'stop-look'}
               data-looking={looking ? '1' : '0'}
               aria-pressed={looking}
               onClick={toggleLook}

@@ -39,6 +39,8 @@ import { CapitalDetails, InScene, PlaceScene, isOwnBank } from './PlaceScene';
 import { CivicDoor, CivicInterior, civicOf } from './CivicPlace';
 import { BankerTalks } from '../screens/BankWork';
 import { FounderMentor } from '../screens/FounderGuide';
+import type { JourneyGo } from './journey';
+import { useSceneJourneyGo } from './journeyGo';
 import type { Destination } from './travel';
 
 /** Wave 7: the busy airport scene, loaded when you go in. */
@@ -550,10 +552,13 @@ function HubInterior({
   place,
   layout,
   onVisit,
+  onStep,
 }: {
   place: Place;
   layout: CityLayout;
   onVisit?: (placeId: string) => void;
+  /** The mentor's "Do the next step": leaves the room for it. */
+  onStep: (g: JourneyGo) => void;
 }) {
   const { view } = useView();
   const company = activeCompany(view);
@@ -571,7 +576,7 @@ function HubInterior({
         )}
       </p>
       {/* Founder guidance: a mentor explains your stage, like a banker's supervisor. */}
-      {company && company.guide && <FounderMentor c={company} />}
+      {company && company.guide && <FounderMentor c={company} here={place} onGo={onStep} />}
       <JobsBoard onVisit={onVisit} />
       {company && <Team c={company} />}
       <People />
@@ -947,6 +952,12 @@ export function Interior({
   arrival?: Arrival | null;
 }) {
   const { view } = useView();
+  // A journey step from inside this place: leave the room for it (round 3).
+  const step = useSceneJourneyGo({
+    onVisit,
+    nav: (tab) => nav(tab as Parameters<Nav>[0]),
+    onClose,
+  });
   // City places: a door you can't go through (members only, or not your
   // appointment yet) shows why and what opens it, instead of the room.
   const civic = view ? civicOf(view, place) : null;
@@ -972,7 +983,7 @@ export function Interior({
       case 'stall':
         return <MarketInterior place={place} layout={layout} onVisit={onVisit} />;
       case 'hub':
-        return <HubInterior place={place} layout={layout} onVisit={onVisit} />;
+        return <HubInterior place={place} layout={layout} onVisit={onVisit} onStep={step} />;
       case 'business':
         return (
           <BusinessInterior

@@ -28,7 +28,8 @@ import { money, pct } from '../format';
 import { getLang, t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import { Button, Card, Pill } from '../ui';
-import { useJourneyGo } from '../city/journeyGo';
+import { awayFromHere, useJourneyGo } from '../city/journeyGo';
+import type { JourneyGo } from '../city/journey';
 
 type Pitch = PlayerView['pitches'][number];
 type Sales = Company['sales'];
@@ -697,10 +698,22 @@ const MENTORS: Record<string, string> = {
   freetown: 'Fatmata Kamara',
 };
 
-/** At the Hub: an accelerator mentor explains your stage, what to do next and what to watch. */
-export function FounderMentor({ c }: { c: Company }) {
+/**
+ * At the Hub: an accelerator mentor explains your stage, what to do next and what to watch.
+ * In a place's scene, `here` is that place and `onGo` leaves the scene for the step.
+ */
+export function FounderMentor({
+  c,
+  here,
+  onGo,
+}: {
+  c: Company;
+  here?: { id: string; kind: string };
+  onGo?: (g: JourneyGo) => void;
+}) {
   const { view } = useView();
-  const goTo = useJourneyGo();
+  const fallback = useJourneyGo();
+  const goTo = onGo ?? fallback;
   const g = c.guide;
   const cur = c.currency;
   const checks = livePlanChecks(c, {});
@@ -738,7 +751,17 @@ export function FounderMentor({ c }: { c: Company }) {
           )}
         </p>
         {g.next?.go && (
-          <Button size="sm" variant="subtle" onClick={() => g.next?.go && goTo(g.next.go)}>
+          <Button
+            size="sm"
+            variant="subtle"
+            data-mentor-next={g.next.id}
+            onClick={() => {
+              const step = g.next;
+              if (!step?.go) return;
+              // A step at this very place (more staff, at the Hub): its Company section.
+              goTo(awayFromHere(step.go, here, step.id === 'growth.team' ? 'team' : undefined));
+            }}
+          >
             {t('Do the next step')}
           </Button>
         )}

@@ -49,22 +49,27 @@ test('home: look around and take photos of it', async ({ page }) => {
   await expect(page.getByRole('application', { name: /Map of/ })).toBeVisible({ timeout: 30_000 });
   const scene = await openHome(page);
 
-  // The view controls are named round icons in the room's rail, and fit on a phone.
+  // The view controls are named icons behind ⋯ (round 3: the rail keeps only
+  // Go out), in a compact panel that fits on a phone.
   const tools = scene.getByRole('group', { name: 'Home actions' });
+  await hudMore(scene);
   await expect(tools.getByRole('button', { name: 'Turn' })).toBeVisible();
   const look = tools.locator('[data-action="look-around"]');
   await expect(look).toHaveAttribute('data-looking', '0');
 
-  // Look around: pressed again, it stops; a tap on the home stops it too.
+  // Look around: the panel closes and a Stop stays in the rail while it
+  // turns; pressed, it stops; a tap on the home stops it too.
   await look.click();
-  await expect(look).toHaveAttribute('data-looking', '1');
-  await expect(look).toHaveAttribute('aria-pressed', 'true');
+  const stop = tools.locator('[data-action="stop-look"]');
+  await expect(stop).toHaveAttribute('data-looking', '1');
+  await expect(stop).toHaveAttribute('aria-pressed', 'true');
+  await stop.click();
+  await expect(stop).toHaveCount(0);
+  await hudMore(scene);
   await look.click();
-  await expect(look).toHaveAttribute('data-looking', '0');
-  await look.click();
-  await expect(look).toHaveAttribute('data-looking', '1');
+  await expect(stop).toBeVisible();
   await scene.locator('svg.home-svg').click({ position: { x: 40, y: 200 } });
-  await expect(look).toHaveAttribute('data-looking', '0');
+  await expect(stop).toHaveCount(0);
 
   // A photo (behind ⋯): the picture, Save (a download) and Close.
   await hudMore(scene);

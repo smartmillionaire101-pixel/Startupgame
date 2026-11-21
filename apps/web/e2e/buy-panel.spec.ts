@@ -1,5 +1,5 @@
 import type { PlayerView } from '@runway/engine';
-import { expect, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
+import { expect, hudMore, letters, playAsGuest, tapPlace, test, type Page } from './fixtures';
 
 /**
  * Round 7, item 21: Buy mode is one bottom panel (the home above it): half
@@ -49,6 +49,7 @@ async function atHome(page: Page, size: { width: number; height: number }) {
   await tapPlace(page, '[data-place="home"]', 'cycle');
   const scene = page.locator('.home-scene');
   await expect(scene).toBeVisible({ timeout: 20_000 });
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   const sheet = page.getByRole('dialog', { name: 'Buy mode' });
   await expect(sheet).toBeVisible();
@@ -234,6 +235,7 @@ test('round 7: Bathroom and Hallway tabs, their things in more than one, placed 
 
   // On a laptop: the same tabs along the docked panel.
   await page.setViewportSize({ width: 1440, height: 900 });
+  await hudMore(scene);
   await scene.getByRole('button', { name: 'Buy' }).click();
   const wide = page.getByRole('dialog', { name: 'Buy mode' });
   await expect(wide).toBeVisible();
