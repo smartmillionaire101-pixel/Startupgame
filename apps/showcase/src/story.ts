@@ -1,23 +1,27 @@
 /**
- * Story clips: one real moment of play, recorded in the game's own screens and
- * told by the character's voice. Every choice shows as a tap.
+ * Story clips: one real moment of play, recorded in the game's own screens,
+ * watched the way you'd watch someone play: a fingertip moves to each button
+ * and presses it, with music underneath. No text over the game.
  *
  * - Full screen: 9:16 at 1080 × 1920, the shape short-video apps fill.
  * - Seamless: filmed frame by frame. The page's clock only moves when the
  *   recorder says so; each frame moves it exactly 1/30 s (timers, animation
  *   frames, CSS animations, the 3D city), then the screen is captured. The
  *   machine can be as slow as it likes; the clip still plays at an even 30 fps.
- * - Voice-over: each line is spoken first, so the clip holds exactly as long
- *   as the line takes; it's laid under the video at the frame it was said.
+ * - Music: an original loop (music/compose.py) under the whole clip, faded in
+ *   and out.
  *
- * The tap rings and end card are drawn into the page while it records; they
+ * The fingertip and end card are drawn into the page while it records; they
  * are never part of the game.
  */
 import { chromium, type Browser, type Locator, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Voice } from './voice.js';
+import { fileURLToPath } from 'node:url';
+
+/** The background music (made by music/compose.py). */
+export const MUSIC = fileURLToPath(new URL('../music/upbeat.m4a', import.meta.url));
 
 export const FPS = 30;
 const FRAME_MS = 1000 / FPS;
@@ -27,8 +31,10 @@ const SCREEN = { width: 360, height: 640 };
 const SCALE = 3;
 
 const OVERLAY_CSS = `
-.sc-tap{position:fixed;z-index:2147483647;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:4px solid #ffcf3f;box-shadow:0 0 0 8px rgba(255,207,63,.35);pointer-events:none;animation:sc-tap .7s ease-out forwards}
-@keyframes sc-tap{0%{transform:scale(1.6);opacity:0}40%{transform:scale(1);opacity:1}100%{transform:scale(.85);opacity:.9}}
+#sc-touch{position:fixed;z-index:2147483647;left:0;top:0;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;background:rgba(255,255,255,.5);border:1.5px solid rgba(20,32,27,.35);box-shadow:0 3px 10px rgba(0,0,0,.28);pointer-events:none;opacity:0;transition:opacity .25s ease,transform .12s ease}
+#sc-touch.on{opacity:1}#sc-touch.press{transform:scale(.72);background:rgba(255,255,255,.75)}
+.sc-ripple{position:fixed;z-index:2147483646;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:2px solid rgba(255,255,255,.85);pointer-events:none;animation:sc-ripple .45s ease-out forwards}
+@keyframes sc-ripple{from{transform:scale(.6);opacity:.9}to{transform:scale(2.2);opacity:0}}
 #sc-end{position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:16px;text-align:center;background:linear-gradient(160deg,#0b5446,#07201a);color:#fff;opacity:0;animation:sc-fade .6s ease forwards}
 #sc-end b{font:800 44px/1 "Inter",system-ui,sans-serif;letter-spacing:-.02em}
 #sc-end i{font-style:normal;padding:13px 26px;border-radius:999px;background:#ffcf3f;color:#14201b;font:800 19px/1 "Inter",system-ui,sans-serif}
@@ -146,21 +152,15 @@ const RECORDING_ARGS = [
   '--ignore-gpu-blocklist',
 ];
 
-interface Cue {
-  file: string;
-  /** The frame the line starts on. */
-  frame: number;
-}
-
 export class Story {
-  private cues: Cue[] = [];
   private frame = 0;
+  /** Where the fingertip is (null until the first tap). */
+  private finger: { x: number; y: number } | null = null;
   private framesDir: string;
 
   private constructor(
     readonly page: Page,
     private browser: Browser,
-    private voice: Voice,
     private outDir: string,
     private name: string,
   ) {
@@ -170,13 +170,7 @@ export class Story {
   }
 
   /** Open the game as a character (its session token), ready to record. */
-  static async open(opts: {
-    base: string;
-    token: string;
-    voice: Voice;
-    outDir: string;
-    name: string;
-  }) {
+  static async open(opts: { base: string; token: string; outDir: string; name: string }) {
     mkdirSync(opts.outDir, { recursive: true });
     const browser = await chromium.launch({ args: RECORDING_ARGS });
     const context = await browser.newContext({
@@ -192,7 +186,7 @@ export class Story {
       { name: 'rw_session', value: opts.token, domain: new URL(opts.base).hostname, path: '/' },
     ]);
     const page = await context.newPage();
-    return new Story(page, browser, opts.voice, opts.outDir, opts.name);
+    return new Story(page, browser, opts.outDir, opts.name);
   }
 
   /** Load the game (not filmed) and let the city draw; the clip starts after. */
@@ -247,41 +241,75 @@ export class Story {
     throw new Error(`Waited ${maxMs / 1000}s of clip time for ${locator}.`);
   }
 
-  /** Say a line and film until it's finished (plus a breath). */
-  async say(text: string, breathMs = 250) {
-    const seconds = this.sayOver(text);
-    await this.hold(seconds * 1000 + breathMs);
-  }
-
-  /** Start saying a line and carry on (the action plays under it); returns its length in seconds. */
-  sayOver(text: string): number {
-    const line = this.voice.say(text);
-    this.cues.push({ file: line.file, frame: this.frame });
-    return line.seconds;
-  }
-
-  /** Tap like a player: a ring lands on the control, a beat, then the click. */
-  async tap(locator: Locator, beforeMs = 450) {
+  /**
+   * Tap like a player: a pause to take in the screen, the fingertip glides to
+   * the control (resting just below its middle, so its label stays readable),
+   * presses, and lifts off. The next tap starts from where this one was.
+   */
+  async tap(locator: Locator, opts: { lookMs?: number; moveMs?: number } = {}) {
+    const { lookMs = 500, moveMs = 450 } = opts;
     // The one a player can see (screens keep hidden copies of some buttons).
     const target = locator.filter({ visible: true }).first();
     await target.scrollIntoViewIfNeeded();
+    await this.hold(lookMs);
     const box = await target.boundingBox();
-    if (box)
-      await this.page.evaluate(
-        ({ x, y }) => {
-          const ring = document.createElement('i');
-          ring.className = 'sc-tap';
-          ring.style.left = `${x}px`;
-          ring.style.top = `${y}px`;
-          document.body.append(ring);
-          setTimeout(() => ring.remove(), 1200);
-        },
-        { x: box.x + box.width / 2, y: box.y + box.height / 2 },
-      );
-    await this.hold(beforeMs);
-    // Time stands still between frames, so nothing on screen is moving now;
-    // force covers controls the 3D map keeps re-placing.
+    if (box) {
+      const to = { x: box.x + box.width / 2, y: box.y + box.height * 0.72 };
+      const from = this.finger ?? { x: to.x + 40, y: Math.min(to.y + 160, 600) };
+      await this.page.evaluate(({ x, y }) => {
+        let dot = document.getElementById('sc-touch');
+        if (!dot) {
+          dot = document.createElement('i');
+          dot.id = 'sc-touch';
+          document.body.append(dot);
+        }
+        dot.style.left = `${x}px`;
+        dot.style.top = `${y}px`;
+        dot.classList.add('on');
+      }, from);
+      const n = Math.max(1, Math.round(moveMs / FRAME_MS));
+      for (let i = 1; i <= n; i++) {
+        const t = i / n;
+        const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+        await this.page.evaluate(
+          ({ x, y }) => {
+            const dot = document.getElementById('sc-touch');
+            if (dot) {
+              dot.style.left = `${x}px`;
+              dot.style.top = `${y}px`;
+            }
+          },
+          { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e },
+        );
+        await this.shoot();
+      }
+      this.finger = to;
+      await this.page.evaluate(({ x, y }) => {
+        document.getElementById('sc-touch')?.classList.add('press');
+        const ripple = document.createElement('i');
+        ripple.className = 'sc-ripple';
+        ripple.style.left = `${x}px`;
+        ripple.style.top = `${y}px`;
+        document.body.append(ripple);
+        setTimeout(() => ripple.remove(), 500);
+      }, to);
+      await this.hold(130);
+    }
+    // Time stands still between frames, so nothing is moving now; force
+    // covers controls the 3D map keeps re-placing.
     await target.click({ force: true });
+    // Release, and lift the finger off the glass a moment later.
+    await this.page.evaluate(() => {
+      const dot = document.getElementById('sc-touch');
+      dot?.classList.remove('press');
+      setTimeout(() => dot?.classList.remove('on'), 350);
+    });
+  }
+
+  /** Take the fingertip off the screen (it fades out). */
+  async lift() {
+    await this.page.evaluate(() => document.getElementById('sc-touch')?.classList.remove('on'));
+    this.finger = null;
   }
 
   /** Bring an element to the middle of the screen, scrolling smoothly over `ms`. */
@@ -348,28 +376,32 @@ export class Story {
     );
   }
 
-  /** Make the clip: the frames at 30 fps with every spoken line laid under them. */
-  async finish(): Promise<string> {
+  /** Make the clip: the frames at 30 fps, with the music faded in and out under them. */
+  async finish(music = MUSIC): Promise<string> {
     await this.browser.close();
     const clip = `${this.name}-clip.mp4`;
-    const inputs = ['-framerate', String(FPS), '-i', join(this.framesDir, '%05d.jpg')];
-    for (const c of this.cues) inputs.push('-i', c.file);
-    const voices = this.cues.map(
-      (c, i) => `[${i + 1}:a]adelay=${Math.round((c.frame / FPS) * 1000)}:all=1[a${i}]`,
-    );
-    const mix = this.cues.length
-      ? `${voices.join(';')};${this.cues.map((_, i) => `[a${i}]`).join('')}amix=inputs=${this.cues.length}:normalize=0,apad[a]`
-      : '';
+    const seconds = this.now();
+    const fadeOut = Math.max(0, seconds - 2.5).toFixed(2);
     execFileSync('ffmpeg', [
       '-y',
       '-loglevel',
       'error',
-      ...inputs,
-      ...(mix
-        ? ['-filter_complex', mix, '-map', '0:v', '-map', '[a]', '-c:a', 'aac', '-b:a', '160k']
-        : []),
+      '-framerate',
+      String(FPS),
+      '-i',
+      join(this.framesDir, '%05d.jpg'),
+      '-stream_loop',
+      '-1',
+      '-i',
+      music,
+      '-filter_complex',
+      `[1:a]afade=t=in:d=1,afade=t=out:st=${fadeOut}:d=2.5,volume=0.8[a]`,
+      '-map',
+      '0:v',
+      '-map',
+      '[a]',
       '-t',
-      this.now().toFixed(3),
+      seconds.toFixed(3),
       '-c:v',
       'libx264',
       '-preset',
@@ -380,6 +412,10 @@ export class Story {
       'yuv420p',
       '-r',
       String(FPS),
+      '-c:a',
+      'aac',
+      '-b:a',
+      '160k',
       '-movflags',
       '+faststart',
       join(this.outDir, clip),
