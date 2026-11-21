@@ -195,7 +195,9 @@ test('your car and the traffic, driving', async ({ page }) => {
       [p, on] as const,
     );
   // Each size its own drive (a new size ends a trip): off, then stopped so the chase camera settles.
-  for (const [size, w, h] of SIZES) {
+  // Phone and laptop, then midday at laptop size (the traffic in daylight).
+  for (const [size, w, h] of [...SIZES, ['day', 1280, 800] as const]) {
+    if (size === 'day') await page.clock.setFixedTime(new Date('2026-06-14T11:30:00Z'));
     await page.setViewportSize({ width: w, height: h });
     await page.reload();
     await expect(map).toHaveAttribute('data-map3d', 'ready', { timeout: 90_000 });

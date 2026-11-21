@@ -253,6 +253,9 @@ export interface Vehicle {
   /** The street it takes at the end of this one (chosen on the way in, so it queues into it). */
   ne: number;
   nf: boolean;
+  /** The street it came from (-1: none yet), for the curve out of the last junction. */
+  pe: number;
+  pf: boolean;
   /** Its place in its lane's queue (this step). */
   qi: number;
   v: number;
@@ -291,8 +294,14 @@ export interface Lead {
   v: number;
 }
 
-/** A vehicle in a junction holds up the others coming into it (m from its middle). */
-const JUNCTION = 6;
+/**
+ * A junction's reach (m from its middle): the widest road's lane offset, half
+ * a car's width, and half a car's length (at the size vehicles are drawn).
+ * A vehicle waits outside it while another crosses: before, a fixed 6 m was
+ * narrower than a main road, so whoever "waited at the line" stood in the
+ * crossing traffic.
+ */
+const JUNCTION_MIN = 6;
 const laneKey = (e: number, fwd: boolean) => e * 2 + (fwd ? 1 : 0);
 
 export class TrafficSim {
@@ -309,6 +318,26 @@ export class TrafficSim {
   private lanes = new Map<number, Vehicle[]>();
   /** How much larger than life the vehicles are drawn (zoomed out): they queue that much further apart. */
   size = 1;
+  /** Each node's widest lane offset (m). */
+  private wide: Float32Array | null = null;
+
+  /** How far a junction reaches from its middle (m). */
+  junctionReach(node: number): number {
+    const g = this.g;
+    if (!this.wide) {
+      const w = new Float32Array(g.nx.length);
+      for (let n = 0; n < w.length; n++)
+        for (const e of g.adj[n]!) w[n] = Math.max(w[n]!, LANE[g.cls[e]!] ?? 2);
+      this.wide = w;
+    }
+    return Math.max(JUNCTION_MIN, this.wide[node]! + 1.2 + (LENGTH.car / 2) * this.size + 1);
+  }
+
+  /** The corner's half length at a node (m): within a junction's reach, at most half of either street. */
+  private cornerR(node: number, a: number, b: number) {
+    const g = this.g;
+    return Math.min(this.junctionReach(node), g.len[a]! * 0.45, g.len[b]! * 0.45);
+  }
 
   constructor(
     readonly g: RoadGraph,
@@ -423,19 +452,32 @@ export class TrafficSim {
       const at = pick.a + h3(this.seed, k, 41) * (pick.b - pick.a);
       v.s = v.fwd ? at : this.g.len[pick.e]! - at;
       v.v = (VMAX[this.g.cls[pick.e]!] ?? 8) * 0.6;
+      v.pe = -1;
+      v.ne = -1;
       this.locate(v);
       if (this.clear(v)) break;
     }
     this.chooseNext(v);
+    this.locate(v);
   }
 
-  /** Nothing where a vehicle has just been put down: not you, not another in its lane. */
+  /** Nothing where a vehicle has just been put down: not you, not another, not in a junction. */
   private clear(v: Vehicle) {
     const you = this.you;
     if (you && Math.hypot(you.x - v.x, you.y - v.y) < 14) return false;
+    const g = this.g;
+    const L = g.len[v.e]!;
+    for (const n of [this.ahead(v), this.behind(v)]) {
+      if (g.adj[n]!.length < 3) continue;
+      const d = n === this.ahead(v) ? L - v.s : v.s;
+      if (d < this.junctionReach(n)) return false;
+    }
     const room = LENGTH[v.kind] * this.size + 4;
-    for (const o of this.vehicles)
-      if (o !== v && o.e === v.e && o.fwd === v.fwd && Math.abs(o.s - v.s) < room) return false;
+    for (const o of this.vehicles) {
+      if (o === v || o.e < 0) continue;
+      if (o.e === v.e && o.fwd === v.fwd && Math.abs(o.s - v.s) < room) return false;
+      if (Math.hypot(o.x - v.x, o.y - v.y) < room) return false;
+    }
     return true;
   }
 
@@ -450,6 +492,8 @@ export class TrafficSim {
         s: 0,
         ne: -1,
         nf: true,
+        pe: -1,
+        pf: true,
         qi: 0,
         v: 0,
         temper: 0.8 + h3(this.seed, k, 43) * 0.35,
@@ -466,26 +510,75 @@ export class TrafficSim {
   }
 
   /** Lane offset for a vehicle: kept right (or left), motorbikes nearer the kerb. */
-  laneOf(v: Vehicle): number {
-    const base = LANE[this.g.cls[v.e]!] ?? 2;
+  laneOf(v: Vehicle, e = v.e): number {
+    const base = LANE[this.g.cls[e]!] ?? 2;
     const k = v.kind === 'moto' ? 0.9 : v.kind === 'bus' ? 1.15 : 1;
     return base * k * (this.leftHand ? -1 : 1);
+  }
+
+  /** A point `s` m along an edge (travelling `fwd`) in this vehicle's lane, and the way it runs. */
+  private onLane(v: Vehicle, e: number, fwd: boolean, s: number) {
+    const g = this.g;
+    const a = fwd ? g.ea[e]! : g.eb[e]!;
+    const b = fwd ? g.eb[e]! : g.ea[e]!;
+    const L = g.len[e]!;
+    const dx = (g.nx[b]! - g.nx[a]!) / L;
+    const dy = (g.ny[b]! - g.ny[a]!) / L;
+    const lane = this.laneOf(v, e);
+    // Right of travel in map metres (x east, y south) is (-dy, dx).
+    return { x: g.nx[a]! + dx * s - dy * lane, y: g.ny[a]! + dy * s + dx * lane, dx, dy };
   }
 
   private locate(v: Vehicle) {
     const g = this.g;
     if (v.e < 0) return;
-    const a = v.fwd ? g.ea[v.e]! : g.eb[v.e]!;
-    const b = v.fwd ? g.eb[v.e]! : g.ea[v.e]!;
+    const p = this.onLane(v, v.e, v.fwd, v.s);
+    v.x = p.x;
+    v.y = p.y;
+    v.dx = p.dx;
+    v.dy = p.dy;
+    // Through a junction on a curve from lane to lane (it turned in place before,
+    // swinging round its middle across the other lanes).
     const L = g.len[v.e]!;
-    const dx = (g.nx[b]! - g.nx[a]!) / L;
-    const dy = (g.ny[b]! - g.ny[a]!) / L;
-    const lane = this.laneOf(v);
-    v.dx = dx;
-    v.dy = dy;
-    // Right of travel in map metres (x east, y south) is (-dy, dx).
-    v.x = g.nx[a]! + dx * v.s - dy * lane;
-    v.y = g.ny[a]! + dy * v.s + dx * lane;
+    if (v.ne >= 0 && v.ne !== v.e && this.nextOk(v)) {
+      const R = this.cornerR(this.ahead(v), v.e, v.ne);
+      if (L - v.s < R) {
+        this.corner(v, v.e, v.fwd, v.ne, v.nf, R, (R - (L - v.s)) / (2 * R));
+        return;
+      }
+    }
+    if (v.pe >= 0 && v.pe !== v.e) {
+      const R = this.cornerR(this.behind(v), v.pe, v.e);
+      if (v.s < R) this.corner(v, v.pe, v.pf, v.e, v.fwd, R, 0.5 + v.s / (2 * R));
+    }
+  }
+
+  /** Place a vehicle `t` (0…1) of the way round the corner from street a into street b. */
+  private corner(v: Vehicle, a: number, af: boolean, b: number, bf: boolean, R: number, t: number) {
+    const g = this.g;
+    const E = this.onLane(v, a, af, g.len[a]! - R);
+    const X = this.onLane(v, b, bf, R);
+    // The control point: where the two lanes meet (the middle when they run on straight).
+    const cr = E.dx * X.dy - E.dy * X.dx;
+    let cx = (E.x + X.x) / 2;
+    let cy = (E.y + X.y) / 2;
+    if (Math.abs(cr) > 0.15) {
+      const u = ((X.x - E.x) * X.dy - (X.y - E.y) * X.dx) / cr;
+      cx = E.x + E.dx * u;
+      cy = E.y + E.dy * u;
+    }
+    const k = 1 - t;
+    v.x = k * k * E.x + 2 * k * t * cx + t * t * X.x;
+    v.y = k * k * E.y + 2 * k * t * cy + t * t * X.y;
+    let tx = 2 * k * (cx - E.x) + 2 * t * (X.x - cx);
+    let ty = 2 * k * (cy - E.y) + 2 * t * (X.y - cy);
+    const n = Math.hypot(tx, ty);
+    if (n > 1e-6) {
+      tx /= n;
+      ty /= n;
+      v.dx = tx;
+      v.dy = ty;
+    }
   }
 
   /** The node a vehicle is heading for. */
@@ -547,6 +640,8 @@ export class TrafficSim {
   /** At the node: on into the street chosen for it. */
   private turn(v: Vehicle) {
     if (!this.nextOk(v)) this.chooseNext(v);
+    v.pe = v.e;
+    v.pf = v.fwd;
     v.e = v.ne;
     v.fwd = v.nf;
     this.chooseNext(v);
@@ -565,8 +660,14 @@ export class TrafficSim {
     // Who's in which lane, back to front (for queueing).
     const lanes = this.lanes;
     for (const l of lanes.values()) l.length = 0;
-    // Who's in a junction (three or more ways) now: just before it or just after.
-    const busy = new Map<number, Vehicle>();
+    // Who's in each junction (three or more ways) now: coming in, or going out of it.
+    const busy = this.busy;
+    busy.clear();
+    const inside = (n: number, v: Vehicle) => {
+      let l = busy.get(n);
+      if (!l) busy.set(n, (l = []));
+      if (!l.includes(v)) l.push(v);
+    };
     for (const v of this.vehicles) {
       if (v.e < 0) continue;
       const key = laneKey(v.e, v.fwd);
@@ -576,8 +677,9 @@ export class TrafficSim {
       if (!this.nextOk(v)) this.chooseNext(v);
       const ahead = this.ahead(v);
       const from = this.behind(v);
-      if (g.len[v.e]! - v.s < JUNCTION && g.adj[ahead]!.length >= 3) busy.set(ahead, v);
-      else if (v.s < JUNCTION && g.adj[from]!.length >= 3 && !busy.has(from)) busy.set(from, v);
+      if (g.adj[ahead]!.length >= 3 && g.len[v.e]! - v.s < this.junctionReach(ahead))
+        inside(ahead, v);
+      if (g.adj[from]!.length >= 3 && v.s < this.junctionReach(from)) inside(from, v);
     }
     for (const l of lanes.values()) {
       if (l.length > 1) l.sort((a, b) => a.s - b.s);
@@ -603,13 +705,13 @@ export class TrafficSim {
       const rem = L - v.s;
       const at = this.ahead(v);
       const deg = g.adj[at]!.length;
+      const reach = deg >= 3 ? this.junctionReach(at) : 0;
       if (deg >= 3) {
         want = Math.min(want, 3 + rem * 0.45);
-        // Someone else is crossing it: wait at the line.
-        const o = busy.get(at);
-        if (o && o !== v && rem >= JUNCTION) {
-          want = Math.min(want, Math.max(0, (rem - JUNCTION) * 0.8));
-          room = Math.min(room, rem - JUNCTION);
+        // Someone else is crossing it on a path that meets yours: wait outside it.
+        if (rem >= reach && busy.get(at)?.some((o) => o !== v && this.crosses(o, v, at))) {
+          want = Math.min(want, Math.max(0, (rem - reach) * 0.8));
+          room = Math.min(room, rem - reach);
         }
       }
       // Queue behind the vehicle in front: in this lane, or the first one in the next.
@@ -645,6 +747,8 @@ export class TrafficSim {
       const move = Math.min(v.v * dt, Math.max(0, room));
       if (move < v.v * dt) v.v = move / dt;
       v.s += move;
+      // Into the junction now: those after it in this step wait for it.
+      if (deg >= 3 && rem >= reach && L - v.s < reach) inside(at, v);
       for (let guard = 0; v.s >= g.len[v.e]! && guard < 8; guard++) {
         v.s -= g.len[v.e]!;
         this.turn(v);
@@ -652,6 +756,29 @@ export class TrafficSim {
       if (v.s >= g.len[v.e]!) v.s = g.len[v.e]! - 0.01;
       this.locate(v);
     }
+  }
+
+  private busy = new Map<number, Vehicle[]>();
+
+  /** The streets a vehicle goes in and out of a junction by. */
+  private pathAt(v: Vehicle, node: number): [number, boolean, number] {
+    // Coming in: this street to the next; going out: the last street to this one.
+    return this.ahead(v) === node && v.s > this.g.len[v.e]! / 2
+      ? [v.e, v.fwd, v.ne]
+      : [v.pe, v.pf, v.e];
+  }
+
+  /**
+   * Whether two vehicles' paths through a junction meet. Not when they come in
+   * the same way (they queue), nor when each goes where the other came from
+   * (opposite lanes of the same streets).
+   */
+  crosses(o: Vehicle, v: Vehicle, node: number): boolean {
+    const [oi, of, oo] = this.pathAt(o, node);
+    const [vi, vf, vo] = this.pathAt(v, node);
+    if (oi === vi && of === vf) return false;
+    if (oi === vo && oo === vi) return false;
+    return true;
   }
 
   /**
