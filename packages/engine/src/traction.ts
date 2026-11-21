@@ -10,7 +10,9 @@
  *  - accounts: deals won in the Sales pipeline (sales.ts);
  *  - businesses: local businesses that buy from the company after a pitch
  *    (economy.ts `suppliers`), not already counted as a Sales account;
- *  - buyers: companies with an active supply contract (marketplace.ts).
+ *  - buyers: companies with an active supply contract (marketplace.ts);
+ *  - branches: the customers of the company's open branches (branches.ts,
+ *    branches note only).
  *
  * Every company a player founds starts with one welcome customer (world.ts
  * welcomeNewPlayer). It counts as a customer, but it is a gift, not
@@ -27,6 +29,7 @@
  * accounts, and Market interviews only), so the journey's chapter
  * milestones are recorded as before.
  */
+import { branchCustomerCount } from './branchfacts.js';
 import { totalCustomers } from './helpers.js';
 import { feedbackOn, gameplayOn } from './releases.js';
 import type { Company, World } from './types.js';
@@ -49,6 +52,8 @@ export interface CustomerFacts {
   accounts: number;
   businesses: number;
   buyers: number;
+  /** Customers of the company's open branches (branches note; 0 before it). */
+  branches: number;
   /** Best Market interview score for one segment (0–1). */
   interviews: number;
   /** Sales deals where the discovery meeting is done (won deals count as accounts). */
@@ -102,6 +107,7 @@ export function customerFacts(world: World, c: Company): CustomerFacts {
       accounts,
       businesses: 0,
       buyers: 0,
+      branches: 0,
       interviews,
       meetings: 0,
       known: interviews,
@@ -110,7 +116,8 @@ export function customerFacts(world: World, c: Company): CustomerFacts {
   }
   const businesses = localBusinesses(world, c);
   const buyers = contractBuyers(world, c);
-  const total = people + accounts + businesses + buyers;
+  const branches = branchCustomerCount(world, c);
+  const total = people + accounts + businesses + buyers + branches;
   // A player's company (not one bought or spun out) starts with a welcome customer.
   const welcome = !c.ai && !c.parentId && people > 0 ? 1 : 0;
   const earned = total - welcome;
@@ -127,6 +134,7 @@ export function customerFacts(world: World, c: Company): CustomerFacts {
     accounts,
     businesses,
     buyers,
+    branches,
     interviews,
     meetings,
     known,

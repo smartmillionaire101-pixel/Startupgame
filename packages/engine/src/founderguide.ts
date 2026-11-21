@@ -19,13 +19,14 @@
  * only in worlds with the feedback note (`feedbackOn`); without it a pass
  * picks its random reason exactly as before.
  */
+import { secondCityProgress } from './branchfacts.js';
 import { companyRunway, marketingSpend, monthlyCosts, payrollThisMonth } from './company.js';
 import { strengths, type Slide } from './fundraising.js';
 import { getMarket, lastPnl, nextStage, totalCustomers } from './helpers.js';
 import type { JourneyGo } from './journey.js';
 import { formatMoney } from './money.js';
 import { rulesFor } from './data/rules.js';
-import { customersOn, feedbackOn } from './releases.js';
+import { branchesOn, customersOn, feedbackOn } from './releases.js';
 import { customerFacts, payingCustomers, TRACTION, type CustomerFacts } from './traction.js';
 import { monthlyGrowth } from './valuation.js';
 import type {
@@ -90,6 +91,11 @@ export interface FounderTask {
   interviews?: number;
   /** Counts only once a month has settled (customers kept: nobody has had the chance to leave). */
   waiting?: boolean;
+  /**
+   * Branches note, "Sell in a second city": branches open in other cities,
+   * in the home city, and customers in other cities (done with both).
+   */
+  city?: { branches: number; sameCity: number; customers: number; branchId: string | null };
 }
 
 export interface FounderStage {
@@ -160,12 +166,21 @@ function pitched(world: World, c: Company): boolean {
   );
 }
 
-/** Selling in a second city: a branch there, or a company of the group. */
+/**
+ * Selling in a second city: a branch there, or a company of the group.
+ * Branches note: a branch there with customers (its own, or signed in Sales
+ * from that city), not only an open door.
+ */
 function secondCity(world: World, c: Company): boolean {
-  const branch = Object.values(world.branches ?? {}).some(
-    (b) => b.companyId === c.id && b.status === 'open' && b.market !== c.market,
-  );
-  if (branch) return true;
+  if (branchesOn(world)) {
+    const p = secondCityProgress(world, c);
+    if (p.branches > 0 && p.customers > 0) return true;
+  } else {
+    const branch = Object.values(world.branches ?? {}).some(
+      (b) => b.companyId === c.id && b.status === 'open' && b.market !== c.market,
+    );
+    if (branch) return true;
+  }
   return Object.values(world.companies).some(
     (x) => x.status === 'active' && x.parentId === c.id && x.market !== c.market,
   );
@@ -311,7 +326,14 @@ function stageTasks(
         ...money(revenue, G.seriesA.revenueUsd),
         go: company,
       },
-      { id: 'a.city', done: secondCity(world, c), go: company },
+      branchesOn(world)
+        ? {
+            id: 'a.city',
+            done: secondCity(world, c),
+            city: secondCityProgress(world, c),
+            go: { kind: 'tab', tab: 'company', section: 'branches' },
+          }
+        : { id: 'a.city', done: secondCity(world, c), go: company },
       {
         id: 'a.raise',
         done: raisedRound(c, 'series-a'),

@@ -64,8 +64,8 @@ describe('stage steps from the Company screen', () => {
     const city = steps.find((x) => x.id === 'a.city')!;
     expect(stageGo(city)).toEqual({
       kind: 'company',
-      section: 'product',
-      focus: { step: 'a.city', anchor: 'expansion' },
+      section: 'branches',
+      focus: { step: 'a.city' },
     });
   });
 

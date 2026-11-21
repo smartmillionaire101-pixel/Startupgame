@@ -12,9 +12,15 @@ import { t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
 import { Button, Card, Empty } from '../ui';
 import { cityName, districtName, type BranchRow } from '../city/wave10';
+import { useOpenBranches } from './Branches';
 import '../phone/wave10.css';
 
-export function ExpansionCard({ c }: { c: CompanyT }) {
+/**
+ * `openOnly` (Company → Branches, branches note): only opening a branch; the
+ * branches themselves are listed and run above it.
+ */
+export function ExpansionCard({ c, openOnly }: { c: CompanyT; openOnly?: boolean }) {
+  const openBranches = useOpenBranches();
   const { view, send, busy } = useView();
   const x = c.expansion;
   const costs = x?.costs ?? [];
@@ -42,11 +48,24 @@ export function ExpansionCard({ c }: { c: CompanyT }) {
       r?.message ? tx(r.message) : t('Branch closed.'),
     );
   };
+  if (openOnly)
+    return (
+      <Card title={t('Open a branch')} className="expansion expansion-open">
+        {opener()}
+      </Card>
+    );
   return (
     <Card
       title={t('Expansion')}
       sub={t('{n} of {max} branches', { n: open.length, max: x.maxOpen })}
       className="expansion"
+      action={
+        x.run ? (
+          <Button variant="ghost" size="sm" data-open-branches="" onClick={openBranches}>
+            {t('Manage branches')}
+          </Button>
+        ) : undefined
+      }
     >
       <p className="small" data-head-office>
         {t('Head office: {district}, {city}', {
@@ -71,6 +90,7 @@ export function ExpansionCard({ c }: { c: CompanyT }) {
                     revenue: money(b.lastMonth.revenue, b.currency),
                     opex: money(b.lastMonth.opex || b.monthlyOpex, b.currency),
                   })}
+                  {b.run && ` · ${t('{n} customers', { n: b.run.customers })}`}
                 </span>
               </span>
               <Button
@@ -94,63 +114,73 @@ export function ExpansionCard({ c }: { c: CompanyT }) {
         </p>
       )}
       <h3 className="expansion-h">{t('Open a branch')}</h3>
-      <div className="chip-row" role="radiogroup" aria-label={t('City')}>
-        {costs.map((k) => (
-          <button
-            key={k.market}
-            type="button"
-            role="radio"
-            aria-checked={market === k.market}
-            className={`chip-btn${market === k.market ? ' on' : ''}`}
-            onClick={() => {
-              setMarket(k.market);
-              setDistrict('');
-            }}
-          >
-            {cityName(view, k.market)}
-          </button>
-        ))}
-      </div>
-      {cost && (
-        <p className="small" data-branch-cost>
-          {t('Set-up {setup} · then {opex} a month · takings up to about {demand} a month', {
-            setup: money(cost.setup, cost.currency),
-            opex: money(cost.monthlyOpex, cost.currency),
-            demand: money(cost.demand, cost.currency),
-          })}
-        </p>
-      )}
-      <div className="district-map" role="radiogroup" aria-label={t('Neighbourhood')}>
-        {districts.map((d, i) => {
-          const no = taken(d);
-          return (
-            <button
-              key={d}
-              type="button"
-              role="radio"
-              aria-checked={district === d}
-              disabled={no}
-              className={`district${district === d ? ' on' : ''}${no ? ' taken' : ''}`}
-              style={{ ['--i' as string]: i }}
-              onClick={() => setDistrict(d)}
-            >
-              <span aria-hidden="true">{no ? '🏢' : '📍'}</span>
-              {districtName(d)}
-            </button>
-          );
-        })}
-      </div>
-      <Button disabled={busy || !district || full} onClick={doOpen}>
-        {district
-          ? t('Open in {district}, {city}', {
-              district: districtName(district),
-              city: cityName(view, market),
-            })
-          : t('Pick a neighbourhood')}
-      </Button>
-      {full && (
-        <p className="small bad">{t('{n} branches is the most you can run.', { n: x.maxOpen })}</p>
-      )}
+      {opener()}
     </Card>
   );
+
+  function opener() {
+    return (
+      <>
+        <div className="chip-row" role="radiogroup" aria-label={t('City')}>
+          {costs.map((k) => (
+            <button
+              key={k.market}
+              type="button"
+              role="radio"
+              aria-checked={market === k.market}
+              className={`chip-btn${market === k.market ? ' on' : ''}`}
+              onClick={() => {
+                setMarket(k.market);
+                setDistrict('');
+              }}
+            >
+              {cityName(view, k.market)}
+            </button>
+          ))}
+        </div>
+        {cost && (
+          <p className="small" data-branch-cost>
+            {t('Set-up {setup} · then {opex} a month · takings up to about {demand} a month', {
+              setup: money(cost.setup, cost.currency),
+              opex: money(cost.monthlyOpex, cost.currency),
+              demand: money(cost.demand, cost.currency),
+            })}
+          </p>
+        )}
+        <div className="district-map" role="radiogroup" aria-label={t('Neighbourhood')}>
+          {districts.map((d, i) => {
+            const no = taken(d);
+            return (
+              <button
+                key={d}
+                type="button"
+                role="radio"
+                aria-checked={district === d}
+                disabled={no}
+                className={`district${district === d ? ' on' : ''}${no ? ' taken' : ''}`}
+                style={{ ['--i' as string]: i }}
+                onClick={() => setDistrict(d)}
+              >
+                <span aria-hidden="true">{no ? '🏢' : '📍'}</span>
+                {districtName(d)}
+              </button>
+            );
+          })}
+        </div>
+        <Button disabled={busy || !district || full} onClick={doOpen}>
+          {district
+            ? t('Open in {district}, {city}', {
+                district: districtName(district),
+                city: cityName(view, market),
+              })
+            : t('Pick a neighbourhood')}
+        </Button>
+        {full && (
+          <p className="small bad">
+            {t('{n} branches is the most you can run.', { n: x.maxOpen })}
+          </p>
+        )}
+      </>
+    );
+  }
 }

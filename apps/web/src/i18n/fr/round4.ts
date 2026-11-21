@@ -3,10 +3,6 @@
  * "Open the Roadmap" from a lost deal, the stage card's "Do it now").
  */
 export const round4: Record<string, string> = {
-  // The release note.
-  'Update from your feedback: your customers now say what they need your product to do. A discovery meeting in Sales shows the features a customer needs by name, and which of them you already have. A deal lost because the product doesn’t do what they need names the missing feature, and “Open the Roadmap” takes you straight to it. Build it, show them a new demo or try again, and your chance goes up. On the Company screen, “Do it now” on your stage now opens the place to work on that step. Refresh to get it; your game is saved.':
-    'Mise à jour suite à vos retours : vos clients disent maintenant ce que votre produit doit faire. Une réunion de découverte dans Ventes montre par leur nom les fonctionnalités dont un client a besoin, et celles que vous avez déjà. Une affaire perdue parce que le produit ne fait pas ce qu’il leur faut nomme la fonctionnalité manquante, et « Ouvrir la feuille de route » vous y emmène directement. Développez-la, montrez-leur une nouvelle démo ou réessayez, et vos chances augmentent. Sur l’écran Entreprise, « Le faire maintenant » sur votre étape ouvre désormais l’endroit où avancer sur cette étape. Actualisez pour l’obtenir ; votre partie est sauvegardée.',
-
   // What a customer needs the product to do (the deal card and the lost reason).
   '{list} and {last}': '{list} et {last}',
   '{features}: you have all of it': '{features} : vous avez tout',
@@ -55,8 +51,8 @@ export const round4: Record<string, string> = {
     'Développez ce que les clients demandent : ajoutez une fonctionnalité depuis les retours clients ou le catalogue, puis lancez-la quand elle est prête.',
   'Hire for the job that takes most of your time: post a role below.':
     'Recrutez pour la tâche qui vous prend le plus de temps : publiez un poste ci-dessous.',
-  'Open in a second city with the card below. It costs money up front, so check how long your money lasts first.':
-    'Ouvrez dans une deuxième ville avec la carte ci-dessous. Cela coûte de l’argent au départ : vérifiez d’abord combien de temps votre argent tiendra.',
+  'Open a branch in another city with the card below, then win customers there. It costs money up front, so check how long your money lasts first.':
+    'Ouvrez une succursale dans une autre ville avec la carte ci-dessous, puis gagnez-y des clients. Cela coûte de l’argent au départ : vérifiez d’abord combien de temps votre argent tiendra.',
   'Hide this tip': 'Masquer ce conseil',
   'Done: this step is ticked off.': 'Fait : cette étape est cochée.',
   'Win deals in Sales': 'Gagner des affaires dans Ventes',

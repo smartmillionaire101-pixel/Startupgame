@@ -276,6 +276,18 @@ export function taskRow(x: FounderTask, cur: string): { title: string; meta: str
       return { title: t('Build a team of {need}', { need }), meta: of() };
     case 'seed.runway':
       return { title: t('Have {need} months of money', { need }), meta: of() };
+    case 'a.city':
+      // Branches note: where you stand (a branch elsewhere, then customers there).
+      return {
+        title: t('Sell in a second city'),
+        meta: !x.city
+          ? null
+          : x.city.branches === 0
+            ? x.city.sameCity > 0
+              ? t('your branch is in your city')
+              : t('no branch there yet')
+            : t('{n} customers there', { n: x.city.customers }),
+      };
     default:
       return { title: taskCopy(x, cur).label, meta: null };
   }
@@ -285,7 +297,7 @@ export function taskRow(x: FounderTask, cur: string): { title: string; meta: str
 export function goAction(x: FounderTask): { icon: string; label: string } | null {
   const g = stageGo(x);
   if (!g) return null;
-  if (g.kind === 'company') return companyAction(x.id, g.section);
+  if (g.kind === 'company') return companyAction(x, g.section);
   if (g.kind === 'place') {
     if (g.place === 'market')
       return x.id === 'idea.discovery'
@@ -302,14 +314,18 @@ export function goAction(x: FounderTask): { icon: string; label: string } | null
   }
   if (g.kind === 'sky') return { icon: '📍', label: t('Go there') };
   if (g.section === 'roadmap') return { icon: '🧭', label: t('Open the Roadmap') };
+  if (g.section === 'branches') return { icon: '🏙', label: t('Open Branches') };
   if (g.section === 'team') return { icon: '👥', label: t('Open your team') };
   if (g.tab === 'money') return { icon: '💷', label: t('Open Money') };
   return { icon: '✏️', label: t('Do it now') };
 }
 
 /** A step done on the Company screen: the button says what you'll do in its section. */
-function companyAction(id: string, section: CompanySection): { icon: string; label: string } {
-  switch (id) {
+function companyAction(
+  x: Pick<FounderTask, 'id' | 'city'>,
+  section: CompanySection,
+): { icon: string; label: string } {
+  switch (x.id) {
     case 'first.revenue':
     case 'growth.revenue':
     case 'a.revenue':
@@ -324,7 +340,10 @@ function companyAction(id: string, section: CompanySection): { icon: string; lab
     case 'growth.profit':
       return { icon: '💷', label: t('Check price and spend') };
     case 'a.city':
-      return { icon: '🏙', label: t('Open a second city') };
+      // Branches note: once a branch is open elsewhere, the work is running it.
+      return x.city && x.city.branches > 0
+        ? { icon: '🏙', label: t('Open Branches') }
+        : { icon: '🏙', label: t('Open a second city') };
   }
   if (section === 'roadmap') return { icon: '🧭', label: t('Open the Roadmap') };
   if (section === 'team') return { icon: '👥', label: t('Open your team') };
@@ -366,7 +385,7 @@ function stepHintText(id: string, fallback: string): string {
       return t('Hire for the job that takes most of your time: post a role below.');
     case 'a.city':
       return t(
-        'Open in a second city with the card below. It costs money up front, so check how long your money lasts first.',
+        'Open a branch in another city with the card below, then win customers there. It costs money up front, so check how long your money lasts first.',
       );
     default:
       return fallback;

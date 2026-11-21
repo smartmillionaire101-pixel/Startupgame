@@ -147,6 +147,8 @@ export {
   customersOn,
   DEAL_NEEDS_NOTE,
   dealNeedsOn,
+  BRANCHES_NOTE,
+  branchesOn,
   RELEASES,
 } from './releases.js';
 // Bankers: negotiating with shareholders, the licence process, the first session.
@@ -349,7 +351,7 @@ export { boostsOf, roomKey } from './homestyle.js';
 export type { Boosts } from './homestyle.js';
 export { wallEdgesOf } from './catalog.js';
 export type { OnlineOrder } from './catalog.js';
-export { BRANCH } from './branches.js';
+export { BRANCH, BRANCH_GROW } from './branches.js';
 export { COMPETITION, isCompetitionMonth, competitionId } from './competitions.js';
 // Wave 12: sky views and the quiz bank.
 export { SKY_VIEWS, skyViewById, skyViewsIn } from './data/sky-views.js';

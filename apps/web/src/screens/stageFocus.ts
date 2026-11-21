@@ -6,7 +6,9 @@
  * now opens its own Company section, scrolled into view, with what the step
  * asks of you at the top of it (StepHint): revenue on Customers (what pays
  * you) with the ways to grow it, the price on Pricing and spend, a second
- * city on the expansion card, the team on Team, fit on the Roadmap.
+ * city on Branches (its branches and the card that opens one; before the
+ * branches note, Branches shows that card alone), the team on Team, fit on
+ * the Roadmap.
  *
  * Steps that lead elsewhere (the Market, investors, the Hub, the Sales app,
  * Money) keep their target: they already leave the Company screen.
@@ -34,7 +36,7 @@ export const STEP_PLACES: Record<string, StepPlace> = {
   'growth.team': { section: 'team' },
   'growth.profit': { section: 'customers', anchor: 'pricing' },
   'a.revenue': { section: 'customers' },
-  'a.city': { section: 'product', anchor: 'expansion' },
+  'a.city': { section: 'branches' },
 };
 
 /** A step without its own entry still opens somewhere useful: what pays you. */

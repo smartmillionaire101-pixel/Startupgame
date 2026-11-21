@@ -6,7 +6,7 @@
  * what you know about the customer ('?' until discovery), the chance to win,
  * and the next step with its time and cost before you confirm.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Command } from '@runway/engine';
 import { amountInput, gameMonth, money, parseAmount, pct } from '../format';
 import { t, tx } from '../i18n';
@@ -18,6 +18,8 @@ import { DemoBreakdown } from './FounderGuide';
 import { SalesTalkSheet } from './SalesTalk';
 import { DealOwner } from './SalesTeam';
 import { useOpenCustomers } from './Customers';
+import { SalesCityBar } from './SalesCities';
+import { onSalesCity, takeSalesCity } from './salesCity';
 import {
   LossReason,
   lossAdvice,
@@ -109,6 +111,9 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
   const [filter, setFilter] = useState<BoardFilter>('all');
   // …and, with salespeople, whose deals: yours ("me") or one person's.
   const [owner, setOwner] = useState<string | null>(null);
+  // Branches note: …and which city (a branch's city, or every city).
+  const [city, setCity] = useState<string | null>(takeSalesCity);
+  useEffect(() => onSalesCity(setCity), []);
   const openCustomers = useOpenCustomers();
   const sales = c.sales;
   if (!sales) return <Empty>{t('The sales pipeline isn’t available yet.')}</Empty>;
@@ -116,7 +121,7 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
   const hoursLeft = view.me.hours.left;
   const salesStaff = c.staff.filter((s) => s.role === 'sales');
   const mine = (d: DealV) => owner === null || (owner === 'me' ? !d.owner : d.owner?.id === owner);
-  const shown = sales.deals.filter(mine);
+  const shown = sales.deals.filter((d) => mine(d) && (city === null || d.market === city));
   const groups = boardGroups(sales.stages, shown, filter);
   const prospect = () =>
     send<{ leads: { id: string; name: string }[] }>(
@@ -184,6 +189,7 @@ export function SalesPipeline({ c, compact }: { c: Company; compact?: boolean })
         </div>
       </Card>
 
+      <SalesCityBar c={c} deals={sales.deals} city={city} setCity={setCity} blocked={!!blocker} />
       {sales.deals.length === 0 ? (
         <Empty>
           {t('No deals yet. Find leads: local businesses and buyers who might pay for {name}.', {
@@ -453,6 +459,11 @@ function DealCard({
         <span className="small muted">
           {d.contact} · {tx(d.businessKind ?? d.segment)}
         </span>
+        {d.market !== c.market && (
+          <span className="small sales-deal-city" data-deal-city={d.market}>
+            📍 {d.city}
+          </span>
+        )}
       </header>
       <div className="sales-deal-line small">
         <span>
