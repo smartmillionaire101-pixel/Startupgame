@@ -263,6 +263,8 @@ const waiting: {
   rebuild: (id: string, o: ModelOpts) => THREE.Group;
 }[] = [];
 let listening = false;
+const waitingCars: typeof waiting = [];
+let listeningCars = false;
 export function swapLater(
   group: THREE.Group,
   id: string,
@@ -272,15 +274,22 @@ export function swapLater(
   rebuild: (id: string, o: ModelOpts) => THREE.Group,
   /** Whether the builder drew chairs (chairAt), which become CC0 chairs too. */
   chairs = false,
+  /** A car (it waits for the cars, ../three-kit/vehicles.ts). */
+  car = false,
 ) {
-  if ((!hasGlb(id) && !chairs) || typeof WeakRef === 'undefined') return;
-  waiting.push({ ref: new WeakRef(group), id, o, refinish, rebuild });
-  if (listening) return;
-  listening = true;
-  void import('../three-kit/props').then(({ loadProps }) =>
-    loadProps('furniture').then((set) => {
-      if (!set) return;
-      for (const w of waiting.splice(0)) {
+  if ((!hasGlb(id) && !chairs && !car) || typeof WeakRef === 'undefined') return;
+  const list = car ? waitingCars : waiting;
+  list.push({ ref: new WeakRef(group), id, o, refinish, rebuild });
+  if (car ? listeningCars : listening) return;
+  if (car) listeningCars = true;
+  else listening = true;
+  const arrived = car
+    ? import('../three-kit/vehicles').then(({ loadCars }) => loadCars())
+    : import('../three-kit/props').then(({ loadProps }) => loadProps('furniture'));
+  void arrived.then((set) => {
+    if (!set) return;
+    {
+      for (const w of list.splice(0)) {
         const g = w.ref.deref();
         if (!g) continue;
         const fresh = w.rebuild(w.id, w.o);
@@ -298,6 +307,6 @@ export function swapLater(
           if (obj !== undefined) c.traverse((x) => (x.userData.obj = obj));
         }
       }
-    }),
-  );
+    }
+  });
 }

@@ -116,6 +116,38 @@ test('home: the player at home', async ({ page }) => {
   await shots(page, 'home', 4000);
 });
 
+test('homes at each lifestyle tier, furnished', async ({ page }) => {
+  test.setTimeout(420_000);
+  await founder(page, 'Hana Homes', 'lite');
+  for (const [kind, wealth] of [
+    ['studio', 1],
+    ['villa', 2],
+    ['mansion', 3],
+    ['penthouse', 3],
+  ] as const) {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await tab(page, 'Today').click();
+    const tools = page.locator('[data-home-preview]');
+    await tools.scrollIntoViewIfNeeded();
+    await tools.getByRole('button', { name: `Wealth ${wealth}` }).click();
+    await page.evaluate(() => {
+      localStorage.setItem('runway.mapQuality', '3d');
+      window.dispatchEvent(
+        new StorageEvent('storage', { key: 'runway.mapQuality', newValue: '3d' }),
+      );
+    });
+    await tools.locator(`[data-preview-kind="${kind}"]`).click();
+    const home = page.locator('.home-scene');
+    await expect(home).toHaveAttribute('data-kind', kind);
+    await expect(home).toHaveClass(/is-3d/, { timeout: 90_000 });
+    await page.waitForTimeout(6000);
+    if (kind === 'villa') record('home-villa', await stageStats(page));
+    await shots(page, `home-${kind}`, 3500);
+    await home.getByRole('button', { name: 'Say goodbye' }).click();
+    await expect(home).toBeHidden();
+  }
+});
+
 test('a busy club, dancing, and a close-up of a walking character', async ({ page }) => {
   test.setTimeout(600_000);
   await founder(page, 'Kemi Nights');

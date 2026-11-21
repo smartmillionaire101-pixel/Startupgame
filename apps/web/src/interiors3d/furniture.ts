@@ -1081,6 +1081,7 @@ function carModel(k: Kit, paint: string, kind: string, m?: Model) {
   // The CC0 car for this model, when the cars have arrived (the city fetches them).
   const cc = carGlb(CAR_FOR_MODEL[kind] ?? 'NormalCar1', paint, L);
   if (cc) {
+    cc.userData.cc0 = true;
     k.extras.push(cc);
     if (m) m.seats.push(new THREE.Vector3(-0.38, 0.5, -0.1));
     return;
@@ -2048,6 +2049,8 @@ export function buildModel(id: string, o: ModelOpts): Model {
   const glb = carKind ? null : withGlb(k, id, o);
   m.group = k.build();
   if (!glb && !carKind) swapLater(m.group, id, o, refinish, rebuildGroup, usesChairs(k));
+  if (carKind && carKind !== 'motorbike' && !m.group.children.some((c) => c.userData.cc0))
+    swapLater(m.group, id, o, refinish, rebuildGroup, false, true);
   // A soft contact shadow under floor-standing things.
   if (!NO_SHADOW.includes(id)) {
     const sw = carKind ? 2.2 : Math.max(0.5, o.w * 0.95);
