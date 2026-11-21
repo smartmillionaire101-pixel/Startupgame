@@ -84,6 +84,8 @@ export interface RecapCompany {
   /** From the month's P&L (null when the company had no settlement that month). */
   revenue: number | null;
   revenueBefore: number | null;
+  /** Customers note: of revenue, what signed customers paid (null when not recorded). */
+  signedRevenue: number | null;
   customers: number | null;
   customersBefore: number | null;
   /** New and lost customers at that settlement (only known for the latest one). */
@@ -297,6 +299,7 @@ function companyMonth(world: World, c: Company, month: number): RecapCompany {
     currency: m.data.currency,
     revenue: pnl?.revenue ?? null,
     revenueBefore: before?.revenue ?? null,
+    signedRevenue: pnl?.signedRevenue ?? null,
     customers: pnl?.customers ?? null,
     customersBefore: before?.customers ?? null,
     // Round 7 (#14): customers won in the Sales pipeline this month count as won too.

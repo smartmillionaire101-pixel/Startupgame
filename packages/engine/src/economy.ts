@@ -64,7 +64,7 @@ import { metAtVenue, peopleHere } from './people.js';
 import { deriveRng } from './rng.js';
 import { randomDistrict } from './districts.js';
 import { venueNeeds } from './needs.js';
-import { gameplayOn, investorOn } from './releases.js';
+import { customersOn, gameplayOn, investorOn } from './releases.js';
 import { buyerSegment } from './data/buyers.js';
 import type { Rng } from './rng.js';
 import type {
@@ -681,6 +681,10 @@ export function settleEconomy(world: World, marketId: MarketId, month: number) {
         const paid = transferUpTo(world, b.account, supplier.account, want, b.name, month);
         supplier.ledgerThisMonth.businessRevenue =
           (supplier.ledgerThisMonth.businessRevenue ?? 0) + paid;
+        // Customers note: keep what each business has paid, for the Customers view.
+        if (customersOn(world))
+          still.paid =
+            (still.paid ?? still.monthlyMinor * Math.max(0, month - 1 - still.since)) + paid;
         still.monthlyMinor = paid;
         trade += paid;
       } else {

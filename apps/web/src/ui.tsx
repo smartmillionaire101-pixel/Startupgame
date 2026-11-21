@@ -420,7 +420,7 @@ const TOAST_ICON: Record<'ok' | 'error' | 'info', IconName> = {
 };
 
 export function Toasts() {
-  const { toasts } = useGame();
+  const { toasts, send } = useGame();
   return (
     <div className="toasts" aria-live="polite">
       {toasts.map((x) => (
@@ -429,6 +429,16 @@ export function Toasts() {
             <Icon name={TOAST_ICON[x.tone]} size={16} />
           </span>
           <span>{x.text}</span>
+          {x.action && (
+            <button
+              type="button"
+              className="toast-action"
+              data-toast-action=""
+              onClick={() => void send(x.action!.command, x.action!.okText)}
+            >
+              {x.action.label}
+            </button>
+          )}
         </div>
       ))}
     </div>

@@ -25,8 +25,8 @@ import { getMarket, lastPnl, nextStage, totalCustomers } from './helpers.js';
 import type { JourneyGo } from './journey.js';
 import { formatMoney } from './money.js';
 import { rulesFor } from './data/rules.js';
-import { feedbackOn } from './releases.js';
-import { customerFacts, TRACTION, type CustomerFacts } from './traction.js';
+import { customersOn, feedbackOn } from './releases.js';
+import { customerFacts, payingCustomers, TRACTION, type CustomerFacts } from './traction.js';
 import { monthlyGrowth } from './valuation.js';
 import type {
   Company,
@@ -116,14 +116,14 @@ const company = { kind: 'tab', tab: 'company' } as JourneyGo;
 const counted = (have: number, need: number) => ({ have: Math.min(have, need), need });
 
 /** Customers kept last month, in percent (100 when nobody has had the chance to leave). */
-export function keptPct(c: Company): number {
+export function keptPct(c: Company, customers = totalCustomers(c)): number {
   const seg = Object.values(c.segments);
   // Pipeline customers who left at the latest settlement count too (only
   // recorded in feedback-note worlds, so older worlds count as before).
   const month = lastPnl(c)?.month;
   const left = (c.salesChurn ?? []).filter((x) => x.month === month).length;
   const churned = seg.reduce((a, s) => a + s.churned, 0) + left;
-  const base = totalCustomers(c) + churned;
+  const base = customers + churned;
   return base > 0 ? Math.round(((base - churned) / base) * 100) : 100;
 }
 
@@ -183,6 +183,8 @@ function stageTasks(
   const G = FOUNDER_GUIDE;
   // One count of real customers for all guidance (traction.ts).
   const customers = facts.total;
+  // Customers note: kept out of the same total everything else shows.
+  const kept = customersOn(world) ? keptPct(c, customers) : keptPct(c);
   const revenue = revenueOf(c);
   const checks = founderPlanChecks({
     ...founderPlanBase(world, c),
@@ -235,10 +237,10 @@ function stageTasks(
       { id: 'first.margin', done: level('margin') !== 'bad', go: company },
       {
         id: 'first.retention',
-        done: customers > 0 && c.finance.history.length > 0 && keptPct(c) >= G.first.keepPct,
+        done: customers > 0 && c.finance.history.length > 0 && kept >= G.first.keepPct,
         // The real share (not capped at the goal): "100% now" before a month has
         // settled reads as what it is, not as "90% now" and unticked.
-        have: customers > 0 ? keptPct(c) : 0,
+        have: customers > 0 ? kept : 0,
         need: G.first.keepPct,
         ...(c.finance.history.length === 0 ? { waiting: true } : {}),
         go: company,
@@ -639,7 +641,8 @@ export function pitchPassWhy(
   const m = getMarket(world, c.market);
   const bar = pitchBar(world, c);
   const s = strengths(world, c);
-  const customers = totalCustomers(c);
+  // Customers note: the reason names the same count the founder sees everywhere.
+  const customers = customersOn(world) ? payingCustomers(world, c) : totalCustomers(c);
   const revenue = revenueOf(c);
   const growth = monthlyGrowth(c);
   const runway = companyRunway(world, c);

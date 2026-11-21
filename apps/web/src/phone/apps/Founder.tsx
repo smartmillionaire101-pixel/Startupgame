@@ -54,10 +54,19 @@ export function Founder({ ctx }: { ctx: PhoneCtx }) {
       </section>
       <section className="phone-card">
         <Line
-          label={t('Revenue (MRR)')}
+          label={t('Monthly revenue')}
           value={t('{amount}/mo', { amount: money(c.monthlyRevenue, cur) })}
           tone="good"
         />
+        {c.customerBook && (
+          <>
+            <Line label={t('Paying customers')} value={c.customerBook.total} />
+            <Line
+              label={t('MRR')}
+              value={t('{amount}/mo', { amount: money(c.customerBook.mrr, cur) })}
+            />
+          </>
+        )}
         <Line label={t('Spending')} value={t('{amount}/mo', { amount: money(c.spending, cur) })} />
         <Line label={t('Team')} value={c.teamSize} />
         <Line label={t('Stars')} value={`${c.stars.toFixed(1)}★`} />
@@ -65,6 +74,15 @@ export function Founder({ ctx }: { ctx: PhoneCtx }) {
       </section>
       <div className="phone-quick-actions">
         <Button onClick={() => tab('company')}>{t('Open company')}</Button>
+        <Button
+          variant="subtle"
+          onClick={() => {
+            openCompanyTab('customers');
+            tab('company');
+          }}
+        >
+          {t('Customers')}
+        </Button>
         <Button
           variant="subtle"
           onClick={() => {

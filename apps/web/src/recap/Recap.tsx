@@ -157,6 +157,11 @@ function RecapSheet({ start, onClose }: { start: number | null; onClose: () => v
       onClose();
       nav?.go({ kind: 'tab', tab: 'company' });
     },
+    customers: () => {
+      onClose();
+      openCompanyTab('customers');
+      nav?.go({ kind: 'tab', tab: 'company', section: 'customers' });
+    },
     team: () => {
       onClose();
       openCompanyTab('team');
@@ -230,7 +235,7 @@ function RecapSheet({ start, onClose }: { start: number | null; onClose: () => v
   );
 }
 
-type Details = Record<'bank' | 'company' | 'team' | 'journey', () => void>;
+type Details = Record<'bank' | 'company' | 'customers' | 'team' | 'journey', () => void>;
 
 function RecapBody({ recap, details }: { recap: RecapView; details: Details }) {
   const current = recap.month === recap.current;
@@ -280,7 +285,12 @@ function RecapBody({ recap, details }: { recap: RecapView; details: Details }) {
       )}
 
       {recap.companies.length > 0 && (
-        <Section id="company" title={t('Company changes')} onDetails={details.company}>
+        <Section
+          id="company"
+          title={t('Company changes')}
+          onDetails={details.customers}
+          detailsLabel={t('See customers')}
+        >
           {recap.companies.map((c) => (
             <CompanyBlock key={c.id} c={c} many={recap.companies.length > 1} />
           ))}
@@ -522,6 +532,12 @@ function CompanyBlock({ c, many }: { c: RecapCompany; many: boolean }) {
       tone: d === null || d === 0 ? undefined : d > 0 ? 'good' : 'bad',
     });
   }
+  if (c.signedRevenue !== null && c.signedRevenue > 0)
+    lines.push({
+      text: t('Of that, signed customers paid {amount}', {
+        amount: money(c.signedRevenue, cur),
+      }),
+    });
   if (c.customers !== null)
     lines.push({
       text:

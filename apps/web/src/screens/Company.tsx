@@ -27,6 +27,7 @@ import { RivalsPanel } from './Decisions';
 import { FounderSetup, GoToOffice, SetupTracker, setupOpen } from './FounderSetup';
 import { SimpleLink } from './SimpleLink';
 import { CompanyKpis } from './Home';
+import { CustomerBook, HibernateCard, HibernationBanner } from './Customers';
 import { SnapButton } from '../photos/SnapButton';
 import { resultCard } from '../photos/snap';
 import {
@@ -224,6 +225,8 @@ export function CompanyScreen() {
         </span>
         <Pill>{c.industryLabel}</Pill>
       </header>
+      {/* A company asleep (hibernating) says so first, with the way to wake it. */}
+      <HibernationBanner c={c} />
       {/* Founder setup: the done card hands over to the stage tracker (companies
           founded before the setup, or seeded, have none). */}
       {c.setup && <FounderSetup c={c} />}
@@ -303,6 +306,7 @@ export function CompanyScreen() {
             </div>
             <div className="screen-col">
               <Pivot c={c} />
+              <HibernateCard c={c} />
               <RivalsPanel c={c} />
             </div>
             <div className="screen-col">
@@ -551,27 +555,18 @@ function Customers({ c }: { c: CompanyT }) {
     );
   return (
     <>
+      {/* Everyone who pays, MRR and last month's revenue from customers (round 3). */}
+      <CustomerBook c={c} />
+      {(c.businessCustomers ?? []).length === 0 && (
+        <p className="small muted">
+          {t(
+            'No local businesses buy from you yet. Walk into shops and restaurants in the City and pitch them.',
+          )}
+        </p>
+      )}
       {segs.map((s) => (
         <SegmentCard key={s.key} c={c} s={s} />
       ))}
-      <Card title={t('Business customers')}>
-        {(c.businessCustomers ?? []).length === 0 ? (
-          <Empty>
-            {t(
-              'No local businesses buy from you yet. Walk into shops and restaurants in the City and pitch them.',
-            )}
-          </Empty>
-        ) : (
-          <ul className="list">
-            {(c.businessCustomers ?? []).map((b) => (
-              <li key={b.businessId} className="spread">
-                <span>{b.name}</span>
-                <span>{t('{amount}/month', { amount: money(b.monthly, cur) })}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
       <Card title={t('Pricing and spend')}>
         <CheckHeadline checks={checks} cur={cur} />
         <Field
