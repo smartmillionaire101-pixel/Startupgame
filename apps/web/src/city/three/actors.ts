@@ -29,6 +29,16 @@ import {
   type VehicleKind,
 } from './traffic';
 import { softwareGl } from '../../three-kit/quality';
+import {
+  CAR_FOR_MODEL,
+  ModelFleet,
+  TRAFFIC_MODELS,
+  carModel,
+  carsNow,
+  spinWheels,
+  type CarModel,
+  type Instanced,
+} from '../../three-kit/vehicles';
 
 const LEFT_HAND = new Set(['london', 'nairobi', 'johannesburg']);
 
@@ -144,6 +154,8 @@ export class Actors {
   private cars: Car[] = [];
   private carBody: THREE.InstancedMesh;
   private carCab: THREE.InstancedMesh;
+  /** The main roads' cars: the CC0 models once they've arrived (the boxes above until then). */
+  private carFleet: ModelFleet;
   private busBody: THREE.InstancedMesh;
   private busBand: THREE.InstancedMesh;
   private lastT = 0;
@@ -168,7 +180,7 @@ export class Actors {
   private shelters: THREE.InstancedMesh | null = null;
   /** Street traffic around you (the roads you're on are never empty). */
   private local: TrafficSim | null = null;
-  private localMeshes: Record<VehicleKind, THREE.InstancedMesh[]> | null = null;
+  private localMeshes: Record<VehicleKind, Instanced[]> | null = null;
   /** The street traffic's headlights and tail lights (night only), and its kinds in slot order. */
   private localLights: THREE.Points | null = null;
   private localKinds: VehicleKind[] = [];
@@ -248,13 +260,20 @@ export class Actors {
     const col = new THREE.Color();
     let ci = 0;
     let bi = 0;
+    const models: CarModel[] = [];
+    this.carFleet = new ModelFleet(n - nb, [this.carBody, this.carCab], (j) => models[j]!, {
+      length: 4.4,
+      castShadow: tier === 'high',
+    });
     this.cars.forEach((c, i) => {
       if (c.bus) {
         col.set(fleet.bus);
         this.busBody.setColorAt(bi++, col);
       } else {
-        col.set(h3(i, 5) < 0.18 ? fleet.taxi : CARS[Math.floor(h3(i, 7) * CARS.length)]!);
-        this.carBody.setColorAt(ci++, col);
+        const taxi = h3(i, 5) < 0.18;
+        col.set(taxi ? fleet.taxi : CARS[Math.floor(h3(i, 7) * CARS.length)]!);
+        models.push(taxi ? 'Taxi' : TRAFFIC_MODELS[Math.floor(h3(i, 11) * TRAFFIC_MODELS.length)]!);
+        this.carFleet.setColorAt(ci++, col);
       }
     });
     if (fleet.double) this.busBody.scale.set(1, 1, 1);
@@ -264,8 +283,9 @@ export class Actors {
       // map then needn't be redrawn for every car that moves).
       m.castShadow = tier === 'high';
       m.count = m === this.carBody || m === this.carCab ? n - nb : nb;
-      scene.add(m);
+      if (m !== this.carBody && m !== this.carCab) scene.add(m);
     }
+    scene.add(this.carFleet.group);
     if (glow && n) {
       const g = new THREE.BufferGeometry();
       const pos = new Float32Array(n * 4 * 3);
@@ -289,7 +309,7 @@ export class Actors {
       this.carLights.visible = false;
       scene.add(this.carLights);
     }
-    this.globalMeshes = [this.carBody, this.carCab, this.busBody, this.busBand];
+    this.globalMeshes = [this.carFleet.group, this.busBody, this.busBand];
     if (this.carLights) this.globalMeshes.push(this.carLights);
     this.buildShelters(scene);
     this.buildLocal(scene, layout.marketId, tier, soft);
@@ -325,11 +345,24 @@ export class Actors {
       scene.add(m);
       return m;
     };
+    // Cars: the CC0 models once they've arrived (taxis as the Taxi).
+    const carKinds = kinds.map((k, i) => [k, i] as const).filter(([k]) => k === 'car');
+    const localModels = carKinds.map(([, i]) =>
+      h3(seed, i, 5) < fleet.taxiShare
+        ? ('Taxi' as const)
+        : TRAFFIC_MODELS[Math.floor(h3(seed, i, 13) * TRAFFIC_MODELS.length)]!,
+    );
+    const carBoxes = [
+      mk(new THREE.BoxGeometry(4.4, 0.95, 1.85).translate(0, 0.78, 0), paint, 'car'),
+      mk(new THREE.BoxGeometry(2.3, 0.6, 1.62).translate(-0.25, 1.55, 0), dark, 'car'),
+    ];
+    const localFleet = new ModelFleet(carKinds.length, carBoxes, (j) => localModels[j]!, {
+      length: 4.4,
+      castShadow: tier === 'high' && !soft,
+    });
+    scene.add(localFleet.group);
     this.localMeshes = {
-      car: [
-        mk(new THREE.BoxGeometry(4.4, 0.95, 1.85).translate(0, 0.78, 0), paint, 'car'),
-        mk(new THREE.BoxGeometry(2.3, 0.6, 1.62).translate(-0.25, 1.55, 0), dark, 'car'),
-      ],
+      car: [localFleet],
       bus: [
         mk(new THREE.BoxGeometry(10, 2.4, 2.4).translate(0, 1.5, 0), paint.clone(), 'bus'),
         mk(new THREE.BoxGeometry(9.4, 0.75, 2.44).translate(0, 2.0, 0), dark, 'bus'),
@@ -390,7 +423,7 @@ export class Actors {
   }
 
   /** The street traffic's lights, from where each vehicle was just drawn. */
-  private placeLocalLights(meshes: Record<VehicleKind, THREE.InstancedMesh[]>) {
+  private placeLocalLights(meshes: Record<VehicleKind, Instanced[]>) {
     const pts = this.localLights;
     if (!pts || !(this.night > 0.02)) return;
     const pos = pts.geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -480,7 +513,10 @@ export class Actors {
       for (const m of meshes[v.kind]) m.setMatrixAt(j, _m);
     }
     for (const list of Object.values(meshes))
-      for (const m of list) m.instanceMatrix.needsUpdate = true;
+      for (const m of list) {
+        if (m instanceof ModelFleet) m.flush();
+        else m.instanceMatrix.needsUpdate = true;
+      }
     this.placeLocalLights(meshes);
   }
 
@@ -748,6 +784,8 @@ export class Actors {
       this.ride.removeFromParent();
       this.ride = null;
     }
+    this.rideSpec = spec;
+    this.rideModel = null;
     this.avatar.root.visible = true;
     this.rideLen = 4.4;
     if (!spec) return;
@@ -777,6 +815,20 @@ export class Actors {
         model === 'luxury' ? 5.1 : model === 'hatchback' ? 3.9 : model === 'city-suv' ? 4.6 : 4.4;
       const W = model === 'city-suv' ? 1.95 : 1.85;
       this.rideLen = L;
+      // The CC0 car (your own by its model, a taxi as the Taxi), once the cars have arrived.
+      const cc = carModel(
+        CAR_FOR_MODEL[model] ?? (spec.extra === 'sign' ? 'Taxi' : 'NormalCar1'),
+        spec.body,
+        L,
+      );
+      if (cc) {
+        g.add(cc);
+        this.rideModel = cc;
+        this.avatar.root.visible = false;
+        this.ride = g;
+        this.avatarGroup.add(g);
+        return;
+      }
       const bodyH = model === 'city-suv' ? 1.15 : model === 'luxury' ? 0.8 : 0.95;
       const cabH = model === 'city-suv' ? 0.75 : model === 'luxury' ? 0.52 : 0.6;
       const cabL = model === 'hatchback' ? L * 0.62 : L * 0.5;
@@ -818,9 +870,18 @@ export class Actors {
     this.avatarGroup.add(g);
   }
 
+  private rideSpec: VehicleSpec | null = null;
+  /** The CC0 car you're in (its wheels turn as you go). */
+  private rideModel: THREE.Group | null = null;
+  private rideAt = { x: 0, y: 0 };
+
   /** Advance everyone. Returns whether the avatar moved. */
   update(tMs: number, reduced: boolean, dist = this.dist) {
     this.dist = dist;
+    // In a low-poly car still: the CC0 one once the cars have arrived.
+    const rs = this.rideSpec;
+    if (rs && !this.rideModel && rs.extra !== 'rider' && rs.len < 0.8 && carsNow())
+      this.setRide(rs);
     const dt = this.lastT ? Math.min(0.1, (tMs - this.lastT) / 1000) : 0;
     this.lastT = tMs;
     // People are tiny from the air: they grow a little as the camera pulls
@@ -836,6 +897,12 @@ export class Actors {
       this.pos.y = this.centre.y;
     }
     const ag = this.avatarGroup;
+    if (this.rideModel) {
+      const moved = Math.hypot(this.pos.x - this.rideAt.x, this.pos.y - this.rideAt.y);
+      if (moved < 50) spinWheels(this.rideModel, moved / Math.max(1e-3, ag.scale.x || 1));
+    }
+    this.rideAt.x = this.pos.x;
+    this.rideAt.y = this.pos.y;
     ag.position.set(this.pos.x, this.pos.h, this.pos.y);
     ag.rotation.y = this.pos.heading;
     const k = this.ride ? vs : grow;
@@ -910,12 +977,11 @@ export class Actors {
         this.busBody.setMatrixAt(bi, _m);
         this.busBand.setMatrixAt(bi++, _m);
       } else {
-        this.carBody.setMatrixAt(ci, _m);
-        this.carCab.setMatrixAt(ci++, _m);
+        this.carFleet.setMatrixAt(ci++, _m);
       }
     }
-    for (const m of [this.carBody, this.carCab, this.busBody, this.busBand])
-      m.instanceMatrix.needsUpdate = true;
+    for (const m of [this.busBody, this.busBand]) m.instanceMatrix.needsUpdate = true;
+    this.carFleet.flush();
     if (lp) lp.needsUpdate = true;
     // Driving: only the traffic around you (it keeps its distance) shows.
     const through = !this.lane;

@@ -5,6 +5,7 @@
  * that move (a screen, a door, a pan) stay separate and are returned by name.
  */
 import * as THREE from 'three';
+import { CAR_FOR_MODEL, carModel as carGlb } from '../three-kit/vehicles';
 import {
   Kit,
   RUG_Y,
@@ -1065,6 +1066,13 @@ function carModel(k: Kit, paint: string, kind: string, m?: Model) {
     return;
   }
   const L = kind === 'luxury' ? 4.6 : kind === 'city-suv' ? 4.4 : kind === 'hatchback' ? 3.7 : 4.2;
+  // The CC0 car for this model, when the cars have arrived (the city fetches them).
+  const cc = carGlb(CAR_FOR_MODEL[kind] ?? 'NormalCar1', paint, L);
+  if (cc) {
+    k.extras.push(cc);
+    if (m) m.seats.push(new THREE.Vector3(-0.38, 0.5, -0.1));
+    return;
+  }
   const W = kind === 'city-suv' || kind === 'luxury' ? 1.85 : 1.7;
   const bodyH = kind === 'city-suv' ? 0.75 : 0.55;
   const clear = kind === 'city-suv' ? 0.3 : 0.2;
