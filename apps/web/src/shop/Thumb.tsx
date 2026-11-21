@@ -72,7 +72,9 @@ function render(spec: ThumbSpec): Promise<string | null> {
     () =>
       new Promise<string | null>((resolve) => {
         setTimeout(() => {
-          import('./thumbs3d').then((m) => resolve(m.renderThumb(spec))).catch(() => resolve(null));
+          import('./thumbs3d')
+            .then((m) => m.thumbsReady().then(() => resolve(m.renderThumb(spec))))
+            .catch(() => resolve(null));
         }, 0);
       }),
   );

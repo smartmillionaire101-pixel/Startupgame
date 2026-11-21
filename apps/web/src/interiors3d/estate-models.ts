@@ -9,7 +9,9 @@
  */
 import * as THREE from 'three';
 import { Kit, contactShadow, tone } from './kit';
-import { buildModel, chairAt, type Model, type ModelOpts } from './furniture';
+import { buildModel, chairAt, withGlb, type Model, type ModelOpts } from './furniture';
+import { refinish } from './dividers';
+import { swapLater } from './furnitureModels';
 import { HOTEL_BUILDERS } from './hotel-models';
 
 /** Car paint by model (the reference's black SUVs, a blue supercar, a silver saloon). */
@@ -721,7 +723,9 @@ export function buildEstateModel(id: string, o: ModelOpts): Model {
   const k = new Kit();
   const m: Model = { group: new THREE.Group(), parts: {}, lamps: [], screens: [], seats: [] };
   b(k, o, m);
+  const glb = carKind ? false : withGlb(k, id, o);
   m.group = k.build();
+  if (!glb && !carKind) swapLater(m.group, id, o, refinish);
   if (
     ![
       'sconce',

@@ -643,6 +643,11 @@ export class Kit {
     });
   }
 
+  /** Forget the merged parts (a CC0 model stands in for them); kept meshes stay. */
+  dropParts() {
+    this.buckets.clear();
+  }
+
   /** Keep a mesh separate (it moves or changes colour). */
   keep(obj: THREE.Object3D) {
     this.extras.push(obj);
@@ -659,6 +664,8 @@ export class Kit {
       const mesh = new THREE.Mesh(geo, b.mat);
       mesh.castShadow = b.shadow;
       mesh.receiveShadow = true;
+      // (The low-poly body: swapped for a CC0 model when one arrives.)
+      mesh.userData.kitPart = true;
       g.add(mesh);
     }
     for (const x of this.extras) g.add(x);
@@ -686,6 +693,7 @@ export function contactShadow(w: number, d: number, opacity = 0.55): THREE.Mesh 
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.y = 0.012;
   mesh.renderOrder = 1;
+  mesh.userData.contactShadow = true;
   return mesh;
 }
 

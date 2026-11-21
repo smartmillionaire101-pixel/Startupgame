@@ -11,6 +11,8 @@ we credit the author anyway. Each pack's own `License.txt` says CC0.
 | `people/women.glb` | Ultimate Modular Women (outfits Casual, Formal, Suit, Punk, Worker) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatemodularwomen.html |
 | `vehicles/cars.glb` | Cars (NormalCar1, NormalCar2, SUV, SportsCar, SportsCar2, Taxi, Cop) | Quaternius | CC0 1.0 | https://quaternius.com/packs/cars.html |
 | `vehicles/cars-lod.glb` | The same cars, simplified for traffic | Quaternius | CC0 1.0 | https://quaternius.com/packs/cars.html |
+| `props/furniture.glb` | Ultimate Furniture (beds, closets, desk, office chair, bookcase, sofas, chairs, tables, stools) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatefurniture.html |
+| `props/furniture.glb` | Ultimate Home Interior (bathroom, kitchen units, fridge, couches, houseplants, lamps, shelves, tables, beds) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatehomeinterior.html |
 
 ## How they were made
 
@@ -27,3 +29,9 @@ we credit the author anyway. Each pack's own `License.txt` says CC0.
   `Paint` (recoloured in game). Then `@gltf-transform` dedup, weld and
   quantize. `cars-lod.glb` drops the normals (flat-shaded in game), welds and
   runs meshoptimizer's simplifier (about 900 triangles a car).
+- **Furniture:** the two packs' FBX files, read with FBXLoader (whose
+  colours, written linear by Blender, are converted back) and written with
+  GLTFExporter into one GLB of named models: metres, Y-up, front +Z,
+  centred on the floor, one primitive per material. Then `@gltf-transform`
+  dedup, weld and quantize. Fitted to each item's footprint in game, the
+  fabric and kitchen colours recoloured by tier and finish.

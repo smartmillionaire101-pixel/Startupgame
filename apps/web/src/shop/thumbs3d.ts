@@ -6,6 +6,8 @@
  */
 import * as THREE from 'three';
 import { buildModel } from '../interiors3d/furniture';
+import { loadProps } from '../three-kit/props';
+import { loadCars } from '../three-kit/vehicles';
 import { buildDivider, refinish, upholstered, type DividerKind } from '../interiors3d/dividers';
 import { planFor } from '../home/layout';
 
@@ -28,6 +30,14 @@ let gl: {
 } | null = null;
 let broken = false;
 const cache = new Map<string, string>();
+
+/**
+ * The CC0 furniture and cars, fetched before the first picture (so a
+ * picture is never the low-poly stand-in). Resolves either way.
+ */
+export function thumbsReady(): Promise<void> {
+  return Promise.all([loadProps('furniture'), loadCars()]).then(() => undefined);
+}
 
 function setup() {
   if (gl || broken) return gl;

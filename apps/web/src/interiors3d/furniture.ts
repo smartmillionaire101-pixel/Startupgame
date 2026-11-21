@@ -6,6 +6,8 @@
  */
 import * as THREE from 'three';
 import { CAR_FOR_MODEL, carModel as carGlb } from '../three-kit/vehicles';
+import { refinish } from './dividers';
+import { furnitureGlb, hasGlb, swapLater } from './furnitureModels';
 import {
   Kit,
   RUG_Y,
@@ -2033,7 +2035,9 @@ export function buildModel(id: string, o: ModelOpts): Model {
   const carKind = id.startsWith('car:') ? id.slice(4) : null;
   if (carKind) carModel(k, o.tint ?? carPaint(carKind), carKind, m);
   else (BUILDERS[id] ?? fallback)(k, o, m);
+  const glb = carKind ? null : withGlb(k, id, o);
   m.group = k.build();
+  if (!glb && !carKind) swapLater(m.group, id, o, refinish);
   // A soft contact shadow under floor-standing things.
   if (!NO_SHADOW.includes(id)) {
     const sw = carKind ? 2.2 : Math.max(0.5, o.w * 0.95);
@@ -2046,3 +2050,17 @@ export function buildModel(id: string, o: ModelOpts): Model {
 }
 
 export const hasBuilder = (id: string) => id in BUILDERS || id.startsWith('car:');
+
+/**
+ * The CC0 model for this item in place of the builder's low-poly body (its
+ * separate meshes kept unless the model has its own), when the models are here.
+ */
+export function withGlb(k: Kit, id: string, o: ModelOpts): boolean {
+  if (!hasGlb(id)) return false;
+  const glb = furnitureGlb(id, o);
+  if (!glb) return false;
+  k.dropParts();
+  if (!glb.keepExtras) k.extras.length = 0;
+  k.extras.push(glb.group);
+  return true;
+}
