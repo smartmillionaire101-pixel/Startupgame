@@ -39,7 +39,9 @@ import { outputOf } from './staff.js';
 import { barEdgeIn } from './lifebars.js';
 import { rivalPressure } from './rivals.js';
 import { firstPayment, starterIdeaEdge } from './firstsession.js';
-import { customersOn, feedbackOn, gameplayOn } from './releases.js';
+import { customersOn, dealNeedsOn, feedbackOn, gameplayOn } from './releases.js';
+import { BUG_BASH, featureById, featuresFor } from './data/roadmap.js';
+import { hasShipped } from './roadmap.js';
 import { TEAM, businessCofounderOf, ctoOf, ownerOf } from './cofounders.js';
 import type {
   Company,
@@ -133,9 +135,9 @@ const NEXT: Partial<Record<SalesAction, SalesStage>> = {
 // ---------------------------------------------------------------- Helpers
 
 const salesOutput = (c: Company) => outputOf(c, ['sales']);
-const prospectLimit = (c: Company) => SALES.prospectsPerMonth + Math.floor(salesOutput(c));
+export const prospectLimit = (c: Company) => SALES.prospectsPerMonth + Math.floor(salesOutput(c));
 const openDealLimit = (c: Company) => SALES.openDeals + Math.floor(salesOutput(c) * 3);
-const prospectsUsed = (c: Company, month: number) =>
+export const prospectsUsed = (c: Company, month: number) =>
   c.salesProspects?.month === month ? c.salesProspects.count : 0;
 
 const actionCost = (m: MarketState, action: SalesAction): number =>
@@ -183,8 +185,11 @@ export function assumed(m: MarketState, d: SalesDeal): SalesCustomer {
   const mid = (d.customer.budgetMin + d.customer.budgetMax) / 2;
   // You guess roughly right on budget (what such buyers usually spend), and average on the rest.
   const guess = seg ? (seg.budget + mid) / 2 : mid;
+  // What they need the product to do is only known after discovery.
+  const who = { ...d.customer };
+  delete who.wants;
   return {
-    ...d.customer,
+    ...who,
     need: 'fit',
     budgetMin: Math.round(guess * 0.8),
     budgetMax: Math.round(guess * 1.2),
@@ -203,11 +208,62 @@ interface Factors {
   competition: number;
 }
 
+// ---------------------------------------------------------------- What they need it to do
+
+/**
+ * Features a customer can need a product to do: real roadmap features, not
+ * the housekeeping ones (a bug bash, a speed tune-up, a security audit).
+ */
+function wantable(c: Company) {
+  return featuresFor(c.industry).filter(
+    (f) => f.id !== BUG_BASH && f.effect.kind !== 'stability' && f.effect.kind !== 'efficiency',
+  );
+}
+
+/**
+ * Deal-needs note: one or two named features a lead who buys on fit needs
+ * (none for customers who buy on price, brand or uptime). Their own dice
+ * stream, so the lead's other attributes are the ones it had before. The
+ * first is one you can start at once (no feature it waits for).
+ */
+function pickWants(world: World, c: Company, who: SalesCustomer, month: number) {
+  if (!dealNeedsOn(world) || who.need !== 'fit') return undefined;
+  const all = wantable(c);
+  if (!all.length) return undefined;
+  const rng = deriveRng(world.seed, 'sales', 'wants', c.id, month, who.segmentKey, who.name);
+  const roots = all.filter((f) => !f.requires);
+  const first = rng.pick(roots.length ? roots : all);
+  const rest = all.filter((f) => f !== first);
+  return rng.chance(0.45) && rest.length ? [first.id, rng.pick(rest).id] : [first.id];
+}
+
+/** Of what a customer needs the product to do, what you have shipped and what is missing. */
+export function wantsOf(c: Company, who: SalesCustomer) {
+  const wants = who.wants ?? [];
+  return {
+    have: wants.filter((id) => hasShipped(c, id)),
+    missing: wants.filter((id) => !hasShipped(c, id)),
+  };
+}
+
+/**
+ * A deal's product fit with what they need (deal-needs note): most of the
+ * fit and demo is held back until every feature they need has shipped, and
+ * having all of it is worth a third on top. Customers without named needs
+ * keep the plain fit.
+ */
+function fitWithWants(c: Company, who: SalesCustomer, base: number): number {
+  const n = who.wants?.length ?? 0;
+  if (!n) return base;
+  const share = wantsOf(c, who).have.length / n;
+  return clamp01(base * (0.4 + 0.6 * share) + 0.35 * share);
+}
+
 function factors(c: Company, d: SalesDeal, who: SalesCustomer, price: number): Factors {
   const mid = Math.max(1, (who.budgetMin + who.budgetMax) / 2);
   const fit = c.product.fit > 0 ? segmentFit(c, who.segmentKey) : 0;
   const demo = d.demoScore ?? 0.35;
-  const productFit = clamp01(0.5 * fit + 0.5 * demo);
+  const productFit = fitWithWants(c, who, clamp01(0.5 * fit + 0.5 * demo));
   const compete =
     who.current === 'rival'
       ? 0.45
@@ -535,14 +591,14 @@ export function makeLead(
   const supplier = b?.suppliers.find((s) => s.sector === c.industry);
   const rival = supplier ? world.companies[supplier.companyId] : undefined;
   const roll = rng.next();
-  const current = rival
+  const current: SalesCustomer['current'] = rival
     ? 'rival'
     : roll < 0.45
       ? 'incumbent'
       : roll < 0.8
         ? 'spreadsheet'
         : 'nothing';
-  return {
+  const who: SalesCustomer = {
     name: b ? b.name : leadName(world, seg, rng.pick(parts.places), person, rng),
     contact: b ? b.owner.name : person,
     ...(b ? { businessId: b.id } : {}),
@@ -566,6 +622,10 @@ export function makeLead(
         ) * 100,
       ) / 100,
   };
+  // Deal-needs note: what they need the product to do, by name.
+  const wants = pickWants(world, c, who, m.month);
+  if (wants) who.wants = wants;
+  return who;
 }
 
 /** Find new leads: 1–3 prospects from the city's businesses and your segments. */
@@ -824,6 +884,8 @@ export function closeDeal(
       name: d.customer.name,
       segmentKey: d.customer.segmentKey,
       ...(d.customer.businessId ? { businessId: d.customer.businessId } : {}),
+      // Branches note: a customer in a branch's city keeps its city.
+      ...(d.customer.market ? { market: d.customer.market } : {}),
       monthly,
       since: month,
     });
@@ -1111,8 +1173,17 @@ interface SalesNextAction {
   cost: number;
 }
 
+/** What a customer needs the product to do, by name, with what you have shipped. */
+function wantsView(c: Company, who: SalesCustomer) {
+  return (who.wants ?? []).map((id) => ({
+    id,
+    name: featureById(id)?.name ?? id,
+    have: hasShipped(c, id),
+  }));
+}
+
 /** Round 7: why a lost deal was lost, in the customer's words, and when to come back. */
-function lossView(d: SalesDeal, month: number) {
+function lossView(c: Company, d: SalesDeal, month: number) {
   const reason = d.lossReason!;
   const wait = d.revisit !== undefined ? Math.max(0, d.revisit - month) : null;
   const months = MONTHS_WORDS(
@@ -1133,6 +1204,16 @@ function lossView(d: SalesDeal, month: number) {
     luck: reason === 'luck',
     /** Months until the lead opens again (lost on budget or timing); null otherwise. */
     revisitIn: wait,
+    /**
+     * Deal-needs note, lost on product fit: the features they need that you
+     * have not shipped yet (what to build), by id and name; [] otherwise.
+     */
+    missing:
+      reason === 'missing_feature'
+        ? wantsView(c, d.customer)
+            .filter((x) => !x.have)
+            .map(({ id, name }) => ({ id, name }))
+        : [],
   };
 }
 
@@ -1144,7 +1225,9 @@ export function salesView(world: World, c: Company, viewer?: Player) {
   const view = deals.map((d) => {
     const known = d.revealed;
     const seg = m.segments[d.customer.segmentKey];
-    const biz = d.customer.businessId ? businessesOf(m)[d.customer.businessId] : undefined;
+    // Branches note: a lead from a branch's city is one of that city's businesses.
+    const city = (d.customer.market && world.markets[d.customer.market]) || m;
+    const biz = d.customer.businessId ? businessesOf(city)[d.customer.businessId] : undefined;
     const actions: SalesNextAction[] = (Object.keys(ACTION_FROM) as SalesAction[])
       .filter((a) => ACTION_FROM[a].includes(d.stage))
       .filter((a) => (a === 'recover' ? !d.recovered && !d.expired : month <= d.deadline))
@@ -1157,6 +1240,9 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       name: d.customer.name,
       contact: d.customer.contact,
       businessId: d.customer.businessId ?? null,
+      /** Branches note: the city the customer is in (the company's own unless tagged). */
+      market: city.id,
+      city: city.data.name,
       segment: seg?.name ?? '',
       /** Why this kind of customer buys (the segment's needs: "Records, billing, data protection"). */
       segmentNeeds: seg?.needsLabel ?? '',
@@ -1176,6 +1262,12 @@ export function salesView(world: World, c: Company, viewer?: Player) {
         current: known ? d.customer.current : null,
         currentName: known ? (d.customer.currentName ?? null) : null,
         trust: known ? d.customer.trust : null,
+        /**
+         * Deal-needs note: the features they need the product to have, each
+         * with whether you have shipped it; null until discovery, or when
+         * they named none.
+         */
+        wants: known && d.customer.wants?.length ? wantsView(c, d.customer) : null,
       },
       listPrice: c.price,
       price: d.price ?? null,
@@ -1200,7 +1292,7 @@ export function salesView(world: World, c: Company, viewer?: Player) {
       /** Round 7: a business co-founder's contact made this lead warmer. */
       warm: !!d.warmBy,
       /** Round 7: the one real reason in their words, and when they'll talk again. */
-      loss: d.stage === 'lost' && d.lossReason && gameplayOn(world) ? lossView(d, month) : null,
+      loss: d.stage === 'lost' && d.lossReason && gameplayOn(world) ? lossView(c, d, month) : null,
       canRecover: d.stage === 'lost' && !d.recovered && !d.expired,
       expired: !!d.expired,
       /** Won, then they stopped buying (feedback note): when and why. */

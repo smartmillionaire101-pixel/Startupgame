@@ -845,7 +845,12 @@ export const commandSchema = z.discriminatedUnion('type', [
    * Founder Journey 2a: the sales pipeline. Find 1–3 leads (limited per month
    * by founder hours and sales staff). `companyId` defaults to your company.
    */
-  z.object({ type: z.literal('sales.prospect'), companyId: id.optional() }),
+  /** Branches note: `market` finds leads in a city where the company has a branch. */
+  z.object({
+    type: z.literal('sales.prospect'),
+    companyId: id.optional(),
+    market: market.optional(),
+  }),
   /**
    * Move a deal on: contact → discover → demo → propose (`price`) →
    * negotiate (`discountPct`) → close; `recover` once after a loss.
@@ -1345,6 +1350,19 @@ export const commandSchema = z.discriminatedUnion('type', [
     district: z.string().min(1).max(40),
   }),
   z.object({ type: z.literal('company.branch.close'), branchId: id }),
+  /** Branches note: run a branch (its marketing a month, its staff, pitching in its city). */
+  z.object({
+    type: z.literal('company.branch.budget'),
+    branchId: id,
+    amount: z.number().int().min(0).max(1e13),
+  }),
+  z.object({
+    type: z.literal('company.branch.hire'),
+    branchId: id,
+    role: z.enum(['rep', 'manager']),
+  }),
+  z.object({ type: z.literal('company.branch.fire'), branchId: id, staffId: id }),
+  z.object({ type: z.literal('company.branch.pitch'), branchId: id, businessId: id }),
   /** Pitch at a competition this month (`here.competitions`) with a company you run. */
   z.object({ type: z.literal('competition.enter'), competitionId: id, companyId: id }),
   /** Investors: sit on the judging panel. */

@@ -163,6 +163,7 @@ import {
   moreGamesOn,
   placesOn,
   shopOn,
+  branchesOn,
 } from './releases.js';
 import { expertiseOf } from './cofounders.js';
 import {
@@ -260,7 +261,15 @@ import {
 import { createListing, endContract, proposeSupply, reviewSupplier } from './marketplace.js';
 import { buyProperty, letProperty, moveIn, sellProperty } from './property.js';
 import { acceptGift, declineGift, giftProperty } from './gifts.js';
-import { closeBranch, openBranch } from './branches.js';
+import {
+  closeBranch,
+  fireBranchStaff,
+  hireBranchStaff,
+  openBranch,
+  pitchForBranch,
+  prospectCity,
+  setBranchBudget,
+} from './branches.js';
 import { enterCompetition, joinJudges, scoreEntry } from './competitions.js';
 import { proposeAcquisition } from './acquisitions.js';
 import { boardOf, castVote, openVote } from './governance.js';
@@ -1676,6 +1685,11 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
     case 'career.decide':
       return decideCareer(world, me, cmd.choiceId);
     case 'sales.prospect':
+      // Branches note: leads in a branch's city (unknown before it: old worlds replay as before).
+      if (cmd.market !== undefined) {
+        if (!branchesOn(world)) return fail('command.unknown', 'Unknown command.');
+        return prospectCity(world, me, cmd.market, cmd.companyId);
+      }
       return prospect(world, me, cmd.companyId);
     case 'sales.advance':
       return advanceDeal(world, me, cmd);
@@ -2013,6 +2027,18 @@ function apply(world: World, cmd: Command, ctx: CommandContext): unknown {
       return openBranch(world, me, cmd.companyId, cmd.market, cmd.district);
     case 'company.branch.close':
       return closeBranch(world, me, cmd.branchId);
+    case 'company.branch.budget':
+      if (!branchesOn(world)) return fail('command.unknown', 'Unknown command.');
+      return setBranchBudget(world, me, cmd.branchId, cmd.amount);
+    case 'company.branch.hire':
+      if (!branchesOn(world)) return fail('command.unknown', 'Unknown command.');
+      return hireBranchStaff(world, me, cmd.branchId, cmd.role);
+    case 'company.branch.fire':
+      if (!branchesOn(world)) return fail('command.unknown', 'Unknown command.');
+      return fireBranchStaff(world, me, cmd.branchId, cmd.staffId);
+    case 'company.branch.pitch':
+      if (!branchesOn(world)) return fail('command.unknown', 'Unknown command.');
+      return pitchForBranch(world, me, cmd.branchId, cmd.businessId);
     case 'competition.enter':
       return enterCompetition(world, me, cmd.competitionId, cmd.companyId);
     case 'competition.judge.join':

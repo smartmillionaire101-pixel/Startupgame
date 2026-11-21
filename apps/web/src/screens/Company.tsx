@@ -18,6 +18,7 @@ import { locale, t, tx } from '../i18n';
 import { useView, type Company as CompanyT } from '../store';
 import { Bar, Button, Card, Confirm, Empty, Field, Fold, Pill, Segmented, Sheet } from '../ui';
 import { ExpansionCard } from './Expansion';
+import { BranchesSection } from './Branches';
 import { Roadmap } from './Roadmap';
 import { SalesPipeline } from './Sales';
 import { InterviewSheet } from './Interview';
@@ -29,16 +30,27 @@ import { SimpleLink } from './SimpleLink';
 import { CompanyKpis } from './Home';
 import { CustomerBook, HibernateCard, HibernationBanner } from './Customers';
 import { SnapButton } from '../photos/SnapButton';
+import type { CompanyFocus } from '../phone/navigate';
 import { resultCard } from '../photos/snap';
 import {
   CheckHeadline,
   PlanChecks,
   StageTracker,
+  StepHint,
   livePlanChecks,
   stageTitle,
 } from './FounderGuide';
 
-type Tab = 'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
+type Tab =
+  | 'product'
+  | 'roadmap'
+  | 'sales'
+  | 'customers'
+  | 'branches'
+  | 'team'
+  | 'suppliers'
+  | 'board'
+  | 'rules';
 
 const tabLabel = (tab: Tab) =>
   ({
@@ -46,6 +58,7 @@ const tabLabel = (tab: Tab) =>
     roadmap: t('Roadmap'),
     sales: t('Sales'),
     customers: t('Customers'),
+    branches: t('Branches'),
     team: t('Team'),
     suppliers: t('Suppliers'),
     board: t('Board'),
@@ -66,12 +79,14 @@ const TAB_STAGE: Record<Tab, number> = {
   roadmap: stageAt('product-fit'),
   board: stageAt('seed'),
   suppliers: stageAt('growth'),
+  branches: stageAt('growth'),
 };
 const TABS: Tab[] = [
   'product',
   'roadmap',
   'sales',
   'customers',
+  'branches',
   'team',
   'suppliers',
   'board',
@@ -131,17 +146,28 @@ const contractStatusLabel = (st: string) =>
 const buildModeLabel = (m: string) =>
   ({ fast: t('Fast'), balanced: t('Balanced'), quality: t('Quality') })[m] ?? titleCase(m);
 
-/** Another screen (the phone's Founder app) can ask for a tab once: `openCompanyTab('roadmap')`. */
+/**
+ * Another screen (the phone's Founder app) can ask for a tab once:
+ * `openCompanyTab('roadmap')`. With a focus (round 4), the section also
+ * scrolls into view, with a stage step's hint or a customer's feature in
+ * front: the Company screen's own buttons switch tab well below the fold,
+ * and a tab change you can't see looks like nothing happened.
+ */
 const TAB_KEY = 'rw.companyTab';
-const tabListeners = new Set<(tab: Tab) => void>();
-export function openCompanyTab(tab: Tab) {
+const FOCUS_KEY = 'rw.companyFocus';
+type Focused = CompanyFocus & { n: number };
+let focusSeq = 0;
+const tabListeners = new Set<(tab: Tab, focus?: CompanyFocus) => void>();
+export function openCompanyTab(tab: Tab, focus?: CompanyFocus) {
   // A Company screen already open switches at once.
   if (tabListeners.size) {
-    for (const l of tabListeners) l(tab);
+    for (const l of tabListeners) l(tab, focus);
     return;
   }
   try {
     sessionStorage.setItem(TAB_KEY, tab);
+    if (focus) sessionStorage.setItem(FOCUS_KEY, JSON.stringify(focus));
+    else sessionStorage.removeItem(FOCUS_KEY);
   } catch {
     /* storage blocked: the Product tab opens */
   }
@@ -155,16 +181,60 @@ function takeCompanyTab(): Tab {
     return 'product';
   }
 }
+function takeCompanyFocus(): Focused | null {
+  try {
+    const v = sessionStorage.getItem(FOCUS_KEY);
+    sessionStorage.removeItem(FOCUS_KEY);
+    return v ? { ...(JSON.parse(v) as CompanyFocus), n: ++focusSeq } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Bring the opened section (or the part asked for) into view, and flash that part. */
+function useFocusScroll(focus: Focused | null) {
+  useEffect(() => {
+    if (!focus) return;
+    const timer = window.setTimeout(() => {
+      const part = focus.anchor
+        ? document.querySelector<HTMLElement>(`[data-company-focus="${focus.anchor}"]`)
+        : null;
+      const panel = document.querySelector<HTMLElement>('[data-company-panel]');
+      // The tab strip scrolls sideways on a phone: bring the open tab into it.
+      const on = panel?.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (panel && on) panel.scrollLeft = Math.max(0, on.offsetLeft - panel.offsetLeft - 16);
+      const el = part ?? panel;
+      if (!el) return;
+      el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      if (part) {
+        part.classList.add('company-flash');
+        window.setTimeout(() => part.classList.remove('company-flash'), 2400);
+      }
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [focus]);
+}
 
 export function CompanyScreen() {
   const { view } = useView();
-  const [tab, setTab] = useState<Tab>(takeCompanyTab);
+  const [tab, setTabNow] = useState<Tab>(takeCompanyTab);
+  const [focus, setFocus] = useState<Focused | null>(takeCompanyFocus);
   useEffect(() => {
-    tabListeners.add(setTab);
+    const open = (next: Tab, f?: CompanyFocus) => {
+      setTabNow(next);
+      setFocus(f ? { ...f, n: ++focusSeq } : null);
+    };
+    tabListeners.add(open);
     return () => {
-      tabListeners.delete(setTab);
+      tabListeners.delete(open);
     };
   }, []);
+  useFocusScroll(focus);
+  // Tapping a tab yourself puts the hint away.
+  const setTab = (next: Tab) => {
+    setTabNow(next);
+    setFocus(null);
+  };
   const c = view.companies.find((x) => x.status === 'active');
   if (!c) {
     // A founder sets up the company right here, not under Me (player feedback).
@@ -276,7 +346,7 @@ export function CompanyScreen() {
         hint={t('Your bank, loans, deal cards and raising money')}
         badge={view.deals.filter((d) => d.yourTurn).length}
       />
-      <div className="tabs" role="tablist">
+      <div className="tabs" role="tablist" data-company-panel="">
         {tabsForStage(c.guide.index).map((id) => (
           <button
             key={id}
@@ -296,6 +366,18 @@ export function CompanyScreen() {
           </button>
         ))}
       </div>
+      {/* A stage step's "Do it now": what it asks of you, and where in this section. */}
+      {focus?.step && (
+        <StepHint
+          c={c}
+          step={focus.step}
+          onClose={() => setFocus(null)}
+          onOpen={(next, anchor) => {
+            setTabNow(next);
+            setFocus({ step: focus.step, ...(anchor ? { anchor } : {}), n: ++focusSeq });
+          }}
+        />
+      )}
       <ScreenBoundary resetKey={tab} name={`company:${tab}`}>
         {tab === 'product' && (
           // A wide screen: columns (one after the other on a phone).
@@ -309,7 +391,7 @@ export function CompanyScreen() {
               <HibernateCard c={c} />
               <RivalsPanel c={c} />
             </div>
-            <div className="screen-col">
+            <div className="screen-col" data-company-focus="expansion">
               {/* A second city is a Growth-stage move: folded away until then. */}
               {c.guide.index >= stageAt('growth') ? (
                 <ExpansionCard c={c} />
@@ -325,9 +407,15 @@ export function CompanyScreen() {
             </div>
           </div>
         )}
-        {tab === 'roadmap' && <Roadmap c={c} />}
+        {tab === 'roadmap' && (
+          <Roadmap
+            c={c}
+            wanted={focus?.feature ? { featureId: focus.feature, by: focus.by ?? null } : null}
+          />
+        )}
         {tab === 'sales' && <SalesPipeline c={c} />}
         {tab === 'customers' && <Customers c={c} />}
+        {tab === 'branches' && <BranchesSection c={c} />}
         {tab === 'team' && <Team c={c} />}
         {tab === 'suppliers' && <Suppliers c={c} />}
         {tab === 'board' && <Board c={c} />}
@@ -567,31 +655,33 @@ function Customers({ c }: { c: CompanyT }) {
       {segs.map((s) => (
         <SegmentCard key={s.key} c={c} s={s} />
       ))}
-      <Card title={t('Pricing and spend')}>
-        <CheckHeadline checks={checks} cur={cur} />
-        <Field
-          label={t('Price per customer per month ({cur})', { cur })}
-          hint={t('Segment budgets: {budgets}', {
-            budgets: segs.map((s) => money(s.budget, cur)).join(' / '),
-          })}
-        >
-          {(id) => <input id={id} value={price} onChange={(e) => setPrice(e.target.value)} />}
-        </Field>
-        <Field label={t('Marketing per month ({cur})', { cur })}>
-          {(id) => <input id={id} value={mkt} onChange={(e) => setMkt(e.target.value)} />}
-        </Field>
-        <Field
-          label={t('Your salary per month ({cur})', { cur })}
-          hint={t('Paid by the company, taxed, and visible to investors.')}
-        >
-          {(id) => <input id={id} value={salary} onChange={(e) => setSalary(e.target.value)} />}
-        </Field>
-        <PlanChecks checks={checks} cur={cur} />
-        <p className="small muted">
-          {t('The checks update as you type, like a bank’s business-plan checks.')}
-        </p>
-        <Button onClick={() => void save()}>{t('Save')}</Button>
-      </Card>
+      <div data-company-focus="pricing">
+        <Card title={t('Pricing and spend')}>
+          <CheckHeadline checks={checks} cur={cur} />
+          <Field
+            label={t('Price per customer per month ({cur})', { cur })}
+            hint={t('Segment budgets: {budgets}', {
+              budgets: segs.map((s) => money(s.budget, cur)).join(' / '),
+            })}
+          >
+            {(id) => <input id={id} value={price} onChange={(e) => setPrice(e.target.value)} />}
+          </Field>
+          <Field label={t('Marketing per month ({cur})', { cur })}>
+            {(id) => <input id={id} value={mkt} onChange={(e) => setMkt(e.target.value)} />}
+          </Field>
+          <Field
+            label={t('Your salary per month ({cur})', { cur })}
+            hint={t('Paid by the company, taxed, and visible to investors.')}
+          >
+            {(id) => <input id={id} value={salary} onChange={(e) => setSalary(e.target.value)} />}
+          </Field>
+          <PlanChecks checks={checks} cur={cur} />
+          <p className="small muted">
+            {t('The checks update as you type, like a bank’s business-plan checks.')}
+          </p>
+          <Button onClick={() => void save()}>{t('Save')}</Button>
+        </Card>
+      </div>
     </>
   );
 }

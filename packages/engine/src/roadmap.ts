@@ -53,6 +53,8 @@ export const FIRST_RELEASE = 'founder.first-release';
 const def = (p: ProductProject): FeatureDef => featureById(p.featureId)!;
 const released = (c: Company, featureId: string) =>
   !!c.roadmap?.projects.some((p) => p.featureId === featureId && p.status === 'released');
+/** Has the company shipped this feature (released on its roadmap)? */
+export const hasShipped = released;
 const isReady = (p: ProductProject) => p.status !== 'released' && p.progress >= def(p).effortWeeks;
 
 /** The feature this project waits for, if its dependency isn't released yet. */

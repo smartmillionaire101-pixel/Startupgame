@@ -14,19 +14,28 @@
  *  - market: the paying customers the market model brings in each segment
  *    (customers.ts: marketing, outreach, word of mouth and the B2B deals the
  *    team closes), one row per segment. A new company's welcome customer is
- *    one of these.
+ *    one of these;
+ *  - branch: each open branch's own customers (branches note), one row per
+ *    branch, in its city.
+ *
+ * Every row says which city the customer is in (signed customers from a
+ * branch's city carry it; everyone else is in the company's own city).
  *
  * Pure derivation: nothing here changes the world.
  */
+import { openBranchesOf } from './branchfacts.js';
 import { RECURRING, reliability } from './customers.js';
 import { businessesOf, isOpen } from './economy.js';
 import { getMarket, lastPnl } from './helpers.js';
-import { customersOn } from './releases.js';
+import { valueIn } from './ledger.js';
+import { districtLabel } from './economy.js';
+import { branchesOn, customersOn } from './releases.js';
 import { customerFacts } from './traction.js';
+import type { MarketId } from './data/markets.js';
 import type { Company, SalesChurnReason, World } from './types.js';
 
 export type CustomerStatus = 'active' | 'risk' | 'churned';
-export type CustomerKind = 'signed' | 'business' | 'buyer' | 'market';
+export type CustomerKind = 'signed' | 'business' | 'buyer' | 'market' | 'branch';
 
 /** Why a customer may leave soon. */
 export type CustomerRisk = 'hibernation' | 'reliability' | 'price' | 'competition';
@@ -51,18 +60,30 @@ export interface CustomerRow {
   left: { month: number; reason: SalesChurnReason } | null;
   /** What they have paid (or been billed) so far; null where it isn't tracked. */
   paid: number | null;
+  /** The city they're in, and its name. */
+  market: MarketId;
+  city: string;
+  /** Branch rows: the branch (to open it). */
+  branchId?: string;
 }
 
 export interface CustomerBook {
   /** Every paying customer: the number every screen shows. */
   total: number;
-  breakdown: { signed: number; businesses: number; buyers: number; market: number };
+  breakdown: {
+    signed: number;
+    businesses: number;
+    buyers: number;
+    market: number;
+    /** Customers of the company's branches (branches note). */
+    branches: number;
+  };
   /** Of the market customers, the one a new company starts with (0 or 1). */
   welcome: number;
   /** Monthly recurring revenue from today's customers at today's prices. */
   mrr: number;
   /** MRR by kind of customer. */
-  mrrBy: { signed: number; businesses: number; buyers: number; market: number };
+  mrrBy: { signed: number; businesses: number; buyers: number; market: number; branches: number };
   /**
    * How signed customers pay: 'month-end' (customers note: their price at
    * every month end, counted in that month's revenue) or 'terms' (invoiced,
@@ -103,6 +124,11 @@ export function customerBook(world: World, c: Company): CustomerBook {
   const facts = customerFacts(world, c);
   const rows: CustomerRow[] = [];
   const rel = reliability(c);
+  const here = { market: c.market, city: m.data.name };
+  const cityOf = (id: MarketId | undefined) =>
+    id && id !== c.market && world.markets[id]
+      ? { market: id, city: world.markets[id]!.data.name }
+      : here;
 
   // Signed in the Sales pipeline. Each settlement since signing bills one month.
   let signedMrr = 0;
@@ -122,6 +148,7 @@ export function customerBook(world: World, c: Company): CustomerBook {
       committedUntil: a.committedUntil ?? null,
       left: null,
       paid: a.paid ?? a.monthly * Math.max(0, month - a.since),
+      ...cityOf(a.market),
     });
   }
 
@@ -151,6 +178,7 @@ export function customerBook(world: World, c: Company): CustomerBook {
         committedUntil: null,
         left: null,
         paid: s.paid ?? s.monthlyMinor * Math.max(0, month - s.since),
+        ...here,
       });
     }
   }
@@ -182,6 +210,7 @@ export function customerBook(world: World, c: Company): CustomerBook {
       committedUntil: k.plannedEndMonth,
       left: null,
       paid,
+      ...here,
     });
   }
   rows.push(...buyers.values());
@@ -212,8 +241,40 @@ export function customerBook(world: World, c: Company): CustomerBook {
       committedUntil: null,
       left: null,
       paid: null,
+      ...here,
     });
   }
+
+  // Branches note: each open branch's own customers, in its city (what they
+  // spent last month, in the company's currency).
+  let branchMrr = 0;
+  if (branchesOn(world))
+    for (const b of openBranchesOf(world, c.id)) {
+      const bm = getMarket(world, b.market);
+      const monthly = Math.round(
+        valueIn(world, b.lastMonth.revenue, bm.data.currency, m.data.currency),
+      );
+      const count = b.customers ?? 0;
+      if (count <= 0 && monthly <= 0) continue;
+      branchMrr += monthly;
+      rows.push({
+        id: `branch:${b.id}`,
+        kind: 'branch',
+        name: `${districtLabel(b.district)} branch`,
+        segment: null,
+        count,
+        monthly,
+        since: b.openedMonth,
+        status: c.hibernation ? 'risk' : 'active',
+        risk: c.hibernation ? 'hibernation' : null,
+        committedUntil: null,
+        left: null,
+        paid: null,
+        market: b.market,
+        city: bm.data.name,
+        branchId: b.id,
+      });
+    }
 
   // Signed customers who left (the last few, feedback note).
   for (const x of c.salesChurn ?? []) {
@@ -230,6 +291,7 @@ export function customerBook(world: World, c: Company): CustomerBook {
       committedUntil: null,
       left: { month: x.month, reason: x.reason },
       paid: x.paid ?? null,
+      ...here,
     });
   }
 
@@ -245,10 +307,17 @@ export function customerBook(world: World, c: Company): CustomerBook {
       businesses: facts.businesses,
       buyers: facts.buyers,
       market: facts.people,
+      branches: facts.branches,
     },
     welcome: facts.welcome,
-    mrr: signedMrr + businessMrr + buyerMrr + marketMrr,
-    mrrBy: { signed: signedMrr, businesses: businessMrr, buyers: buyerMrr, market: marketMrr },
+    mrr: signedMrr + businessMrr + buyerMrr + marketMrr + branchMrr,
+    mrrBy: {
+      signed: signedMrr,
+      businesses: businessMrr,
+      buyers: buyerMrr,
+      market: marketMrr,
+      branches: branchMrr,
+    },
     billing: customersOn(world) ? 'month-end' : 'terms',
     lastMonth: pnl
       ? {

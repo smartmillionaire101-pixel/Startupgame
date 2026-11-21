@@ -12,8 +12,32 @@ export type TabId =
   'city' | 'home' | 'company' | 'money' | 'deals' | 'portfolio' | 'bank' | 'news' | 'me';
 
 /** The Company screen's tabs (screens/Company.tsx). */
-type CompanySection =
-  'product' | 'roadmap' | 'sales' | 'customers' | 'team' | 'suppliers' | 'board' | 'rules';
+export type CompanySection =
+  | 'product'
+  | 'roadmap'
+  | 'sales'
+  | 'customers'
+  | 'branches'
+  | 'team'
+  | 'suppliers'
+  | 'board'
+  | 'rules';
+
+/**
+ * What to show once a Company section opens (round 4: a step's "Do it now"
+ * on the Company screen itself only scrolled to the top): the section is
+ * scrolled into view, with what the step asks of you at its top.
+ */
+export interface CompanyFocus {
+  /** A founder stage step (its task id) to explain at the top of the section. */
+  step?: string;
+  /** A part of the section to scroll to and flash: `[data-company-focus="…"]`. */
+  anchor?: string;
+  /** Roadmap: a feature a customer needs (its id), shown first and highlighted. */
+  feature?: string;
+  /** Who needs that feature (a deal's customer). */
+  by?: string;
+}
 
 export type Target =
   | {
@@ -23,6 +47,8 @@ export type Target =
       dealId?: string;
       /** On the Company tab: open this section. */
       section?: CompanySection;
+      /** …scrolled into view, with this step or feature in front. */
+      focus?: CompanyFocus;
     }
   /** Walk there in the City (a place id on the map: `biz:<id>`, `cap:<id>`, `eventhall`…). */
   | { kind: 'place'; place: string }

@@ -62,7 +62,14 @@ function eta(p: ProjectT, capacity: number) {
     : t('About {n} months left', { n: p.etaMonths });
 }
 
-export function Roadmap({ c }: { c: CompanyT }) {
+/** A feature a customer needs (round 4: "Open the Roadmap" from a deal lost on fit). */
+export interface Wanted {
+  featureId: string;
+  /** The customer who needs it. */
+  by: string | null;
+}
+
+export function Roadmap({ c, wanted = null }: { c: CompanyT; wanted?: Wanted | null }) {
   const { send, view } = useView();
   const r = c.roadmap;
   const [adding, setAdding] = useState(false);
@@ -89,8 +96,14 @@ export function Roadmap({ c }: { c: CompanyT }) {
 
   const projectCard = (p: ProjectT) => {
     const i = order.indexOf(p.id);
+    const isWanted = wanted?.featureId === p.featureId;
     return (
-      <li key={p.id} className={`rm-project${p.ready ? ' rm-ready' : ''}`}>
+      <li
+        key={p.id}
+        className={`rm-project${p.ready ? ' rm-ready' : ''}${isWanted ? ' rm-wanted' : ''}`}
+        data-feature={p.featureId}
+        data-wanted={isWanted ? '' : undefined}
+      >
         <div className="rm-project-head">
           <strong>{tx(p.name)}</strong>
           <EffectChip kind={p.effect.kind} />
@@ -197,8 +210,71 @@ export function Roadmap({ c }: { c: CompanyT }) {
     );
   };
 
+  // The feature a customer needs: on the roadmap already, shipped, or still to add.
+  const wantedProject = wanted
+    ? (r.projects.find((p) => p.featureId === wanted.featureId && p.status !== 'released') ??
+      r.projects.find((p) => p.featureId === wanted.featureId))
+    : undefined;
+  const wantedNew = wanted ? r.catalogue.find((f) => f.featureId === wanted.featureId) : undefined;
+  const wantedName = wantedProject?.name ?? wantedNew?.name;
+
   return (
     <>
+      {wanted && wantedName && (
+        <section
+          className="card rm-wanted-card"
+          data-roadmap-wanted={wanted.featureId}
+          data-company-focus="wanted"
+        >
+          <h3>
+            <span aria-hidden="true">🧩 </span>
+            {wanted.by
+              ? t('{customer} needs {feature}', { customer: wanted.by, feature: tx(wantedName) })
+              : t('Customers need {feature}', { feature: tx(wantedName) })}
+          </h3>
+          <p className="small">{tx((wantedProject ?? wantedNew)!.blurb)}</p>
+          {wantedProject?.status === 'released' ? (
+            <p className="small good" data-wanted-status="shipped">
+              {t(
+                'Shipped. Show them a new demo, or try again from Sales: your chance is higher now.',
+              )}
+            </p>
+          ) : wantedProject ? (
+            <p className="small" data-wanted-status="building">
+              {wantedProject.ready
+                ? t('Finished: release it below, then show them a new demo.')
+                : t('On your roadmap · {eta}. Move it to the top to build it first.', {
+                    eta: eta(wantedProject, r.capacityWeeks),
+                  })}
+            </p>
+          ) : (
+            wantedNew && (
+              <>
+                <p className="small muted" data-wanted-status="new">
+                  {t('{n} person-weeks', { n: wantedNew.effortWeeks })} ·{' '}
+                  {skillLabel(wantedNew.skill)} · {riskLabel(wantedNew.risk)}
+                  {wantedNew.requires && (
+                    <> · {t('Needs {name} first', { name: tx(wantedNew.requires) })}</>
+                  )}
+                </p>
+                <Button
+                  size="sm"
+                  disabled={c.cash < wantedNew.cost}
+                  data-wanted-add=""
+                  onClick={() => void add(wantedNew)}
+                >
+                  {wantedNew.cost > 0
+                    ? t('Add {name} for {cost}', {
+                        name: tx(wantedNew.name),
+                        cost: money(wantedNew.cost, cur),
+                      })
+                    : t('Add {name} to roadmap', { name: tx(wantedNew.name) })}
+                </Button>
+              </>
+            )
+          )}
+        </section>
+      )}
       <Card
         title={t('Product roadmap')}
         action={<Button onClick={() => setAdding(true)}>{t('Add a feature')}</Button>}

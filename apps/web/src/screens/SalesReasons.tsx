@@ -11,13 +11,65 @@
  * The engine decides the reasons (sales.ts holdingBack, closeDeal); this only
  * shows them.
  */
+import { useCallback } from 'react';
 import { pct } from '../format';
 import { t, tx } from '../i18n';
 import type { Company } from '../store';
 import { Button } from '../ui';
+import { useLeaveTo } from '../phone/bus';
 import { useLine } from './Interview';
 
 type DealV = NonNullable<Company['sales']>['deals'][number];
+type Wants = NonNullable<DealV['known']['wants']>;
+
+/** "A", "A and B", "A, B and C". */
+export function listOf(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return t('{list} and {last}', { list: names.slice(0, -1).join(', '), last: names.at(-1)! });
+}
+
+/**
+ * Round 4 (deal-needs note): what a customer needs the product to do, by
+ * name, and what you have of it: "Offline mode and SMS alerts — you have
+ * SMS alerts, missing Offline mode".
+ */
+export function wantsLine(wants: Wants): string {
+  const all = listOf(wants.map((w) => tx(w.name)));
+  const have = wants.filter((w) => w.have).map((w) => tx(w.name));
+  const missing = wants.filter((w) => !w.have).map((w) => tx(w.name));
+  if (!missing.length) return t('{features}: you have all of it', { features: all });
+  if (!have.length)
+    return wants.length === 1
+      ? t('{features}: you don’t have it yet', { features: all })
+      : t('{features}: you have none of it yet', { features: all });
+  return t('{features}: you have {have}, missing {missing}', {
+    features: all,
+    have: listOf(have),
+    missing: listOf(missing),
+  });
+}
+
+/**
+ * "Open the Roadmap" for a deal (round 4): the Company screen's Roadmap,
+ * from the phone's Sales app too (the phone closes first: before, the tab
+ * changed behind it and nothing seemed to happen), with the first feature
+ * they still need shown first and highlighted.
+ */
+export function useOpenRoadmapFor(): (d: DealV) => void {
+  const leave = useLeaveTo();
+  return useCallback(
+    (d: DealV) => {
+      const need = d.loss?.missing[0] ?? d.known.wants?.find((w) => !w.have);
+      leave({
+        kind: 'tab',
+        tab: 'company',
+        section: 'roadmap',
+        focus: need ? { feature: need.id, by: d.name, anchor: 'wanted' } : {},
+      });
+    },
+    [leave],
+  );
+}
 type Holding = NonNullable<NonNullable<DealV['talk']>['holding']>;
 export type LossReason = NonNullable<DealV['lossReason']>;
 
@@ -48,10 +100,21 @@ export const lossAdvice = (r: LossReason) =>
   })[r];
 
 /** Round 7: what to do next, per reason (budget and timing come back on their own). */
-function nextStep(r: LossReason, revisitIn: number | null): string {
+function nextStep(r: LossReason, revisitIn: number | null, d?: DealV): string {
   switch (r) {
-    case 'missing_feature':
+    case 'missing_feature': {
+      // Round 4: name what to build, when they named it.
+      const missing = d?.loss?.missing ?? [];
+      if (missing.length)
+        return t('Build {features} on the Roadmap, then show them a new demo.', {
+          features: listOf(missing.map((x) => tx(x.name))),
+        });
+      if (d?.known.wants?.length)
+        return t(
+          'You have everything they asked for, but the product still isn’t good enough for them: raise product fit on the Roadmap, then show them a new demo.',
+        );
       return t('Build what they need on the Roadmap, then show them a new demo.');
+    }
     case 'authority':
       return t('Meet the person who signs: try again and bring them in.');
     case 'no_budget':
@@ -104,8 +167,12 @@ const lvl = (v: number | null) =>
 function holdWhy(r: string, d: DealV): string {
   const k = d.known;
   switch (r) {
-    case 'missing_feature':
-      return t('Build what {segment} ask for on the Roadmap', { segment: tx(d.segment) });
+    case 'missing_feature': {
+      const missing = (k.wants ?? []).filter((w) => !w.have).map((w) => tx(w.name));
+      return missing.length
+        ? t('Missing {features}: build it on the Roadmap', { features: listOf(missing) })
+        : t('Build what {segment} ask for on the Roadmap', { segment: tx(d.segment) });
+    }
     case 'authority':
       return lvl(k.authority)
         ? t('Can sign alone: {level}. Someone else has a say', { level: lvl(k.authority)! })
@@ -229,7 +296,7 @@ export function LossReason({
       </blockquote>
       <div className="loss-next" data-loss-next>
         <h4>{t('What to do next')}</h4>
-        <p>{nextStep(r, d.loss.revisitIn)}</p>
+        <p>{nextStep(r, d.loss.revisitIn, d)}</p>
         {(later || onRetry || onFindLeads || onRoadmap) && (
           <div className="loss-btns">
             {later && (

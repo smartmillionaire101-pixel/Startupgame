@@ -146,6 +146,32 @@ export const GAMEPLAY_NOTE = 'release-2026-10-28-gameplay';
  */
 export const CUSTOMERS_NOTE = 'release-2026-11-21-customers';
 
+/**
+ * What a customer needs your product to do (round 4 player feedback: "Needs:
+ * a product that fits how they work" is too vague; "it will be good to know
+ * what they need my product to do"). A new lead who buys on fit wants one or
+ * two named roadmap features (seeded per lead), discovery tells you which,
+ * and the deal's product fit counts how many of them you have shipped: build
+ * the missing one and a new demo or "Try again" stands a real chance. Worlds
+ * without this note play exactly as before.
+ */
+export const DEAL_NEEDS_NOTE = 'release-2026-11-21-deal-needs';
+
+/**
+ * Branches you can run (round 4 player feedback, a London founder at Series
+ * A: "I just opened my second branch but can't see anything on how to get
+ * customers there or manage it in any way"). A branch has its own customers
+ * (walk-ins, its local marketing budget, its staff), set and paid through the
+ * ledger every month; branch staff (a local sales rep, a manager) are hired
+ * and let go; Sales works leads from a branch's city (tagged with the city)
+ * and a founder in that city pitches its businesses in person. Branch
+ * customers count in the one customer total, and "Sell in a second city"
+ * needs customers there, not only an open door. Worlds without this note
+ * play exactly as before (the new commands are unknown and branches trade
+ * on their old takings).
+ */
+export const BRANCHES_NOTE = 'release-2026-11-22-branches';
+
 /** Every behaviour-switching note, oldest first. */
 export const RELEASES = [
   JOURNEY_EVENTS_NOTE,
@@ -161,6 +187,8 @@ export const RELEASES = [
   FEEDBACK_NOTE,
   GAMEPLAY_NOTE,
   CUSTOMERS_NOTE,
+  DEAL_NEEDS_NOTE,
+  BRANCHES_NOTE,
 ] as const;
 
 /** Is `note` (or any later release note) in this world's log? */
@@ -182,3 +210,5 @@ export const shopOn = (w: World): boolean => releaseOn(w, SHOP_NOTE);
 export const feedbackOn = (w: World): boolean => releaseOn(w, FEEDBACK_NOTE);
 export const gameplayOn = (w: World): boolean => releaseOn(w, GAMEPLAY_NOTE);
 export const customersOn = (w: World): boolean => releaseOn(w, CUSTOMERS_NOTE);
+export const dealNeedsOn = (w: World): boolean => releaseOn(w, DEAL_NEEDS_NOTE);
+export const branchesOn = (w: World): boolean => releaseOn(w, BRANCHES_NOTE);

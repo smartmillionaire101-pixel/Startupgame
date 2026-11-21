@@ -524,6 +524,46 @@ export const engineTexts: Record<string, string> = {
     '{name} vous a présenté à {partner}, chez {fund} : une piste chaude dans votre liste d’investisseurs.',
   '{name} introduced you to {n} investors who fit your round: {funds}. They’re warm leads in your investor list.':
     '{name} vous a présenté à {n} investisseurs adaptés à votre tour : {funds}. Ce sont des pistes chaudes dans votre liste d’investisseurs.',
+  // ---- Branches you can run (branches.ts, branches note)
+  '{name} left the {place} branch: {company} couldn’t pay their salary.':
+    '{name} a quitté la succursale de {place} : {company} n’a pas pu payer son salaire.',
+  'Your {place} branch’s sales rep found a new lead in {city}: it’s in Sales.':
+    'Le commercial de votre succursale de {place} a trouvé un nouveau prospect à {city} : il est dans Ventes.',
+  'Your {place} branch’s sales reps found {n} new leads in {city}: they’re in Sales.':
+    'Les commerciaux de votre succursale de {place} ont trouvé {n} nouveaux prospects à {city} : ils sont dans Ventes.',
+  '{place} branch: {amount} a month on local marketing, paid at each month end.':
+    'Succursale de {place} : {amount} par mois de marketing local, payés à chaque fin de mois.',
+  '{place} branch: local marketing stopped.': 'Succursale de {place} : marketing local arrêté.',
+  '{name} now manages your {place} branch for {amount} a month: it reaches more customers and keeps more of them.':
+    '{name} dirige désormais votre succursale de {place} pour {amount} par mois : elle touche plus de clients et en garde davantage.',
+  '{name} now sells for your {place} branch for {amount} a month: more customers, and a lead from {city} in Sales every month.':
+    '{name} vend désormais pour votre succursale de {place} pour {amount} par mois : plus de clients, et un prospect de {city} dans Ventes chaque mois.',
+  '{name} has left the {place} branch with a month’s pay ({amount}).':
+    '{name} a quitté la succursale de {place} avec un mois de salaire ({amount}).',
+  '{name} heard you out in person: they’re in Sales as a warm lead from {city}.':
+    '{name} vous a écouté en personne : ils sont dans Ventes comme prospect chaud de {city}.',
+  'New lead in {city}: {name}.': 'Nouveau prospect à {city} : {name}.',
+  '{n} new leads in {city}: {names}.': '{n} nouveaux prospects à {city} : {names}.',
+  'The {place} branch has closed.': 'La succursale de {place} a fermé.',
+  '{place} branch': 'Succursale de {place}',
+  'You’re not in {city}: travel there to pitch its businesses in person.':
+    'Vous n’êtes pas à {city} : allez-y pour démarcher ses commerces en personne.',
+  'Open a branch in {city} first: leads there come through a branch.':
+    'Ouvrez d’abord une succursale à {city} : les prospects là-bas passent par une succursale.',
+  '{name} is already in your pipeline or buying from you.':
+    '{name} est déjà dans vos affaires en cours ou vous achète déjà.',
+  '{name} doesn’t buy what {company} sells.': '{name} n’achète pas ce que vend {company}.',
+  'That branch isn’t open.': 'Cette succursale n’est pas ouverte.',
+  'This branch already has a manager.': 'Cette succursale a déjà un responsable.',
+  '{n} sales reps is the most a branch can keep busy.':
+    '{n} commerciaux, c’est le maximum qu’une succursale peut occuper.',
+  '{company} needs a month of their salary ({amount}) in the bank first.':
+    '{company} doit d’abord avoir un mois de son salaire ({amount}) en banque.',
+  'Letting {name} go costs a month’s pay ({amount}); {company} doesn’t have it.':
+    'Licencier {name} coûte un mois de salaire ({amount}) ; {company} ne les a pas.',
+  'A branch’s marketing budget is between nothing and {amount} a month.':
+    'Le budget marketing d’une succursale va de zéro à {amount} par mois.',
+  'They don’t work at this branch.': 'Cette personne ne travaille pas dans cette succursale.',
   // ---- Generic
   '{name}: {text}': '{name} : {text}',
 };

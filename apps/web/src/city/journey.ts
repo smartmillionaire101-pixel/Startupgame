@@ -14,13 +14,21 @@ import { pocketOf } from './pocket';
 import { suggestionsFor } from './whatnow';
 import { suggestionText } from './WhatNowCards';
 import { guideObjective } from '../screens/investorGuideCopy';
+import type { CompanyFocus, CompanySection } from '../phone/navigate';
 
 export type Journey = NonNullable<PlayerView['journey']>;
 type JourneyChapterView = Journey['chapters'][number];
 export type JourneyStepView = JourneyChapterView['steps'][number];
 
-/** Where a Go button takes you. `sky`: a sky view (the Sky views scene). */
-export type JourneyGo = NonNullable<JourneyStepView['go']> | { kind: 'sky'; id: string };
+/**
+ * Where a Go button takes you. `sky`: a sky view (the Sky views scene).
+ * `company`: a Company section, scrolled into view with a step or a feature
+ * in front (stageFocus.ts: a founder stage step's own place).
+ */
+export type JourneyGo =
+  | NonNullable<JourneyStepView['go']>
+  | { kind: 'sky'; id: string }
+  | { kind: 'company'; section: CompanySection; focus?: CompanyFocus };
 
 /** The journey, or null (other roles, or a server without it yet). */
 export const journeyOf = (view: PlayerView): Journey | null =>
