@@ -1,4 +1,13 @@
-import { expect, letters, playAsGuest, setupFounder, tapPlace, test, type Page } from './fixtures';
+import {
+  expect,
+  letters,
+  playAsGuest,
+  setupFounder,
+  tab,
+  tapPlace,
+  test,
+  type Page,
+} from './fixtures';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 
 /**
@@ -164,17 +173,19 @@ test('people in the city streets', async ({ page }) => {
   await shots(page, 'city', 5000, close);
 });
 
-test('the wardrobe', async ({ page }) => {
+test('the wardrobe and the avatar editor', async ({ page }) => {
   test.setTimeout(300_000);
-  await founder(page, 'Ada Wardrobe', 'lite');
-  await expect(page.locator('[data-place="mall"]').first()).toBeAttached({ timeout: 30_000 });
-  await tapPlace(page, '[data-place="mall"]', 'cycle');
-  const scene = page.locator('.mall-scene');
-  await expect(scene).toBeVisible({ timeout: 30_000 });
-  await scene.locator('[data-action="mall-purchases"]').click();
+  await founder(page, 'Ada Wardrobe');
+  await tab(page, 'Me').click();
+  await page.locator('[data-open-purchases]').click();
   const sheet = page.getByRole('dialog', { name: 'My purchases' });
   await expect(sheet).toBeVisible();
-  await shots(page, 'wardrobe', 4000);
+  await shots(page, 'wardrobe', 5000);
+  await sheet.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Edit my look' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit my look' });
+  await expect(editor).toBeVisible();
+  await shots(page, 'editor', 5000);
 });
 
 test('your car and the traffic, driving', async ({ page }) => {

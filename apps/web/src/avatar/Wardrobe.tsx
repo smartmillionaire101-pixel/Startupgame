@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react';
 import type { Command, MallShopId, Removable } from '@runway/engine';
 import { REMOVABLE, roleOutfit, type RoleOutfit } from '@runway/engine';
 import { AvatarFigure, avatarLook, drawnGender, type AvatarLook } from '../city/art';
+import { Look3D } from './Look3D';
 import { useLookVersion } from '../city/acts/look';
 import { genderOf } from '../city/life';
 import { wardrobeOf, type WardrobeItemView } from '../city/leisure';
@@ -189,7 +190,9 @@ export function Purchases() {
   return (
     <div className="purchases" data-purchases="">
       <section className="purchases-hero" data-outfit="">
-        <Figure look={look} size={170} label={t('Your outfit')} />
+        <Look3D look={look} width={118} height={180} label={t('Your outfit')}>
+          <Figure look={look} size={170} />
+        </Look3D>
         <div className="purchases-hero-text">
           <b>{t('Your outfit')}</b>
           {worn.length ? (

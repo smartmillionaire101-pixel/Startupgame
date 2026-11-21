@@ -23,6 +23,7 @@ import { AvatarFigure, lookFromAppearance } from '../city/art';
 import { t } from '../i18n';
 import { Button } from '../ui';
 import { PortraitOf } from './Portrait';
+import { Look3D } from './Look3D';
 import './avatar.css';
 
 type Gender = 'female' | 'male';
@@ -248,15 +249,17 @@ export function Creator({
     <div className="creator" data-creator="">
       <div className="creator-preview" data-preview="">
         <PortraitOf look={look} size={148} className="creator-portrait" label={t('Your look')} />
-        <svg
-          className="creator-figure"
-          viewBox="-16 -48 32 52"
-          width="58"
-          height="94"
-          aria-hidden="true"
-        >
-          <AvatarFigure look={look} />
-        </svg>
+        <Look3D look={look} width={84} height={150}>
+          <svg
+            className="creator-figure"
+            viewBox="-16 -48 32 52"
+            width="58"
+            height="94"
+            aria-hidden="true"
+          >
+            <AvatarFigure look={look} />
+          </svg>
+        </Look3D>
       </div>
       <div className="segmented creator-tabs" role="tablist" aria-label={t('Parts of your look')}>
         {TABS.map((x) => (
