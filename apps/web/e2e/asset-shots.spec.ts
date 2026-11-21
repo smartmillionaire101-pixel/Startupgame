@@ -1,6 +1,8 @@
 import {
+  DRIVE_CONTROLS,
   expect,
   letters,
+  overlapping,
   playAsGuest,
   setupFounder,
   tab,
@@ -25,7 +27,7 @@ test.skip(!DIR, 'ASSET_SHOTS=<dir> takes the model screenshots');
 
 const SIZES = [
   ['phone', 390, 844],
-  ['laptop', 1280, 800],
+  ['laptop', 1680, 1050],
 ] as const;
 
 type Stats = { draws: number; tris: number };
@@ -207,7 +209,8 @@ test('your car and the traffic, driving', async ({ page }) => {
     );
   // Each size its own drive (a new size ends a trip): off, then stopped so the chase camera settles.
   // Phone and laptop, then midday at laptop size (the traffic in daylight).
-  for (const [size, w, h] of [...SIZES, ['day', 1280, 800] as const]) {
+  for (const [size, w, h] of [...SIZES, ['day', 1680, 1050] as const]) {
+    if (process.env.ASSET_ONLY && process.env.ASSET_ONLY !== size) continue;
     if (size === 'day') await page.clock.setFixedTime(new Date('2026-06-14T11:30:00Z'));
     await page.setViewportSize({ width: w, height: h });
     await page.reload();
@@ -229,6 +232,8 @@ test('your car and the traffic, driving', async ({ page }) => {
     if (size === 'phone') record('drive', await cityStats(page));
     mkdirSync(DIR!, { recursive: true });
     await page.screenshot({ path: `${DIR}/${TAG}-drive-${size}.png` });
+    // (After the fix: the driving screen's controls clear of each other at every size.)
+    if (TAG !== 'before') expect(await overlapping(page, DRIVE_CONTROLS), size).toEqual([]);
     if (process.env.ASSET_DEBUG)
       console.log(
         'near',

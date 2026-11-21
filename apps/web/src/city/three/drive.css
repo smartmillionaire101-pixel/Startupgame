@@ -14,9 +14,36 @@
   font: inherit;
   -webkit-tap-highlight-color: transparent;
 }
+/*
+ * The route card sits under the game's top HUD (its two rows: the clock and money,
+ * then the bell), never under it; while you drive, the HUD's left second row (the
+ * online count, the goal flag) steps aside.
+ */
+.dh {
+  --dh-top: var(--hud-scene-top2, 110px);
+}
+body:has([data-driving='1']) .hud-sub-left {
+  display: none;
+}
+/*
+ * And the pedals have the bottom to themselves: the nav pill (the tab rail on a
+ * laptop) and the phone button step aside while you drive, as they do for a
+ * sheet; the map's buttons fold behind their ⋯, which stands above the pedals.
+ */
+html:has([data-driving='1']) :is(.nav, .hud-phone.hud-ib) {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+html:has([data-driving='1']) .city-rail {
+  bottom: calc(168px + 12px + env(safe-area-inset-bottom));
+}
+html:has([data-driving='1']) .city-rail > .hud-ib:not(.hud-more-btn) {
+  display: none;
+}
 .dh-card {
   position: absolute;
-  top: 10px;
+  top: var(--dh-top);
   left: 10px;
   right: 10px;
   border-radius: 18px;
@@ -98,7 +125,7 @@
 }
 .dh-compass {
   position: absolute;
-  top: 132px;
+  top: calc(var(--dh-top) + 122px);
   left: 12px;
   width: 44px;
   height: 44px;
@@ -140,7 +167,7 @@
 }
 .dh-note {
   position: absolute;
-  top: 140px;
+  top: calc(var(--dh-top) + 130px);
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 12px;
@@ -150,11 +177,13 @@
   font-size: 13px;
   font-weight: 700;
 }
+/* Up under the route card, over the road ahead: never over your car (which the
+   chase camera keeps a third of the way up from the bottom). */
 .dh-ways {
   position: absolute;
   left: 10px;
   right: 10px;
-  bottom: 200px;
+  top: calc(var(--dh-top) + 186px);
   text-align: center;
 }
 /* On a pill of its own: a name tag on the map behind can't run into it. */

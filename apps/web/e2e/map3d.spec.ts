@@ -1,4 +1,13 @@
-import { expect, letters, playAsGuest, setupFounder, test, hudMore } from './fixtures';
+import {
+  DRIVE_CONTROLS,
+  expect,
+  hudMore,
+  letters,
+  overlapping,
+  playAsGuest,
+  setupFounder,
+  test,
+} from './fixtures';
 import type { Page } from './fixtures';
 
 // WebGL through software rendering, for this spec only: the flags slow the
@@ -151,6 +160,9 @@ test('Driving your own car across the 3D city', async ({ page }) => {
   const go = hud.locator('[data-drive-pedal="go"]');
   await expect(go).toBeVisible();
   await expect(hud.locator('[data-drive-pedal="brake"]')).toBeVisible();
+  // Nothing sits on anything else: the route banner under the HUD's pills, the pedals
+  // clear of the phone button, the map's buttons and the tab bar.
+  expect(await overlapping(page, DRIVE_CONTROLS)).toEqual([]);
   // Hold GO: the car drives off.
   await go.dispatchEvent('pointerdown', { pointerId: 3, clientX: 300, clientY: 800 });
   await expect(go).toHaveAttribute('aria-pressed', 'true');
