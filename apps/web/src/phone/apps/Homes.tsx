@@ -178,7 +178,11 @@ function ListingDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [floor, setFloor] = useState(0);
   // Open at the top of the listing (the list may have been scrolled far down).
   const top = useRef<HTMLDivElement>(null);
-  useEffect(() => top.current?.scrollIntoView({ block: 'start' }), [id]);
+  // A block body: newer browsers return a promise from scrollIntoView, and an
+  // effect that returns it hands React a "cleanup" that isn't a function.
+  useEffect(() => {
+    top.current?.scrollIntoView({ block: 'start' });
+  }, [id]);
   const night = false;
   if (!l || !market)
     return (
