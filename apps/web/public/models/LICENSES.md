@@ -13,6 +13,7 @@ we credit the author anyway. Each pack's own `License.txt` says CC0.
 | `vehicles/cars-lod.glb` | The same cars, simplified for traffic | Quaternius | CC0 1.0 | https://quaternius.com/packs/cars.html |
 | `props/furniture.glb` | Ultimate Furniture (beds, closets, desk, office chair, bookcase, sofas, chairs, tables, stools) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatefurniture.html |
 | `props/furniture.glb` | Ultimate Home Interior (bathroom, kitchen units, fridge, couches, houseplants, lamps, shelves, tables, beds) | Quaternius | CC0 1.0 | https://quaternius.com/packs/ultimatehomeinterior.html |
+| `props/transport.glb` | Public Transport (the bus) | Quaternius | CC0 1.0 | https://quaternius.com/packs/publictransport.html |
 
 ## How they were made
 
@@ -35,3 +36,8 @@ we credit the author anyway. Each pack's own `License.txt` says CC0.
   centred on the floor, one primitive per material. Then `@gltf-transform`
   dedup, weld and quantize. Fitted to each item's footprint in game, the
   fabric and kitchen colours recoloured by tier and finish.
+- **Bus:** the Public Transport pack's FBX bus is untextured (every
+  material is plain white): its materials are coloured by name (Top and
+  Bottom the body, recoloured in game; Windows, Details, Bumper, Lights,
+  tyres), then baked like the furniture. Motorbikes and kekes have no CC0
+  Quaternius model and are built in code (three-kit/vehicles.ts).

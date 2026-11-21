@@ -29,14 +29,17 @@ import {
   type VehicleKind,
 } from './traffic';
 import { softwareGl } from '../../three-kit/quality';
+import { propsNow } from '../../three-kit/props';
 import {
   CAR_FOR_MODEL,
   ModelFleet,
   TRAFFIC_MODELS,
+  busModel,
   carModel,
   carsNow,
   spinWheels,
   type CarModel,
+  type FleetModel,
   type Instanced,
 } from '../../three-kit/vehicles';
 
@@ -158,6 +161,8 @@ export class Actors {
   private carFleet: ModelFleet;
   private busBody: THREE.InstancedMesh;
   private busBand: THREE.InstancedMesh;
+  /** The main roads' buses: the Public Transport bus once it has arrived. */
+  private busFleet: ModelFleet;
   private lastT = 0;
   private dist = 700;
   private leftHand: boolean;
@@ -277,15 +282,23 @@ export class Actors {
       }
     });
     if (fleet.double) this.busBody.scale.set(1, 1, 1);
+    this.busFleet = new ModelFleet(nb, [this.busBody, this.busBand], () => 'Bus', {
+      length: 11,
+      dims: [2.5, 2.9, 11],
+      castShadow: tier === 'high',
+    });
+    // (The colours were set on the boxes: the fleet keeps its own copy.)
+    for (let j = 0; j < nb; j++) this.busFleet.setColorAt(j, col.set(fleet.bus));
     for (const m of [this.carBody, this.carCab, this.busBody, this.busBand]) {
       m.frustumCulled = false;
       // Phones: traffic casts no shadow (tiny from the air, and the shadow
       // map then needn't be redrawn for every car that moves).
       m.castShadow = tier === 'high';
       m.count = m === this.carBody || m === this.carCab ? n - nb : nb;
-      if (m !== this.carBody && m !== this.carCab) scene.add(m);
+      if (m !== this.carBody && m !== this.carCab && m !== this.busBody && m !== this.busBand)
+        scene.add(m);
     }
-    scene.add(this.carFleet.group);
+    scene.add(this.carFleet.group, this.busFleet.group);
     if (glow && n) {
       const g = new THREE.BufferGeometry();
       const pos = new Float32Array(n * 4 * 3);
@@ -309,7 +322,7 @@ export class Actors {
       this.carLights.visible = false;
       scene.add(this.carLights);
     }
-    this.globalMeshes = [this.carFleet.group, this.busBody, this.busBand];
+    this.globalMeshes = [this.carFleet.group, this.busFleet.group];
     if (this.carLights) this.globalMeshes.push(this.carLights);
     this.buildShelters(scene);
     this.buildLocal(scene, layout.marketId, tier, soft);
@@ -361,19 +374,55 @@ export class Actors {
       castShadow: tier === 'high' && !soft,
     });
     scene.add(localFleet.group);
+    const localFleetOf = (
+      k: VehicleKind,
+      model: FleetModel,
+      boxes: THREE.InstancedMesh[],
+      o: { length: number; dims?: [number, number, number] },
+    ) => {
+      const f = new ModelFleet(kinds.filter((x) => x === k).length, boxes, () => model, {
+        ...o,
+        castShadow: tier === 'high' && !soft,
+      });
+      scene.add(f.group);
+      return f;
+    };
     this.localMeshes = {
       car: [localFleet],
+      // The bus from the Public Transport pack (stretched to a city bus); a motorbike and
+      // its rider and a keke built in code, each one draw call (./three-kit/vehicles.ts).
       bus: [
-        mk(new THREE.BoxGeometry(10, 2.4, 2.4).translate(0, 1.5, 0), paint.clone(), 'bus'),
-        mk(new THREE.BoxGeometry(9.4, 0.75, 2.44).translate(0, 2.0, 0), dark, 'bus'),
+        localFleetOf(
+          'bus',
+          'Bus',
+          [
+            mk(new THREE.BoxGeometry(10, 2.4, 2.4).translate(0, 1.5, 0), paint.clone(), 'bus'),
+            mk(new THREE.BoxGeometry(9.4, 0.75, 2.44).translate(0, 2.0, 0), dark, 'bus'),
+          ],
+          { length: 10, dims: [2.4, 2.7, 10] },
+        ),
       ],
       moto: [
-        mk(new THREE.BoxGeometry(1.9, 0.6, 0.45).translate(0, 0.55, 0), dark, 'moto'),
-        mk(new THREE.BoxGeometry(0.55, 0.85, 0.55).translate(-0.1, 1.3, 0), cloth, 'moto'),
+        localFleetOf(
+          'moto',
+          'Moto',
+          [
+            mk(new THREE.BoxGeometry(1.9, 0.6, 0.45).translate(0, 0.55, 0), cloth, 'moto'),
+            mk(new THREE.BoxGeometry(0.55, 0.85, 0.55).translate(-0.1, 1.3, 0), dark, 'moto'),
+          ],
+          { length: 2 },
+        ),
       ],
       keke: [
-        mk(new THREE.BoxGeometry(2.6, 1.1, 1.4).translate(0, 0.85, 0), paint.clone(), 'keke'),
-        mk(new THREE.BoxGeometry(2.4, 0.12, 1.5).translate(-0.1, 1.95, 0), dark, 'keke'),
+        localFleetOf(
+          'keke',
+          'Keke',
+          [
+            mk(new THREE.BoxGeometry(2.6, 1.1, 1.4).translate(0, 0.85, 0), paint.clone(), 'keke'),
+            mk(new THREE.BoxGeometry(2.4, 0.12, 1.5).translate(-0.1, 1.95, 0), dark, 'keke'),
+          ],
+          { length: 2.7 },
+        ),
       ],
     };
     const col = new THREE.Color();
@@ -390,7 +439,7 @@ export class Actors {
       else if (k === 'keke') col.set(fleet.keke);
       else col.set(CARS[Math.floor(h3(seed, i, 9) * CARS.length)]!);
       // Motorbikes: the rider's shirt carries the colour.
-      this.localMeshes![k][k === 'moto' ? 1 : 0]!.setColorAt(j, col);
+      this.localMeshes![k][0]!.setColorAt(j, col);
     });
     this.localKinds = kinds;
     if (this.glowMat) {
@@ -803,6 +852,17 @@ export class Actors {
       this.avatar.root.position.y = 0.45;
     } else if (spec.len >= 0.8) {
       const double = spec.extra === 'double';
+      // The Public Transport pack's bus, once it has arrived.
+      const bm = busModel(spec.body, 2.5, double ? 4.2 : 3.0, 11);
+      if (bm) {
+        g.add(bm);
+        this.rideModel = bm;
+        this.rideLen = 11;
+        this.avatar.root.visible = false;
+        this.ride = g;
+        this.avatarGroup.add(g);
+        return;
+      }
       box(2.5, double ? 4.2 : 2.8, 11, 0.3, mat(spec.body, 0.4, 0.3));
       this.rideLen = 11;
       box(2.54, 0.8, 10.4, 1.7, mat('#1c242c', 0.15, 0.8));
@@ -880,7 +940,12 @@ export class Actors {
     this.dist = dist;
     // In a low-poly car still: the CC0 one once the cars have arrived.
     const rs = this.rideSpec;
-    if (rs && !this.rideModel && rs.extra !== 'rider' && rs.len < 0.8 && carsNow())
+    if (
+      rs &&
+      !this.rideModel &&
+      rs.extra !== 'rider' &&
+      (rs.len < 0.8 ? carsNow() : propsNow('transport'))
+    )
       this.setRide(rs);
     const dt = this.lastT ? Math.min(0.1, (tMs - this.lastT) / 1000) : 0;
     this.lastT = tMs;
@@ -974,14 +1039,13 @@ export class Actors {
         }
       }
       if (c.bus) {
-        this.busBody.setMatrixAt(bi, _m);
-        this.busBand.setMatrixAt(bi++, _m);
+        this.busFleet.setMatrixAt(bi++, _m);
       } else {
         this.carFleet.setMatrixAt(ci++, _m);
       }
     }
-    for (const m of [this.busBody, this.busBand]) m.instanceMatrix.needsUpdate = true;
     this.carFleet.flush();
+    this.busFleet.flush();
     if (lp) lp.needsUpdate = true;
     // Driving: only the traffic around you (it keeps its distance) shows.
     const through = !this.lane;

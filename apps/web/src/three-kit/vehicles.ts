@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { humansEnabled, emitKitReady } from './humans/kit';
+import { propsNow } from './props';
 
 export type CarModel =
   'NormalCar1' | 'NormalCar2' | 'SUV' | 'SportsCar' | 'SportsCar2' | 'Taxi' | 'Cop';
@@ -108,7 +109,7 @@ export function loadCars(): Promise<CarKit | null> {
 }
 
 /** A car's parts as one geometry: the material's colour per vertex, `paint` 1 on the body colour. */
-function mergeCar(car: THREE.Object3D) {
+export function mergeCar(car: THREE.Object3D) {
   const parts: THREE.BufferGeometry[] = [];
   const inv = car.matrixWorld.clone().invert();
   const v = new THREE.Vector3();
@@ -127,8 +128,11 @@ function mergeCar(car: THREE.Object3D) {
     const paint = new Float32Array(n);
     const mw = new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld);
     const nm = new THREE.Matrix3().getNormalMatrix(mw);
-    const isPaint = mt.name === 'Paint';
-    const col = isPaint ? new THREE.Color(1, 1, 1) : mt.color;
+    // The body colour takes the instance's colour; Paint2 (a bus's lower half) a shade darker.
+    const isPaint = mt.name === 'Paint' || mt.name === 'Paint2';
+    const col = isPaint
+      ? new THREE.Color(1, 1, 1).multiplyScalar(mt.name === 'Paint2' ? 0.78 : 1)
+      : mt.color;
     for (let i = 0; i < n; i++) {
       v.fromBufferAttribute(pos, i).applyMatrix4(mw);
       p.set([v.x, v.y, v.z], i * 3);
@@ -226,6 +230,31 @@ export function carModel(model: CarModel, paint: string, length?: number): THREE
   return g;
 }
 
+/** The bus to ride in, painted, stretched to width × height × length (front +Z); null until it arrives. */
+export function busModel(paint: string, w: number, h: number, len: number): THREE.Group | null {
+  const src = propsNow('transport')?.models.get('Bus');
+  if (!src) return null;
+  const g = new THREE.Group();
+  const inner = src.group.clone(true);
+  inner.scale.set(w / src.size.x, h / src.size.y, len / src.size.z);
+  const top = new THREE.MeshStandardMaterial({ color: paint, roughness: 0.4, metalness: 0.2 });
+  const low = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(paint).multiplyScalar(0.78),
+    roughness: 0.45,
+    metalness: 0.2,
+  });
+  inner.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    m.castShadow = true;
+    const n = (m.material as THREE.Material).name;
+    if (n === 'Paint') m.material = top;
+    else if (n === 'Paint2') m.material = low;
+  });
+  g.add(inner);
+  return g;
+}
+
 /** Roll a car's wheels for `metres` travelled. */
 export function spinWheels(car: THREE.Object3D, metres: number) {
   const wheels = car.userData.wheels as THREE.Object3D[] | undefined;
@@ -258,8 +287,13 @@ export class ModelFleet implements Instanced {
   constructor(
     readonly count: number,
     private boxes: THREE.InstancedMesh[],
-    private modelOf: (i: number) => CarModel,
-    private opts: { length: number; castShadow: boolean },
+    private modelOf: (i: number) => FleetModel,
+    private opts: {
+      length: number;
+      castShadow: boolean;
+      /** Stretch to width, height and length (a bus) instead of a uniform scale to `length`. */
+      dims?: [number, number, number];
+    },
   ) {
     this.mats = new Float32Array(Math.max(1, count) * 16);
     this.cols = new Float32Array(Math.max(1, count) * 3).fill(1);
@@ -298,9 +332,10 @@ export class ModelFleet implements Instanced {
     }
   }
   private upgrade() {
-    const k = carsNow();
-    if (!k || this.count === 0) return;
+    if (this.count === 0) return;
     const names = [...new Set(Array.from({ length: this.count }, (_, i) => this.modelOf(i)))];
+    const srcs = names.map(mergedOf);
+    if (srcs.some((x) => !x)) return;
     const counts = names.map(() => 0);
     for (let i = 0; i < this.count; i++) {
       const o = names.indexOf(this.modelOf(i));
@@ -309,12 +344,20 @@ export class ModelFleet implements Instanced {
     }
     const mat = fleetMaterial();
     const meshes = names.map((n, j) => {
-      const src = k.merged.get(n)!;
+      const src = srcs[j]!;
       // As long as the boxes, turned to face +X like them.
       const g = src.geometry.clone();
       g.userData.shared = false;
-      const s = this.opts.length / src.length;
-      g.scale(s, s, s).rotateY(Math.PI / 2);
+      g.computeBoundingBox();
+      const b = g.boundingBox!;
+      const dims = this.opts.dims;
+      if (dims)
+        g.scale(dims[0] / (b.max.x - b.min.x), dims[1] / (b.max.y - b.min.y), dims[2] / src.length);
+      else {
+        const s = this.opts.length / src.length;
+        g.scale(s, s, s);
+      }
+      g.rotateY(Math.PI / 2);
       const m = new THREE.InstancedMesh(g, mat, Math.max(1, counts[j]!));
       m.count = counts[j]!;
       m.frustumCulled = false;
@@ -334,4 +377,112 @@ export class ModelFleet implements Instanced {
     this.meshes = meshes;
     this.dirty = true;
   }
+}
+
+/** What a fleet can draw: a car from the kit, the bus (Public Transport), a motorbike or a keke. */
+export type FleetModel = CarModel | 'Bus' | 'Moto' | 'Keke';
+
+const extraMerged = new Map<string, { geometry: THREE.BufferGeometry; length: number }>();
+
+/** A fleet model's merged geometry (null until its file has arrived). */
+export function mergedOf(
+  name: FleetModel,
+): { geometry: THREE.BufferGeometry; length: number } | null {
+  const hit = extraMerged.get(name);
+  if (hit) return hit;
+  if (name === 'Moto' || name === 'Keke') {
+    const m = name === 'Moto' ? motoGeometry() : kekeGeometry();
+    extraMerged.set(name, m);
+    return m;
+  }
+  if (name === 'Bus') {
+    const bus = propsNow('transport')?.models.get('Bus');
+    if (!bus) return null;
+    const m = mergeCar(bus.group);
+    extraMerged.set(name, m);
+    return m;
+  }
+  return carsNow()?.merged.get(name) ?? null;
+}
+
+/** A procedural part for the hand-built vehicles: a coloured, optionally painted, box or cylinder. */
+function part(
+  g: THREE.BufferGeometry,
+  colour: string,
+  paint: boolean,
+  x: number,
+  y: number,
+  z: number,
+  r?: [number, number, number],
+) {
+  const geo = g.index ? g.toNonIndexed() : g;
+  if (r) geo.rotateX(r[0]).rotateY(r[1]).rotateZ(r[2]);
+  geo.translate(x, y, z);
+  geo.deleteAttribute('uv');
+  const n = geo.getAttribute('position').count;
+  const c = new THREE.Color(paint ? '#ffffff' : colour);
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('paint', new THREE.BufferAttribute(new Float32Array(n).fill(paint ? 1 : 0), 1));
+  geo.setIndex([...Array(n).keys()]);
+  return geo;
+}
+const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
+const cyl = (r0: number, r1: number, h: number, seg = 12) =>
+  new THREE.CylinderGeometry(r0, r1, h, seg);
+const wheel = (r: number, t: number) => new THREE.CylinderGeometry(r, r, t, 16);
+const SIDE: [number, number, number] = [0, 0, Math.PI / 2];
+
+/** A motorbike and its rider (front +Z, 2 m long): the rider's shirt takes the colour. */
+function motoGeometry() {
+  const parts = [
+    part(wheel(0.32, 0.12), '#141414', false, 0, 0.32, 0.68, SIDE),
+    part(wheel(0.32, 0.12), '#141414', false, 0, 0.32, -0.68, SIDE),
+    part(wheel(0.17, 0.13), '#9ca3af', false, 0, 0.32, 0.68, SIDE),
+    part(wheel(0.17, 0.13), '#9ca3af', false, 0, 0.32, -0.68, SIDE),
+    part(box(0.2, 0.26, 1.05), '#1f2937', false, 0, 0.55, 0),
+    part(box(0.32, 0.24, 0.46), '#b91c1c', false, 0, 0.78, 0.22),
+    part(box(0.3, 0.1, 0.62), '#111111', false, 0, 0.82, -0.28),
+    part(cyl(0.025, 0.025, 0.6), '#d1d5db', false, 0, 0.72, 0.62, [0.45, 0, 0]),
+    part(box(0.72, 0.04, 0.04), '#d1d5db', false, 0, 1.03, 0.52),
+    part(new THREE.SphereGeometry(0.08, 10, 8), '#fde68a', false, 0, 0.85, 0.78),
+    part(box(0.36, 0.1, 0.3), '#374151', false, 0, 0.62, -0.62),
+    // The rider: legs astride, the shirt (painted), arms to the bars, a helmet.
+    part(box(0.14, 0.45, 0.16), '#1f2937', false, 0.16, 0.72, -0.12, [0.5, 0, 0]),
+    part(box(0.14, 0.45, 0.16), '#1f2937', false, -0.16, 0.72, -0.12, [0.5, 0, 0]),
+    part(box(0.4, 0.55, 0.26), '#ffffff', true, 0, 1.18, -0.18, [-0.25, 0, 0]),
+    part(box(0.1, 0.42, 0.1), '#ffffff', true, 0.24, 1.12, 0.12, [-1.1, 0, 0]),
+    part(box(0.1, 0.42, 0.1), '#ffffff', true, -0.24, 1.12, 0.12, [-1.1, 0, 0]),
+    part(new THREE.SphereGeometry(0.15, 12, 10), '#2b2b2b', false, 0, 1.6, -0.12),
+    part(box(0.2, 0.08, 0.04), '#0f172a', false, 0, 1.6, 0.02),
+  ];
+  const geometry = mergeGeometries(parts, false)!;
+  geometry.userData.shared = true;
+  return { geometry, length: 2.0 };
+}
+
+/** A keke (tricycle taxi, front +Z, 2.7 m long): the body takes the colour; a black canopy. */
+function kekeGeometry() {
+  const parts = [
+    part(wheel(0.25, 0.14), '#141414', false, 0, 0.25, 1.05, SIDE),
+    part(wheel(0.25, 0.14), '#141414', false, 0.6, 0.25, -0.8, SIDE),
+    part(wheel(0.25, 0.14), '#141414', false, -0.6, 0.25, -0.8, SIDE),
+    part(box(1.3, 0.55, 1.9), '#ffffff', true, 0, 0.62, -0.25),
+    part(box(0.75, 0.75, 0.55), '#ffffff', true, 0, 0.72, 0.92),
+    part(box(1.0, 0.55, 0.04), '#1f2937', false, 0, 1.35, 0.95, [-0.2, 0, 0]),
+    part(box(1.42, 0.08, 2.15), '#111111', false, 0, 1.92, -0.12),
+    part(box(1.42, 0.85, 0.06), '#111111', false, 0, 1.45, -1.18),
+    part(box(0.05, 1.0, 0.05), '#111111', false, 0.66, 1.4, 0.9),
+    part(box(0.05, 1.0, 0.05), '#111111', false, -0.66, 1.4, 0.9),
+    part(box(0.05, 1.0, 0.05), '#111111', false, 0.66, 1.4, -1.1),
+    part(box(0.05, 1.0, 0.05), '#111111', false, -0.66, 1.4, -1.1),
+    part(box(1.1, 0.3, 0.6), '#3f3f46', false, 0, 1.02, -0.6),
+    part(box(0.5, 0.03, 0.03), '#d1d5db', false, 0, 1.2, 0.72),
+    part(new THREE.SphereGeometry(0.07, 10, 8), '#fde68a', false, 0, 0.9, 1.2),
+    part(box(1.32, 0.06, 0.06), '#374151', false, 0, 0.38, -1.2),
+  ];
+  const geometry = mergeGeometries(parts, false)!;
+  geometry.userData.shared = true;
+  return { geometry, length: 2.7 };
 }
