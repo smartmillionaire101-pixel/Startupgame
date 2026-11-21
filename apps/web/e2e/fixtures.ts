@@ -240,7 +240,9 @@ export async function tapPlace(page: Page, selector: string, mode = 'walk') {
     await badge.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
     const go = page.locator(`[data-badge-card="${id}"] [data-badge-go]`);
     if (
-      await go.waitFor({ timeout: 1500 }).then(
+      // (On software WebGL at laptop size a frame takes ~0.7 s and the card can take
+      // seconds to open: 1.5 s missed it now and then, and nothing was tapped.)
+      await go.waitFor({ timeout: 8000 }).then(
         () => true,
         () => false,
       )
