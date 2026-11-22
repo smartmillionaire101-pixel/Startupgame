@@ -109,8 +109,11 @@ export function FeedbackHost() {
     () => open,
   );
   if (!topic) return null;
-  return <FeedbackSheet initial={topic} onClose={() => setOpen(null)} />;
+  return <FeedbackSheet initial={topic} onClose={closeFeedback} />;
 }
+
+/** One stable close, so an app re-render doesn't restart the thank-you timer. */
+const closeFeedback = () => setOpen(null);
 
 const TOPICS: { id: Topic; emoji: string; label: () => string }[] = [
   { id: 'bug', emoji: '🐞', label: () => t('Something broke') },
