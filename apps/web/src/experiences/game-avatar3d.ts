@@ -12,9 +12,10 @@
  *   kicker stands on the same pitch as the 2D ball and the goal.
  * - 8-ball pool, top down: whoever is at the table leans over it along the
  *   cue, the bridge hand on the cloth behind the cue ball, the cue hand
- *   back at the hip (it draws back with the pull), standing just outside
- *   the table's edge (never on the cloth) and leaning in over the rail,
- *   less when the cue ball is close to it, always inside the picture.
+ *   back at the hip (it draws back with the pull), standing outside the
+ *   table (their feet and weight behind the rail, never on it) and leaning
+ *   in over the rail, less when the cue ball is close to it. Always full
+ *   size: on a tight screen the picture's edge may cut off their legs.
  *
  * Loaded on demand (three.js only when a game is played in 3D).
  */
@@ -288,17 +289,22 @@ export class PitchLayer extends Layer {
  * Leaning over the table for a shot, along the cue (the root at the hips,
  * facing the shot): `lean` 0 (close to the rail: upright, the bridge hand
  * near) … 1 (stretched along the cue), `back` how far the cue hand has
- * drawn the cue back (metres, the pull; below 0 the follow-through).
+ * drawn the cue back (metres, the pull; below 0 the follow-through), and
+ * `bend` how far down over the table the back is (the lean's own unless
+ * given: more brings the head and shoulders in over the rail, the bridge
+ * arm reaching as far as the lean says, down to −1.3: straight down).
  */
-export function cuePose(c: Character, lean: number, back = 0) {
+export function cuePose(c: Character, lean: number, back = 0, bend = lean) {
   pose(c, 'stand', 0);
-  const p = 0.35 + 0.85 * lean;
+  const p = 0.35 + 0.85 * bend;
   c.torso.rotation.x = p;
   c.head.rotation.x = -p * 0.75;
   // The bridge arm (left) forward and down to the cloth.
   // Turned in so the bridge sits on the cue's line (it runs under the chin, to the right).
-  c.armL.rotation.set(-(0.75 + 0.55 * lean) - p, 0, -0.5 - 0.25 * (1 - lean));
-  c.foreL.rotation.set(-0.35 * (1 - lean), 0, 0);
+  // Below 0 (bent down close to the rail) the arm comes back towards straight down.
+  const l = Math.max(0, lean);
+  c.armL.rotation.set(-(0.75 + 0.55 * lean) - p, 0, -0.5 - 0.25 * (1 - l));
+  c.foreL.rotation.set(-0.35 * (1 - l), 0, 0);
   // The cue arm (right): the elbow up and back, the forearm hanging, swinging with the pull.
   const swing = Math.asin(Math.max(-0.9, Math.min(0.9, back / 0.3)));
   c.armR.rotation.set(0.7 - p, 0, 0.12);
@@ -335,9 +341,12 @@ export class TableLayer extends Layer {
   private h = 1;
   /** Px per metre (the table's scale). */
   private ppm = 100;
-  /** Where the player's feet are and the felt (overlay px), for the tests. */
+  /** Where the player's feet are and the felt inside the cushions (overlay px), for the tests. */
   private feet: { x: number; y: number } | null = null;
   private felt: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  /** The table's outer edge (the rail's) and where their weight is (overlay px), for the tests. */
+  private table: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  private weight: { x: number; y: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement, soft: boolean) {
     super(canvas, soft);
@@ -363,12 +372,14 @@ export class TableLayer extends Layer {
 
   /**
    * Stand them at the table for this shot: behind the cue ball along the
-   * cue, their feet off the cloth (just outside the table's edge, never on
-   * the felt), leaning in over the rail as far as the shot needs (upright
-   * when the ball is near the rail, stretched out along the cue when it is
-   * deep in the table). If that leaves a foot or an elbow out of the
-   * picture, they step in (no further than the rail, still off the cloth),
-   * then are drawn a little smaller.
+   * cue, outside the table (their feet and their weight behind the rail's
+   * outer edge, wherever the ball is), leaning in over the rail as far as
+   * the shot needs (upright when the ball is near the rail, stretched out
+   * along the cue when it is deep in the table). Always full size: like a
+   * camera framing a real shot, the picture may cut off a foot or the legs
+   * at its edge (a tight screen, the ball against a side rail) rather than
+   * step them onto the table; there they bend down further over the rail,
+   * so their head and hands are in the picture.
    */
   stand(s: PoolStance) {
     const c = this.person(s.id, () => {
@@ -397,39 +408,110 @@ export class TableLayer extends Layer {
       x: s.at.x - (dx * d - lx * 0.13) * m,
       y: s.at.y - (dy * d - lz * 0.13) * m,
     });
-    // Off the cloth: the feet at least `by` px outside the felt (inside the rail).
-    const r = s.rail;
-    const offCloth = (d: number, by: number) => {
-      const f = feetAt(d);
-      return f.x < x0 + r - by || f.x > x1 - r + by || f.y < y0 + r - by || f.y > y1 - r + by;
-    };
-    const put = (d: number, scale = 1) => {
-      const lean = Math.max(0, Math.min(1, (d - tip - 0.2 - bridgeReach(0)) / 0.62));
-      cuePose(c, lean, s.pull / m);
+    // Outside the table: at least `by` px beyond its outer edge (the rail's) on some side.
+    const outside = (q: { x: number; y: number }, by: number) =>
+      q.x < x0 - by || q.x > x1 + by || q.y < y0 - by || q.y > y1 + by;
+    // The bridge hand on the cloth `tip + 0.2` m behind the ball: as far in as the lean says.
+    const leanAt = (d: number) => Math.max(0, Math.min(1, (d - tip - 0.2 - bridgeReach(0)) / 0.62));
+    const put = (d: number, lean: number, bend = lean) => {
+      cuePose(c, lean, s.pull / m, bend);
       c.root.rotation.set(0, ry, 0);
-      c.root.scale.setScalar(scale);
+      c.root.scale.setScalar(1);
       const f = feetAt(d);
       c.root.position.set(f.x / m, 0, f.y / m);
     };
-    const fits = () => {
-      const b = screenBoxOf(c.root, this.camera);
-      return !b || (b.l > -0.995 && b.r < 0.995 && b.b > -0.995 && b.t < 0.995);
+    // How far ahead of the hips the bridge hand is (m), as posed now.
+    const reach = () => {
+      c.root.updateMatrixWorld(true);
+      const h = c.handL.getWorldPosition(new THREE.Vector3());
+      return (h.x - c.root.position.x) * dx + (h.z - c.root.position.z) * dy;
     };
-    // Just outside the table's edge (or further back, upright, when the ball is near it).
-    let hips = Math.max(tip + 0.2 + bridgeReach(0), room + 0.1);
-    for (let i = 0; i < 40 && !offCloth(hips, r + 0.08 * m); i++) hips += 0.03;
-    put(hips);
-    // Inside the picture: in along the cue a step at a time, only while still off the cloth…
-    for (let i = 0; i < 24 && !fits(); i++) {
-      const next = hips - 0.03;
-      if (next < 0.15 || !offCloth(next, 0.05 * m)) break;
-      hips = next;
-      put(hips);
+    // Bent down `bend`, the arm reaching the bridge spot (as near as it goes).
+    const putBent = (d: number, bend: number) => {
+      const want = d - tip - 0.2;
+      let lo = -1.3,
+        hi = 1;
+      for (let i = 0; i < 6; i++) {
+        const mid = (lo + hi) / 2;
+        put(d, mid, bend);
+        if (reach() < want) lo = mid;
+        else hi = mid;
+      }
+      put(d, (lo + hi) / 2, bend);
+    };
+    // Enough of them in the picture to read: their head and both hands on the overlay, or
+    // at least half of them (a tight screen may cut off the legs). Better is more of them.
+    const shown = () => {
+      c.root.updateMatrixWorld(true);
+      const pad = 6;
+      const whole = [c.head, c.handL, c.handR].every((o) => {
+        const v = o.getWorldPosition(new THREE.Vector3());
+        const x = v.x * m,
+          y = v.z * m;
+        return x > pad && x < this.w - pad && y > pad && y < this.h - pad;
+      });
+      const bx = screenBoxOf(c.root, this.camera);
+      if (!bx) return 0;
+      const w = Math.max(0, Math.min(0.99, bx.r) - Math.max(-0.99, bx.l)),
+        h = Math.max(0, Math.min(0.99, bx.t) - Math.max(-0.99, bx.b));
+      return (whole ? 1 : 0) + (w * h) / Math.max(1e-9, (bx.r - bx.l) * (bx.t - bx.b));
+    };
+    const readable = () => shown() >= 0.55;
+    // Stood `bend` down (null: the lean's own) from `d` back: their weight behind the rail,
+    // and bent, the bridge hand no further in than just behind the cue's tip.
+    const stood = (d: number, bend: number | null) => {
+      const at = (q: number) => (bend === null ? put(q, leanAt(q)) : putBent(q, bend));
+      const ok = (q: number) =>
+        outside(this.weightOf(c), 0.02 * m) && (bend === null || reach() <= q - tip - 0.05);
+      at(d);
+      for (let i = 0; i < 60 && !ok(d); i++) at((d += 0.03));
+      return d;
+    };
+    // The feet just outside the table's edge…
+    let near = 0.15;
+    for (let i = 0; i < 80 && !outside(feetAt(near), 0.08 * m); i++) near += 0.03;
+    // … upright with the bridge hand near when the ball is close to the rail, leaning in
+    // when it is further, their weight behind the rail however far they lean …
+    let hips = stood(Math.max(near, tip + 0.2 + bridgeReach(0), room + 0.1), null);
+    // … and on a tight screen (the ball against a side rail, the legs off the edge), in as
+    // near as the feet go, bent down over the rail as far as still leaves enough of them in
+    // the picture (bent less, the shoulders and the bridge hand come back from the ball).
+    if (!readable()) {
+      let most = { score: shown(), hips, bend: null as number | null };
+      for (let bend = 1; bend >= -0.01; bend -= 0.1) {
+        const d = stood(near, Math.max(0, bend));
+        const score = shown();
+        if (score > most.score) most = { score, hips: d, bend: Math.max(0, bend) };
+        if (score >= 0.55) break;
+      }
+      hips = most.hips;
+      if (most.bend === null) put(hips, leanAt(hips));
+      else putBent(hips, most.bend);
     }
-    // … then a little smaller (a tight screen, the ball against a side rail).
-    for (let k = 0.95; k >= 0.7 && !fits(); k -= 0.05) put(hips, k);
     this.feet = feetAt(hips);
+    this.weight = this.weightOf(c);
+    const r = s.rail;
     this.felt = { x0: x0 + r, y0: y0 + r, x1: x1 - r, y1: y1 - r };
+    this.table = { x0, y0, x1, y1 };
+  }
+
+  /**
+   * Roughly where their weight is, from above (overlay px): the legs at the
+   * hips, the trunk between the hips and the head, the arms to the hands.
+   */
+  private weightOf(c: Character) {
+    c.root.updateMatrixWorld(true);
+    const at = (o: THREE.Object3D) => o.getWorldPosition(new THREE.Vector3());
+    const hips = at(c.hips),
+      head = at(c.head),
+      hands = at(c.handL).add(at(c.handR)).multiplyScalar(0.5);
+    const w = hips.multiplyScalar(0.6).addScaledVector(head, 0.325).addScaledVector(hands, 0.075);
+    return { x: w.x * this.ppm, y: w.z * this.ppm };
+  }
+
+  /** A point on the overlay (px) as −1 … 1 each way (up positive). */
+  private toNdc(q: { x: number; y: number }) {
+    return { x: (q.x / this.w) * 2 - 1, y: 1 - (q.y / this.h) * 2 };
   }
 
   render() {
@@ -442,22 +524,40 @@ export class TableLayer extends Layer {
 
   /**
    * Where the player is on the overlay (−1 … 1 each way, up positive), for
-   * the tests: their box, their feet and the felt inside the cushions.
+   * the tests: their box (it may run off the overlay's edge), their feet,
+   * their weight, their head and hands, the felt inside the cushions and
+   * the table's outer edge.
    */
   onScreen(): {
     player: ScreenBox | null;
     feet: { x: number; y: number } | null;
+    weight: { x: number; y: number } | null;
+    head: { x: number; y: number } | null;
+    hands: { x: number; y: number }[];
     felt: ScreenBox | null;
+    table: ScreenBox | null;
     size: { w: number; h: number };
   } {
-    const on = !!this.who?.root.visible;
-    const fx = (px: number) => (px / this.w) * 2 - 1;
-    const fy = (py: number) => 1 - (py / this.h) * 2;
-    const f = this.felt;
+    const who = this.who?.root.visible ? this.who : null;
+    const box = (f: { x0: number; y0: number; x1: number; y1: number } | null) => {
+      if (!f) return null;
+      const a = this.toNdc({ x: f.x0, y: f.y0 }),
+        b = this.toNdc({ x: f.x1, y: f.y1 });
+      return { l: a.x, r: b.x, b: b.y, t: a.y };
+    };
+    const proj = (o: THREE.Object3D) => {
+      const v = o.getWorldPosition(new THREE.Vector3()).project(this.camera);
+      return { x: v.x, y: v.y };
+    };
+    who?.root.updateMatrixWorld(true);
     return {
-      player: on ? screenBoxOf(this.who!.root, this.camera) : null,
-      feet: on && this.feet ? { x: fx(this.feet.x), y: fy(this.feet.y) } : null,
-      felt: f ? { l: fx(f.x0), r: fx(f.x1), b: fy(f.y1), t: fy(f.y0) } : null,
+      player: who ? screenBoxOf(who.root, this.camera) : null,
+      feet: who && this.feet ? this.toNdc(this.feet) : null,
+      weight: who && this.weight ? this.toNdc(this.weight) : null,
+      head: who ? proj(who.head) : null,
+      hands: who ? [proj(who.handL), proj(who.handR)] : [],
+      felt: box(this.felt),
+      table: box(this.table),
       size: { w: this.w, h: this.h },
     };
   }
