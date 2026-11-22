@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import type { AvatarLook } from '../../city/art';
 import { disposeTree } from '../../interiors3d/kit';
+import { compileScene } from '../../three-kit/compile';
 import { screenBoxOf } from '../../three-kit/screen-box';
 import type { Character } from '../../interiors3d/character';
 import {
@@ -686,7 +687,12 @@ export class AirRig {
     const partsWas = parts.map((p) => p.visible);
     for (const c of this.scene.children) c.visible = true;
     for (const p of parts) p.visible = true;
-    const done = renderer.compileAsync(this.scene, this.camera).catch(() => undefined);
+    let done: Promise<void>;
+    try {
+      done = compileScene(renderer, this.scene, this.camera);
+    } catch {
+      done = Promise.resolve();
+    }
     this.scene.children.forEach((c, i) => (c.visible = was[i]!));
     parts.forEach((p, i) => (p.visible = partsWas[i]!));
     return done;

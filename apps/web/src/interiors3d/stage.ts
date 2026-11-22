@@ -6,6 +6,7 @@
  * while something moves, and never while the tab is hidden.
  */
 import * as THREE from 'three';
+import { compileScene } from '../three-kit/compile';
 import { onKitReady } from '../three-kit/humans/kit';
 import { cpuGl, softwareGl } from '../three-kit/quality';
 
@@ -379,7 +380,8 @@ export class Stage {
   /**
    * Compile the scene's shaders without blocking where the GPU allows it
    * (KHR_parallel_shader_compile); nothing is drawn until they're ready
-   * (2.5 s at most).
+   * (2.5 s at most). The view may close meanwhile (parked, its things
+   * disposed of): the wait just ends.
    */
   async warm(): Promise<void> {
     if (this.disposed) return;
@@ -387,10 +389,10 @@ export class Stage {
     // (Parked and taken again meanwhile: the new view's holds start afresh.)
     const view = this.view;
     try {
-      await Promise.race([
-        this.renderer.compileAsync(this.scene, this.lens),
-        new Promise((r) => setTimeout(r, 2500)),
-      ]);
+      await compileScene(this.renderer, this.scene, this.lens, {
+        timeout: 2500,
+        cancelled: () => this.disposed || this.parked || view !== this.view,
+      });
     } catch {
       /* drawn the ordinary way */
     } finally {
