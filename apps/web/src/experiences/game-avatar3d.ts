@@ -134,6 +134,8 @@ export function footballer(look: AvatarLook, id: string): Character {
     limb.material = skin;
     const s = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.058, 0.22, 10), sock);
     s.position.y = -0.27;
+    // Part of the low-poly body: hidden with it under the CC0 model (../interiors3d/characterModel.ts).
+    s.userData.procBody = true;
     shin.add(s);
   }
   return c;
