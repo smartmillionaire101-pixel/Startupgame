@@ -67,14 +67,13 @@ async function table(p: Page) {
 }
 
 type Box = { l: number; r: number; b: number; t: number };
-/** Round 7e: the player leaning over the pool table (./game-avatar3d.ts), −1 … 1 on its layer. */
-const poolPlayer = (p: Page) =>
+type Pool3d = { player: Box | null; feet: { x: number; y: number } | null; felt: Box | null };
+/** Round 7e: the player at the pool table (./game-avatar3d.ts), −1 … 1 on its layer. */
+const poolView = (p: Page) =>
   p.evaluate(
-    () =>
-      (
-        window as unknown as { __pool3d?: { onScreen(): { player: Box | null } } }
-      ).__pool3d?.onScreen().player ?? null,
+    () => (window as unknown as { __pool3d?: { onScreen(): Pool3d } }).__pool3d?.onScreen() ?? null,
   );
+const poolPlayer = async (p: Page) => (await poolView(p))?.player ?? null;
 /** Round 7e: the kicker on the pitch, the ball and the goal line (−1 … 1 on the pitch). */
 const pitchKicker = (p: Page) =>
   p.evaluate(
@@ -123,6 +122,15 @@ async function expectPoolPlayer(p: Page, what: string) {
     if (!(await el.count()) || !(await el.isVisible())) continue;
     expect(overlaps(box, (await el.boundingBox())!), `${what}: the player over ${sel}`).toBe(false);
   }
+  // Standing at the table, not on it: their feet off the felt (outside the cushions).
+  const v = (await poolView(p))!;
+  expect(v.feet && v.felt, `${what}: where the player stands`).toBeTruthy();
+  const { feet, felt } = v as { feet: { x: number; y: number }; felt: Box };
+  const onFelt = feet.x > felt.l && feet.x < felt.r && feet.y > felt.b && feet.y < felt.t;
+  expect(
+    onFelt,
+    `${what}: the player stands on the felt (feet ${JSON.stringify(feet)}, felt ${JSON.stringify(felt)})`,
+  ).toBe(false);
 }
 
 /** The kicker on the pitch, whole, beside the ball (the swipe starts there) and below the goal. */
@@ -482,6 +490,7 @@ async function atSize(browser: Browser, url: string | undefined, w: number, h: n
 for (const [w, h] of [
   [768, 1024],
   [1440, 900],
+  [390, 844],
 ] as const) {
   test(`the pool player leaning over the table, in the picture at ${w}×${h}`, async ({
     browser,
@@ -492,12 +501,17 @@ for (const [w, h] of [
     await dialog.getByRole('button', { name: 'Play vs AI' }).click();
     await expect(dialog.locator('.pool-table canvas')).toBeVisible({ timeout: 15000 });
     await expectPoolPlayer(page, `the break at ${w}×${h}`);
-    await dialog.locator('.pool-table canvas').scrollIntoViewIfNeeded();
+    await dialog.locator('.pool-stage').scrollIntoViewIfNeeded();
     await snap(page, `pool-player-${w}x${h}`, info);
     expect(errors).toEqual([]);
     await context.close();
   });
+}
 
+for (const [w, h] of [
+  [768, 1024],
+  [1440, 900],
+] as const) {
   test(`the kicker behind the ball, then the kick, in the picture at ${w}×${h}`, async ({
     browser,
   }, info) => {

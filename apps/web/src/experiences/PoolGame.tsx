@@ -51,8 +51,12 @@ import { reduceMotion, sfx } from './sfx';
 type Room = PlayerView['playRooms'][number];
 type Mode = 'aim' | 'pull' | 'place' | null;
 
-/** Room around the table for the player standing at its ends (CSS px, 3D only). */
-const STAND_ROOM = 18;
+/**
+ * Room around the table for the player standing at it, off the cloth
+ * (metres at the table's scale, 3D only): their feet just outside the
+ * rail, the back foot behind them.
+ */
+const STAND_M = 0.36;
 
 const wrap = (a: number) => (a > Math.PI ? a - 2 * Math.PI : a < -Math.PI ? a + 2 * Math.PI : a);
 
@@ -233,13 +237,14 @@ export function PoolGame({
           : avatarLook(undefined, shooterId),
     [shooterId, view.me],
   );
-  const standW = Math.max(layout.width, Math.min(wrapW, layout.width + 120));
-  const standH = layout.height + 2 * STAND_ROOM;
+  const standRoom = Math.round(STAND_M * 100 * layout.scale);
+  const standW = Math.max(layout.width, Math.min(wrapW, layout.width + 2 * standRoom));
+  const standH = layout.height + 2 * standRoom;
   useEffect(() => {
     if (!player) return;
     player.setSize(standW, standH, layout.scale);
     const ox = (standW - layout.width) / 2;
-    const oy = STAND_ROOM;
+    const oy = standRoom;
     // The shot being played (from where the cue ball was struck), or the one being lined up.
     const struck = rolling && last?.before ? last.before.find((b) => b.id === 0) : null;
     const shotAngle = struck ? Math.atan2(last!.vy ?? 0, last!.vx ?? 1) : mine ? angle : theirAim;
@@ -260,12 +265,14 @@ export function PoolGame({
       tip: POOL_R * layout.scale + 3 + pull,
       pull,
       table: { x0: ox, y0: oy, x1: ox + layout.width, y1: oy + layout.height },
+      rail: RAIL * layout.scale,
     });
     player.render();
   }, [
     player,
     standW,
     standH,
+    standRoom,
     layout,
     rolling,
     last,
@@ -495,7 +502,7 @@ export function PoolGame({
         <div
           className={`pool-table${gl ? ' has-player' : ''}`}
           ref={wrapRef}
-          style={gl ? ({ '--stand-room': `${STAND_ROOM}px` } as React.CSSProperties) : undefined}
+          style={gl ? ({ '--stand-room': `${standRoom}px` } as React.CSSProperties) : undefined}
         >
           <canvas
             ref={canvasRef}

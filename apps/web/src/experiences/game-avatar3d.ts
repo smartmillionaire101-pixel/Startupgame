@@ -12,9 +12,9 @@
  *   kicker stands on the same pitch as the 2D ball and the goal.
  * - 8-ball pool, top down: whoever is at the table leans over it along the
  *   cue, the bridge hand on the cloth behind the cue ball, the cue hand
- *   back at the hip (it draws back with the pull), standing at the rail
- *   and leaning less when the cue ball is close to it, always inside the
- *   picture.
+ *   back at the hip (it draws back with the pull), standing just outside
+ *   the table's edge (never on the cloth) and leaning in over the rail,
+ *   less when the cue ball is close to it, always inside the picture.
  *
  * Loaded on demand (three.js only when a game is played in 3D).
  */
@@ -324,6 +324,8 @@ export interface PoolStance {
   pull: number;
   /** The outer edge of the table on the overlay (px). */
   table: { x0: number; y0: number; x1: number; y1: number };
+  /** The rail's width, the wood and the cushion (px): the felt is inside it. */
+  rail: number;
 }
 
 /** The player over the pool table, from straight above (the overlay's px are the table's). */
@@ -333,6 +335,9 @@ export class TableLayer extends Layer {
   private h = 1;
   /** Px per metre (the table's scale). */
   private ppm = 100;
+  /** Where the player's feet are and the felt (overlay px), for the tests. */
+  private feet: { x: number; y: number } | null = null;
+  private felt: { x0: number; y0: number; x1: number; y1: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement, soft: boolean) {
     super(canvas, soft);
@@ -358,9 +363,12 @@ export class TableLayer extends Layer {
 
   /**
    * Stand them at the table for this shot: behind the cue ball along the
-   * cue, leaning as far as the room behind it allows (the hips no further
-   * out than just past the rail), slid in along the cue until all of them
-   * is in the picture.
+   * cue, their feet off the cloth (just outside the table's edge, never on
+   * the felt), leaning in over the rail as far as the shot needs (upright
+   * when the ball is near the rail, stretched out along the cue when it is
+   * deep in the table). If that leaves a foot or an elbow out of the
+   * picture, they step in (no further than the rail, still off the cloth),
+   * then are drawn a little smaller.
    */
   stand(s: PoolStance) {
     const c = this.person(s.id, () => {
@@ -371,38 +379,57 @@ export class TableLayer extends Layer {
     });
     const m = this.ppm;
     const [dx, dy] = s.dir;
+    const { x0, y0, x1, y1 } = s.table;
     // Room behind the ball along the cue to the table's outer edge (px).
-    const room = (() => {
-      let best = Infinity;
-      const { x0, y0, x1, y1 } = s.table;
-      if (dx > 1e-6) best = Math.min(best, (s.at.x - x0) / dx);
-      if (dx < -1e-6) best = Math.min(best, (s.at.x - x1) / dx);
-      if (dy > 1e-6) best = Math.min(best, (s.at.y - y0) / dy);
-      if (dy < -1e-6) best = Math.min(best, (s.at.y - y1) / dy);
-      return Math.max(0, best) / m;
-    })();
+    let best = Infinity;
+    if (dx > 1e-6) best = Math.min(best, (s.at.x - x0) / dx);
+    if (dx < -1e-6) best = Math.min(best, (s.at.x - x1) / dx);
+    if (dy > 1e-6) best = Math.min(best, (s.at.y - y0) / dy);
+    if (dy < -1e-6) best = Math.min(best, (s.at.y - y1) / dy);
+    const room = Math.max(0, best) / m;
     const tip = (s.tip - s.pull) / m;
-    // The bridge hand ~20 cm behind the cue's tip; the hips behind it by the reach.
-    const want = tip + 0.2 + bridgeReach(1);
-    let hips = Math.min(want, Math.max(tip + 0.2 + bridgeReach(0), room + 0.02));
     const ry = Math.atan2(dx, dy);
     // The cue runs under the chin on the right: the body a little to its left.
     const lx = Math.cos(ry),
       lz = -Math.sin(ry);
-    const put = (d: number) => {
+    // Where the feet are (overlay px) with the hips `d` m behind the ball.
+    const feetAt = (d: number) => ({
+      x: s.at.x - (dx * d - lx * 0.13) * m,
+      y: s.at.y - (dy * d - lz * 0.13) * m,
+    });
+    // Off the cloth: the feet at least `by` px outside the felt (inside the rail).
+    const r = s.rail;
+    const offCloth = (d: number, by: number) => {
+      const f = feetAt(d);
+      return f.x < x0 + r - by || f.x > x1 - r + by || f.y < y0 + r - by || f.y > y1 - r + by;
+    };
+    const put = (d: number, scale = 1) => {
       const lean = Math.max(0, Math.min(1, (d - tip - 0.2 - bridgeReach(0)) / 0.62));
       cuePose(c, lean, s.pull / m);
       c.root.rotation.set(0, ry, 0);
-      c.root.position.set(s.at.x / m - dx * d + lx * 0.13, 0, s.at.y / m - dy * d + lz * 0.13);
+      c.root.scale.setScalar(scale);
+      const f = feetAt(d);
+      c.root.position.set(f.x / m, 0, f.y / m);
     };
-    put(hips);
-    // Inside the picture: in along the cue (a step at a time) if a foot or an elbow is out.
-    for (let i = 0; i < 24; i++) {
+    const fits = () => {
       const b = screenBoxOf(c.root, this.camera);
-      if (!b || (b.l > -0.995 && b.r < 0.995 && b.b > -0.995 && b.t < 0.995)) break;
-      hips = Math.max(0.15, hips - 0.03);
+      return !b || (b.l > -0.995 && b.r < 0.995 && b.b > -0.995 && b.t < 0.995);
+    };
+    // Just outside the table's edge (or further back, upright, when the ball is near it).
+    let hips = Math.max(tip + 0.2 + bridgeReach(0), room + 0.1);
+    for (let i = 0; i < 40 && !offCloth(hips, r + 0.08 * m); i++) hips += 0.03;
+    put(hips);
+    // Inside the picture: in along the cue a step at a time, only while still off the cloth…
+    for (let i = 0; i < 24 && !fits(); i++) {
+      const next = hips - 0.03;
+      if (next < 0.15 || !offCloth(next, 0.05 * m)) break;
+      hips = next;
       put(hips);
     }
+    // … then a little smaller (a tight screen, the ball against a side rail).
+    for (let k = 0.95; k >= 0.7 && !fits(); k -= 0.05) put(hips, k);
+    this.feet = feetAt(hips);
+    this.felt = { x0: x0 + r, y0: y0 + r, x1: x1 - r, y1: y1 - r };
   }
 
   render() {
@@ -413,10 +440,24 @@ export class TableLayer extends Layer {
     }
   }
 
-  /** Where the player is on the overlay (−1 … 1 each way), for the tests. */
-  onScreen(): { player: ScreenBox | null; size: { w: number; h: number } } {
+  /**
+   * Where the player is on the overlay (−1 … 1 each way, up positive), for
+   * the tests: their box, their feet and the felt inside the cushions.
+   */
+  onScreen(): {
+    player: ScreenBox | null;
+    feet: { x: number; y: number } | null;
+    felt: ScreenBox | null;
+    size: { w: number; h: number };
+  } {
+    const on = !!this.who?.root.visible;
+    const fx = (px: number) => (px / this.w) * 2 - 1;
+    const fy = (py: number) => 1 - (py / this.h) * 2;
+    const f = this.felt;
     return {
-      player: this.who?.root.visible ? screenBoxOf(this.who.root, this.camera) : null,
+      player: on ? screenBoxOf(this.who!.root, this.camera) : null,
+      feet: on && this.feet ? { x: fx(this.feet.x), y: fy(this.feet.y) } : null,
+      felt: f ? { l: fx(f.x0), r: fx(f.x1), b: fy(f.y1), t: fy(f.y0) } : null,
       size: { w: this.w, h: this.h },
     };
   }
