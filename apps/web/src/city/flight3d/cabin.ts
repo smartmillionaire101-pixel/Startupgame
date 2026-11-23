@@ -34,6 +34,8 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { fnv, seeded } from '../travel';
 import type { AvatarLook } from '../art';
 import { makeCharacter, pose, type Character } from '../../interiors3d/character';
+import { Instanced, bakePeople, type BakeSpec } from '../airport3d/crowd';
+import { travellerLook, uniformLook } from '../airport3d/looks';
 import type { CabinClass } from '../acts/Cabin';
 import {
   bulkheadTexture,
@@ -460,38 +462,6 @@ export interface CabinOpts {
   night: boolean;
 }
 
-/** The person pushing the trolley: a simple figure in the airline's uniform. */
-function crewFigure(skin: string, hair: string, uniform: string, scarf: string) {
-  const g = new THREE.Group();
-  const mat = (c: string) => new THREE.MeshLambertMaterial({ color: c });
-  const add = (geo: THREE.BufferGeometry, c: string, x: number, y: number, z: number) => {
-    const m = new THREE.Mesh(geo, mat(c));
-    m.position.set(x, y, z);
-    g.add(m);
-    return m;
-  };
-  add(new THREE.CylinderGeometry(0.16, 0.24, 0.62, 12), uniform, 0, 0.5, 0);
-  for (const sx of [-0.08, 0.08])
-    add(new THREE.CylinderGeometry(0.045, 0.04, 0.3, 8), '#e9c9a8', sx, 0.06, 0).scale.set(1, 1, 1);
-  add(new THREE.CylinderGeometry(0.17, 0.16, 0.5, 12), uniform, 0, 1.08, 0);
-  add(new THREE.CylinderGeometry(0.1, 0.16, 0.06, 12), scarf, 0, 1.36, 0.02);
-  add(new THREE.SphereGeometry(0.11, 14, 10), skin, 0, 1.52, 0);
-  add(
-    new THREE.SphereGeometry(0.115, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55),
-    hair,
-    0,
-    1.53,
-    -0.01,
-  );
-  add(new THREE.SphereGeometry(0.06, 10, 8), hair, 0, 1.6, -0.1);
-  // Arms forward, to the trolley.
-  for (const sx of [-0.19, 0.19]) {
-    const a = add(new THREE.CylinderGeometry(0.045, 0.04, 0.5, 8), uniform, sx, 1.1, 0.16);
-    a.rotation.x = 1.1;
-  }
-  return g;
-}
-
 export class CabinWorld {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(80, 1, 0.05, 60);
@@ -506,6 +476,11 @@ export class CabinWorld {
   private served: boolean;
   private kit: THREE.Mesh | null = null;
   private crew: THREE.Group;
+  private crewMember: Character;
+  private galley: Character | null = null;
+  private disposed = false;
+  /** Passengers in the seats (tests: how many, once they're seated). */
+  passengers = 0;
   private mealGroup = new THREE.Group();
   private laptop = new THREE.Group();
   private youWindow: THREE.Vector3;
@@ -915,6 +890,8 @@ export class CabinWorld {
     heads.count = hi;
     heads.frustumCulled = busts.frustumCulled = false;
     s.add(heads, busts);
+    // …until the passengers themselves are ready: CC0 people seated, baked and instanced.
+    void this.seatPassengers(people, headY - 0.66, `${o.seed}:${o.cls}`, [heads, busts]);
 
     // Your jet: walnut tables between the club chairs, a divan, a credenza.
     if (L.jet) {
@@ -990,13 +967,17 @@ export class CabinWorld {
       this.trolley.add(tray);
     }
     s.add(this.trolley);
-    this.crew = crewFigure(
-      '#8d5524',
-      '#1c1917',
-      this.served ? '#1e3a8a' : '#1e293b',
-      this.served ? '#c9a227' : '#dc2626',
-    );
+    // The crew in the airline's uniform: one with the trolley, one in the galley.
+    const uniform = this.served ? '#1e3a8a' : '#1e293b';
+    this.crewMember = makeCharacter(uniformLook(`${o.seed}:crew`, 'crew', uniform), 'crew');
+    this.crew = this.crewMember.root;
     s.add(this.crew);
+    if (!L.jet) {
+      this.galley = makeCharacter(uniformLook(`${o.seed}:galley`, 'crew', uniform), 'galley');
+      this.galley.root.position.set(0.25, 0, L.front + 0.75);
+      this.galley.root.rotation.y = 0.3;
+      s.add(this.galley.root);
+    }
 
     // Your meal (and your laptop) on the tray table in front of you.
     const tt = new THREE.Mesh(
@@ -1130,6 +1111,71 @@ export class CabinWorld {
     });
   }
 
+  /**
+   * The passengers: a dozen CC0 people seated (the kit's far copy, their legs
+   * left out behind the seats), baked once and drawn instanced, each seat's
+   * top in its own colour. Only the rows you'll see (ahead of where you walk
+   * in) are filled. The placeholder heads go once they're in.
+   */
+  private async seatPassengers(
+    seats: SeatAt[],
+    seatH: number,
+    seed: string,
+    placeholders: THREE.Object3D[],
+  ) {
+    const L = this.layout;
+    const z0 = Math.min(this.you.z + (L.jet ? 4 : 6.4), L.rear - 1.2);
+    const shown = seats.filter((st) => st.z < z0 + 0.6).slice(0, L.jet ? 8 : 84);
+    if (!shown.length) return;
+    const rnd = seeded(fnv(`${seed}:pax`));
+    const looks = Array.from({ length: L.jet ? 4 : 12 }, (_, n) =>
+      travellerLook(`${seed}:pax${n}`, 'lagos'),
+    );
+    const poses = ['sit', 'sit', 'read', 'type', 'sit', 'eat'] as const;
+    const specs: BakeSpec[] = looks.map((look, n) => ({
+      look,
+      pose: poses[n % poses.length]!,
+      seat: seatH,
+      t: n * 0.9,
+      dropBelow: 0.3,
+    }));
+    const geos = await bakePeople(specs, { cancelled: () => this.disposed });
+    if (this.disposed || geos.length < specs.length || !geos.some(Boolean)) return;
+    const tops = [
+      '#0f766e',
+      '#be123c',
+      '#1d4ed8',
+      '#f59e0b',
+      '#f8fafc',
+      '#334155',
+      '#7c3aed',
+      '#16a34a',
+      '#0ea5e9',
+      '#a16207',
+    ];
+    const crowd = new Instanced(
+      geos,
+      shown.map((st) => {
+        const v = Math.floor(rnd() * geos.length);
+        return {
+          v,
+          x: st.x + (rnd() - 0.5) * 0.03,
+          z: st.z + (st.aft ? -0.04 : 0.04),
+          ry: st.aft ? 0 : Math.PI,
+          top: rnd() < 0.35 ? looks[v]!.top : tops[Math.floor(rnd() * tops.length)],
+        };
+      }),
+      { defaults: looks.map((l) => l.top) },
+    );
+    crowd.group.traverse((m) => (m.frustumCulled = false));
+    this.scene.add(crowd.group);
+    this.passengers = crowd.count;
+    for (const p of placeholders) {
+      p.removeFromParent();
+      (p as THREE.Mesh).geometry?.dispose();
+    }
+  }
+
   /** Where each companion's tag goes on screen (CSS px), or null when it's out of view. */
   companionTags(w: number, h: number): ({ x: number; y: number } | null)[] {
     return this.companions.map(({ tag }) => {
@@ -1260,8 +1306,15 @@ export class CabinWorld {
     // The crew walks behind it (in your jet, carrying the tray).
     this.crew.position.set(lane, 0, this.served ? tz : tz - go * 0.62);
     this.crew.rotation.y = go > 0 ? 0 : Math.PI;
-    // A small sway as it rolls.
-    this.crew.position.y = Math.abs(Math.sin(t * 5)) * 0.015 * (come > 0 && come < 1 ? 1 : 0);
+    // Walking while it rolls; pushing it (or carrying the tray) with both hands.
+    const rolling = (come > 0 && come < 1) || (on > 0 && on < 1);
+    const cm = this.crewMember;
+    pose(cm, rolling ? 'walk' : 'idle', t);
+    cm.armL.rotation.set(-1.0, 0, 0.12);
+    cm.armR.rotation.set(-1.0, 0, -0.12);
+    cm.foreL.rotation.set(-0.5, 0, 0);
+    cm.foreR.rotation.set(-0.5, 0, 0);
+    if (this.galley) pose(this.galley, 'idle', t, { phase: 2 });
     this.trolleyAt = k < 0.48 ? 'galley' : come < 1 ? 'coming' : k < 0.72 ? 'here' : 'gone';
     this.meal = ease(seg(k, 0.6, 0.66));
     this.mealGroup.visible = this.meal > 0.01;
@@ -1272,11 +1325,14 @@ export class CabinWorld {
   }
 
   dispose() {
+    this.disposed = true;
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
-      m.geometry?.dispose();
+      // (The CC0 people's geometry and colours, and the baked passengers, are shared.)
+      if (!m.geometry?.userData.shared) m.geometry?.dispose();
       const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
       for (const x of mats) {
+        if (x.userData.shared) continue;
         const map = (x as THREE.MeshBasicMaterial).map;
         map?.dispose();
         x.dispose();

@@ -236,6 +236,9 @@ export default function FlightView3D({
         if (b) e.style.transform = `translate(${b.left}px, ${b.top}px)`;
       });
       q('[data-trolley]')?.setAttribute('data-trolley', c.trolleyAt);
+      // The seated passengers, once they're in (tests).
+      const pax = String(c.passengers);
+      if (el.dataset.passengers !== pax) el.dataset.passengers = pax;
       q('[data-meal]')?.setAttribute('opacity', c.meal.toFixed(2));
       const step = STEPS.find(([until]) => k < until)![1];
       if (step !== lastStep) {

@@ -22,6 +22,7 @@
  * destination's runway; and the plane rolled out there.
  */
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { screenBoxOf } from '../../three-kit/screen-box';
 import { applySky, skyAt, skyDome, skyUniforms, type SkyState } from '../three/sky';
 import type { SkyUniforms } from '../three/ground';
@@ -187,6 +188,7 @@ export class SkyWorld {
   private lightDir = new THREE.Vector3(0, 1, 0);
   private night = 0;
   private low: boolean;
+  private termGlassMat!: THREE.MeshLambertMaterial;
 
   constructor(o: WorldOpts) {
     this.low = o.low;
@@ -416,16 +418,8 @@ export class SkyWorld {
       }),
     );
     taxi.position.set(250, 0.15, 150);
-    const term = new THREE.Mesh(
-      new THREE.BoxGeometry(440, 18, 70),
-      new THREE.MeshLambertMaterial({ color: '#d7dde4' }),
-    );
-    term.position.set(250, 9, 300);
-    const glass = new THREE.Mesh(
-      new THREE.BoxGeometry(442, 6, 72),
-      new THREE.MeshLambertMaterial({ color: '#8fb3d1' }),
-    );
-    glass.position.set(250, 10, 300);
+    const { term, glass } = this.terminal();
+    this.termGlassMat = glass.material as THREE.MeshLambertMaterial;
     const tower = new THREE.Mesh(
       new THREE.CylinderGeometry(4, 6, 56, 10).translate(0, 28, 0),
       new THREE.MeshLambertMaterial({ color: '#cbd2da' }),
@@ -501,11 +495,112 @@ export class SkyWorld {
     mk('beacon', 0.05, b.ride - b.r * 1.02, 0);
   }
 
+  /**
+   * The terminal across the apron from the runway: a long hall under a roof
+   * that overhangs it, glass all along its airside front, piers reaching out
+   * with jet bridges, and planes parked nose-in at them. A handful of draw
+   * calls (parts merged by material).
+   */
+  private terminal(): { term: THREE.Group; glass: THREE.Mesh } {
+    const term = new THREE.Group();
+    const parts: Record<'wall' | 'roof' | 'dark' | 'apron' | 'bridge', THREE.BufferGeometry[]> = {
+      wall: [],
+      roof: [],
+      dark: [],
+      apron: [],
+      bridge: [],
+    };
+    const glassParts: THREE.BufferGeometry[] = [];
+    const box = (w: number, h: number, d: number, x: number, y: number, z: number, ry = 0) => {
+      const g = new THREE.BoxGeometry(w, h, d);
+      if (ry) g.rotateY(ry);
+      g.translate(x, y, z);
+      return g;
+    };
+    // The apron in front of it (darker than the grass), the hall, its roof.
+    parts.apron.push(
+      new THREE.PlaneGeometry(520, 150).rotateX(-Math.PI / 2).translate(250, 0.12, 245),
+    );
+    parts.wall.push(box(440, 16, 56, 250, 8, 302));
+    parts.roof.push(box(452, 2.2, 74, 250, 17, 298));
+    parts.dark.push(box(452, 0.6, 2, 250, 15.9, 261.5));
+    glassParts.push(box(436, 12, 0.6, 250, 8.4, 273.8));
+    // Piers out towards the runway, glass down both sides, a jet bridge or two each side.
+    const piers = this.low ? [130, 370] : [90, 190, 310, 410];
+    for (const px of piers) {
+      parts.wall.push(box(20, 9, 64, px, 4.5, 242));
+      parts.roof.push(box(23, 1.4, 66, px, 9.6, 242));
+      for (const sx of [-1, 1]) glassParts.push(box(0.6, 5.5, 60, px + sx * 10.1, 5.2, 242));
+      for (const sx of [-1, 1])
+        for (const bz of [228, 252]) {
+          parts.bridge.push(box(14, 3, 3, px + sx * 17, 5.2, bz));
+          parts.dark.push(box(0.8, 5, 0.8, px + sx * 22, 2.5, bz));
+        }
+    }
+    const lam = (c: string) => new THREE.MeshLambertMaterial({ color: c });
+    const mats: Record<keyof typeof parts, THREE.Material> = {
+      wall: lam('#dfe4ea'),
+      roof: lam('#9aa3ad'),
+      dark: lam('#374151'),
+      apron: new THREE.MeshLambertMaterial({
+        color: '#7d838b',
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+      }),
+      bridge: lam('#c9ced4'),
+    };
+    for (const k of Object.keys(parts) as (keyof typeof parts)[]) {
+      const m = new THREE.Mesh(mergeGeometries(parts[k], false)!, mats[k]);
+      term.add(m);
+      for (const g of parts[k]) g.dispose();
+    }
+    // Curtain-wall glass: blue panes, mullions and a transom (a canvas, repeated).
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    const g2 = c.getContext('2d')!;
+    const gr = g2.createLinearGradient(0, 0, 0, 64);
+    gr.addColorStop(0, '#9cc4dd');
+    gr.addColorStop(1, '#5d8aa8');
+    g2.fillStyle = gr;
+    g2.fillRect(0, 0, 64, 64);
+    g2.fillStyle = '#2b3a48';
+    g2.fillRect(0, 0, 4, 64);
+    g2.fillRect(0, 30, 64, 3);
+    const gt = new THREE.CanvasTexture(c);
+    gt.colorSpace = THREE.SRGBColorSpace;
+    gt.wrapS = gt.wrapT = THREE.RepeatWrapping;
+    gt.repeat.set(60, 1);
+    const glass = new THREE.Mesh(
+      mergeGeometries(glassParts, false)!,
+      new THREE.MeshLambertMaterial({ map: gt, emissive: '#fde68a', emissiveIntensity: 0 }),
+    );
+    for (const g of glassParts) g.dispose();
+    // Planes parked nose-in at the piers.
+    const liveries = ['#0f766e', '#be123c', '#1d4ed8', '#f59e0b', '#7c3aed', '#16a34a'];
+    let n = 0;
+    for (const px of piers)
+      for (const sx of this.low ? [1] : [-1, 1]) {
+        const p = makePlane3D({
+          kind: 'airliner',
+          livery: liveries[n++ % liveries.length]!,
+          length: 37,
+        });
+        p.root.position.set(px + sx * 42, 0, sx > 0 ? 228 : 252);
+        p.root.rotation.y = sx > 0 ? Math.PI : 0;
+        term.add(p.root);
+      }
+    return { term, glass };
+  }
+
   /** The airport and city on the ground, and the sky over them at a moment. */
   setPlace(over: Over, sunOver: Over = over) {
     const { state, part } = skyOver(sunOver.lat, sunOver.lon, sunOver.at);
     this.part = part;
     this.night = state.night;
+    // The terminal's glass lit from inside after dark.
+    this.termGlassMat.emissiveIntensity = state.night > 0.5 ? 0.55 : 0;
     applySky(state, this.sky, this.sun, this.hemi, this.fog);
     this.lightDir.copy(state.sunDir);
     // At night the moon lights the scene, low enough to see.
