@@ -37,6 +37,8 @@ test('the airport, the cabin, arrivals and the hotel ride in 3D, with people', a
   await page.addInitScript(() => {
     localStorage.setItem('runway.mapQuality', '3d');
     localStorage.setItem('runway.arrivals', '1');
+    // The flight at a third of its pace: software WebGL draws a few frames a second.
+    localStorage.setItem('runway.flightPace', '3');
     if (localStorage.getItem('e2e.hq') !== '0') localStorage.setItem('runway.hq', '1');
   });
   await playAsGuest(page);
@@ -52,7 +54,13 @@ test('the airport, the cabin, arrivals and the hotel ride in 3D, with people', a
   });
 
   // The ticket desk: the departures board over the 3D hall.
-  await tapPlace(page, '[data-place="airport"]', 'skip');
+  await tapPlace(page, '[data-place="airport"]', 'walk').catch(() => undefined);
+  // (On a slow software GPU the ride chooser can open late.)
+  await page
+    .getByRole('dialog', { name: 'How do you want to get there?' })
+    .getByRole('button', { name: /Skip the ride/ })
+    .click({ timeout: 8000 })
+    .catch(() => undefined);
   const trip = page.getByRole('region', { name: 'Your trip' });
   await expect(trip).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('.airport-scene [data-board-row]')).not.toHaveCount(0);
@@ -82,10 +90,10 @@ test('the airport, the cabin, arrivals and the hotel ride in 3D, with people', a
   await page.waitForTimeout(2600);
   await shot(page, '05-airport-step-Security-3d');
   // (Skipping the check-in moment may already have walked you through.)
-  await trip
-    .getByRole('button', { name: 'Go through security' })
-    .click({ timeout: 5000 })
-    .catch(() => undefined);
+  const security = trip.getByRole('button', { name: 'Go through security' });
+  const toGate = trip.getByRole('button', { name: 'Go to the gate' });
+  await expect(security.or(toGate)).toBeVisible({ timeout: 30_000 });
+  if (await security.isVisible()) await security.click();
   await page.waitForTimeout(1500);
   await shot(page, '05-airport-through-the-arch-3d');
   await terminalShows(page, 'gate', 10);
@@ -103,8 +111,11 @@ test('the airport, the cabin, arrivals and the hotel ride in 3D, with people', a
   // The flight: take-off, then the cabin with its passengers.
   const flight = page.getByRole('dialog', { name: 'Flight to London' });
   await expect(flight).toBeVisible({ timeout: 30_000 });
-  await page.waitForTimeout(2500);
+  // The roll: the terminal goes past behind the plane.
+  await page.waitForTimeout(600);
   await shot(page, '07-flight-takeoff-3d');
+  await page.waitForTimeout(1200);
+  await shot(page, '07b-flight-takeoff-climb-3d');
   await expect(flight).toHaveAttribute('data-flight-phase', 'cruise', { timeout: 60_000 });
   await expect(flight.locator('[data-cabin]')).toBeVisible();
   const view = flight.locator('[data-passengers]');
@@ -141,9 +152,76 @@ test('the airport, the cabin, arrivals and the hotel ride in 3D, with people', a
   await arrivals.locator('[data-arrival-go="home"]').click();
   const ride = page.locator('[data-transfer]');
   await expect(ride).toBeVisible();
-  await expect(ride.locator('canvas[data-transfer-3d]')).toBeAttached();
-  await page.waitForTimeout(700);
+  await expect(ride.locator('canvas[data-transfer-3d]')).toHaveAttribute('data-ready', 'yes', {
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(300);
   await shot(page, '13-hotel-transfer-3d');
+  await page.waitForTimeout(1500);
+  await shot(page, '13b-hotel-transfer-drive-3d');
   await expect(page.locator('.place-scene[data-scene="home"]')).toBeVisible({ timeout: 60_000 });
+  expect(errors).toEqual([]);
+});
+
+test('business: the lounge fades in over the terminal, and boarding picks it up again', async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => {
+    localStorage.setItem('runway.mapQuality', '3d');
+    if (localStorage.getItem('e2e.hq') !== '0') localStorage.setItem('runway.hq', '1');
+  });
+  await playAsGuest(page);
+  const n = letters(6);
+  await setupFounder(page, {
+    name: `Lounger ${n}`,
+    handle: `lounge_${n}`,
+    company: `Suite ${letters(5)}`,
+    idea: 'Payments for travellers',
+  });
+  await expect(page.getByRole('application', { name: /Map of Lagos/ })).toBeVisible({
+    timeout: 90_000,
+  });
+  // Business to London, booked in the Travel app.
+  await page.getByRole('button', { name: /^Phone/ }).click();
+  const phone = page.getByRole('dialog', { name: 'Phone' });
+  await phone.locator('[data-app="travel"]').click();
+  const row = phone.locator('[data-flight="london"]');
+  await row.getByRole('button', { name: 'Book a flight to London' }).click();
+  await row.locator('[data-trip-picker] [data-cabin-option="business"]').click();
+  await row.locator('[data-trip-picker] [data-hotel-book]').click();
+  await page
+    .getByRole('dialog', { name: 'How do you want to get there?' })
+    .locator('[data-mode="skip"]')
+    .click({ timeout: 3000 })
+    .catch(() => undefined);
+  const trip = page.getByRole('region', { name: 'Your trip' });
+  await expect(trip).toBeVisible({ timeout: 60_000 });
+  await trip.getByRole('button', { name: 'Check in for London' }).click();
+  await trip
+    .getByRole('button', { name: 'Skip' })
+    .click({ timeout: 3000 })
+    .catch(() => undefined);
+  await trip
+    .getByRole('button', { name: 'Go through security' })
+    .click({ timeout: 30_000 })
+    .catch(() => undefined);
+  // The lounge over the terminal: the terminal's canvas is kept underneath.
+  const over = page.locator('.lounge-over');
+  await expect(over.locator('[data-lounge="business"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('canvas[data-terminal-3d]')).toBeAttached();
+  await expect(over.locator('.lounge-scene')).toHaveAttribute('data-lounge-ready', 'yes', {
+    timeout: 90_000,
+  });
+  await page.waitForTimeout(1200);
+  await shot(page, 'business-02-lounge-3d');
+  // Called to the gate: the lounge goes, the terminal is already there, at the gate.
+  await trip.getByRole('button', { name: 'Go to the gate' }).click({ timeout: 90_000 });
+  await expect(over).toHaveCount(0);
+  await terminalShows(page, 'board', 4);
+  await page.waitForTimeout(2500);
+  await shot(page, 'business-05-boarding-3d');
   expect(errors).toEqual([]);
 });
