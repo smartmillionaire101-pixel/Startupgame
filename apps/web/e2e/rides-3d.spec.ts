@@ -138,7 +138,12 @@ async function shot(page: Page, name: string, wait = 600) {
 }
 
 /** Skip › (or the ride arrives first), then the place opens; close it. */
-async function arrive(page: Page, scene: ReturnType<Page['locator']>, skip = true) {
+async function arrive(
+  page: Page,
+  scene: ReturnType<Page['locator']>,
+  skip = true,
+  then?: () => Promise<void>,
+) {
   if (skip)
     await scene
       .getByRole('button', { name: 'Skip' })
@@ -149,6 +154,7 @@ async function arrive(page: Page, scene: ReturnType<Page['locator']>, skip = tru
   await expect(map).not.toHaveAttribute('data-ride3d', /./);
   const place = page.locator('.place-scene');
   await expect(place).toBeVisible({ timeout: 15_000 });
+  await then?.();
   await place.getByRole('button', { name: 'Close' }).first().click();
   await expect(place).toBeHidden();
 }
@@ -214,7 +220,12 @@ test('Rides play on the 3D map in Lagos: taxi, danfo, bike and on foot', async (
   await shot(page, 'lagos-taxi', 300);
   await seated(page, 2);
   expect(await info(page)).toMatchObject({ kind: 'taxi', model: 'cc0', crew: 2 });
-  await arrive(page, taxi);
+  // Into the airport: its trip (the ticket desk) opens.
+  await arrive(page, taxi, true, async () => {
+    await expect(page.getByRole('region', { name: 'Your trip' })).toBeVisible({
+      timeout: 30_000,
+    });
+  });
 
   // The danfo: a stop ticker over the map; passengers at the windows.
   const bus = await rideTo(page, 'eventhall', 'bus');
@@ -270,6 +281,18 @@ test('Rides play on the 3D map in Lagos: taxi, danfo, bike and on foot', async (
       await arrive(page, ride);
     }
   }
+  // Skipping the ride from the chooser (as fixtures' tapPlace does): straight
+  // into the airport's trip, with no ride on the map.
+  const map = page.getByRole('application', { name: /Map of Lagos/ });
+  const label = map.locator('[data-label="airport"]');
+  await label.dispatchEvent('pointerdown', { pointerId: 1, clientX: 10, clientY: 10 });
+  await label.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
+  await map.locator('[data-badge-card="airport"]').getByRole('button', { name: 'Go' }).click();
+  const chooser = page.getByRole('dialog', { name: 'How do you want to get there?' });
+  await expect(chooser).toBeVisible({ timeout: 15_000 });
+  await chooser.locator('[data-mode="skip"]').dispatchEvent('click');
+  await expect(page.getByRole('region', { name: 'Your trip' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.ride-scene')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
