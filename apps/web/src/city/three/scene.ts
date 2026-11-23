@@ -153,6 +153,11 @@ function landmarkRadius(kind: string) {
 const PITCH_MAX = 1.42;
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+/** Golden hour on the map: teal shade and an amber key (see applySky). */
+const MAP_SHADE = new THREE.Color('#26aae2');
+const MAP_HAZE = new THREE.Color('#4f86b0');
+const MAP_BOUNCE = new THREE.Color('#5c6a78');
+const MAP_KEY = new THREE.Color('#ffb84c');
 const _ray = new THREE.Ray();
 const _ndc = new THREE.Vector2();
 const _rc = new THREE.Raycaster();
@@ -205,6 +210,8 @@ export class CityScene {
   private hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 1);
   private fog: THREE.FogExp2;
   private tmpDir = new THREE.Vector3();
+  /** How far golden hour retints the map (0 in a sky view; see applySky). */
+  private mapGold = 0;
   private dome: THREE.Mesh;
   private skyState: SkyState;
   private env: THREE.WebGLRenderTarget | null = null;
@@ -1165,6 +1172,23 @@ export class CityScene {
 
   private applySky() {
     applySky(this.skyState, this.sky, this.sun, this.hemi, this.fog);
+    // The map looks down on roofs and streets, which a deep orange key and a
+    // blue sky light mix to mauve: while the low sun is up, its shade goes teal
+    // and its key amber, so the walls stay orange against clean cool shade.
+    // (A sky view looks across at walls and the sky itself: left as it is.)
+    const mapGold = (this.mapGold = this.opts.sky
+      ? 0
+      : // Only while the sun lights the city (after night 0.5 the key is the moon).
+        this.skyState.gold *
+        Math.min(1, (this.skyState.night < 0.5 ? this.skyState.sunIntensity : 0) / 2));
+    if (mapGold > 0) {
+      // Brighter too, and with a cooler bounce from below: the shade reads
+      // blue instead of falling into a red-brown murk.
+      this.hemi.color.lerp(MAP_SHADE, 0.9 * mapGold);
+      this.hemi.groundColor.lerp(MAP_BOUNCE, 0.7 * mapGold);
+      this.hemi.intensity *= 1 + 0.9 * mapGold;
+      this.sun.color.lerp(MAP_KEY, 0.6 * mapGold);
+    }
     this.shared.uNight.value = this.skyState.night;
     this.shared.uHour.value = this.hour;
     this.glow.uNight.value = this.skyState.night;
@@ -1181,7 +1205,7 @@ export class CityScene {
     // Golden hour: less of the (blue) sky's reflection, so the low sun's warm
     // light carries the city instead of a lilac wash.
     this.scene.environmentIntensity =
-      (0.55 - this.skyState.night * 0.4) * (1 - 0.45 * this.skyState.gold);
+      (0.55 - this.skyState.night * 0.4) * (1 - 0.45 * this.skyState.gold) * (1 - 0.7 * mapGold);
   }
 
   // ---------------------------------------------------------------------------
@@ -1271,7 +1295,7 @@ export class CityScene {
     // Haze: thicker the further you see, by the city's air.
     this.fog.density = (this.hazeK() * (0.55 + this.look.haze * 0.9)) / (4.2 * r.dist + 1800);
     // Golden hour: orange haze looking towards the sun, cooler looking away.
-    hazeToward(this.skyState, fx, fz, this.fog.color);
+    hazeToward(this.skyState, fx, fz, this.fog.color, MAP_HAZE, 0.75 * this.mapGold);
     // Shadows: fitted around what is in view, off when the whole city shows.
     const S = Math.max(90, Math.min(1600, r.dist * 1.15));
     const sd = this.skyState.sunDir;

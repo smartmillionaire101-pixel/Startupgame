@@ -175,15 +175,26 @@ export function skyAt(
  * the far city fades into orange towards the sun and into the cooler sky
  * behind you (mirrors the glow in SKY_FN, a little above the horizon).
  */
-export function hazeToward(s: SkyState, dx: number, dz: number, out: THREE.Color) {
+export function hazeToward(
+  s: SkyState,
+  dx: number,
+  dz: number,
+  out: THREE.Color,
+  /** A cool haze to lay under the glow (the city map's dusk blue), and how much. */
+  cool?: THREE.Color,
+  coolK = 0,
+) {
   out.copy(s.horizon);
   if (s.gold <= 0.001) return out;
+  if (cool && coolK > 0) out.lerp(cool, coolK);
   const l = Math.hypot(dx, dz) || 1;
   const sl = Math.hypot(s.skyDir.x, s.skyDir.z) || 1;
   let side = ((dx * s.skyDir.x + dz * s.skyDir.z) / (l * sl)) * 0.5 + 0.5;
   side *= side;
   const y = 0.04;
-  out.lerp(s.glow, s.gold * Math.exp(-y * (12 - 5.5 * side)) * (0.15 + 0.85 * side));
+  // Over a cool haze only the sun's side warms: the rest stays clean blue.
+  const base = cool && coolK > 0 ? 0.15 * (1 - coolK) : 0.15;
+  out.lerp(s.glow, s.gold * Math.exp(-y * (12 - 5.5 * side)) * (base + (1 - base) * side));
   return out;
 }
 
