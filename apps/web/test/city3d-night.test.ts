@@ -96,6 +96,24 @@ describe('the night sky', () => {
     expect(jump).toBeLessThan(0.3);
   });
 
+  it('stays finite and non-negative through a whole dusk (nothing to blank the scene)', () => {
+    // San Francisco, 23 November: from before sunset (16:54) into full night, a minute at a time.
+    const look = cityLook('san-francisco');
+    const from = Date.UTC(2026, 10, 24, 0, 30);
+    for (let m = 0; m <= 120; m++) {
+      const at = from + m * 60_000;
+      const s = skyAt(16.5 + m / 60, look.lat, look.haze, citySun('san-francisco', at));
+      const nums = [s.night, s.exposure, s.sunIntensity, s.hemiIntensity];
+      for (const c of [s.zenith, s.horizon, s.sunColor, s.hemiSky, s.hemiGround])
+        nums.push(c.r, c.g, c.b);
+      for (const n of nums) {
+        expect(Number.isFinite(n)).toBe(true);
+        expect(n).toBeGreaterThanOrEqual(0);
+      }
+      expect(s.exposure).toBeGreaterThan(0.5);
+    }
+  });
+
   it('leaves the day as it was', () => {
     const noon = skyAt(12.5, 6.5, 0.7);
     expect(noon.night).toBe(0);
