@@ -3108,22 +3108,45 @@ main > .back-btn {
   top: auto;
   bottom: calc(100% + 4px);
 }
-/* A rail's names (play-test: "Look around" ran off under the coach card and
-   into the phone's name, worse at larger text): at most a little wider than
-   the button, on two lines if they must, with room for two lines between
-   the buttons. Sized in rem so they grow with the text. */
+/* A rail's names beside the buttons, on one line (phone play-test: names
+   under the icons, two lines each, ran into the next button, stretched the
+   rail up the whole screen and walled off the map and the panorama). The
+   rail keeps its compact spacing; a name is shorter than its button, so
+   names never meet. While a long press says the name in its bubble, the
+   name steps back (they'd sit on one another). */
 [data-hud-labels] .hud-rail > .hud-ib .hud-lbl {
-  width: max-content;
-  max-width: calc(var(--hud-ib) + var(--hud-gap) + 8px);
-  white-space: normal;
-  text-align: right;
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+  max-width: none;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+  box-shadow: var(--hud-shadow);
 }
-[data-hud-labels] .hud-rail {
-  gap: calc(1.6rem + 8px);
+[data-hud-labels] .hud-rail > .hud-ib:has(.hud-tip) .hud-lbl {
+  visibility: hidden;
 }
-/* The last name under the rail (two lines at most) clears the phone's. */
-[data-hud-labels] .hud-rail:not(.mall-side, .air-cam, .suite-rail, .panorama-rail) {
-  margin-bottom: calc(2.4rem + 6px);
+/* The rail's lowest button clears the phone's name over the phone button. */
+[data-hud-labels] .hud-rail:not(.mall-side, .air-cam, .suite-rail) {
+  margin-bottom: calc(0.8rem + 4px);
+}
+/* A phone: smaller round buttons a little closer together (still a finger's
+   44px), and in a first session only the main button (the accent one, the
+   map's "What to do now") keeps its name beside it; the rest say theirs on
+   a long press or keyboard focus. Simple mode still names every one. */
+@media (max-width: 899px) {
+  .hud-rail {
+    --hud-ib: 44px;
+    gap: 8px;
+  }
+  .hud-rail .hud-ib .icon {
+    width: 22px;
+    height: 22px;
+  }
+  html:not([data-simple='1'])[data-hud-labels] .hud-rail > .hud-ib:not(.is-accent) .hud-lbl {
+    visibility: hidden;
+  }
 }
 [data-hud-labels] .hud-sub {
   gap: 14px;

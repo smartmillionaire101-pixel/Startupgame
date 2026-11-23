@@ -58,7 +58,8 @@ test('the overhaul: one row of pills, small avatar, a What-to-do button, four ta
   const chip = page.getByRole('button', { name: 'What to do now' });
   await expect(chip).toBeVisible();
   const chipBox = (await chip.boundingBox())!;
-  expect(chipBox.height).toBeGreaterThanOrEqual(48);
+  // A finger's 44px on a phone (the rail's buttons got smaller to stop it walling off the map).
+  expect(chipBox.height).toBeGreaterThanOrEqual(44);
   expect(chipBox.height).toBeLessThanOrEqual(52);
   await expect(page.locator('.whatnow-btn')).toHaveCount(0);
   await chip.click();

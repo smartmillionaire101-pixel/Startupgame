@@ -3,6 +3,7 @@ import {
   hudMore,
   letters,
   playAsGuest,
+  overlapping,
   setupFounder,
   tab,
   test,
@@ -78,10 +79,11 @@ test('every icon has a name; a long press and keyboard focus say it; ⋯ opens a
   for (const name of ['What to do now', 'Places', 'Centre on me', 'More'])
     await expect(rail.getByRole('button', { name, exact: true })).toBeVisible();
   await expect(rail.getByRole('button', { name: /^Who’s here/ })).toBeVisible();
-  // Rail buttons are at least 48px.
+  // Rail buttons are a finger's 44px on a phone (48px before; the rail was
+  // too tall and walled off the map).
   const places = (await rail.getByRole('button', { name: 'Places' }).boundingBox())!;
-  expect(places.width).toBeGreaterThanOrEqual(48);
-  expect(places.height).toBeGreaterThanOrEqual(48);
+  expect(places.width).toBeGreaterThanOrEqual(44);
+  expect(places.height).toBeGreaterThanOrEqual(44);
   // No names written under the icons for a returning player.
   await expect(page.locator('html')).not.toHaveAttribute('data-hud-labels');
 
@@ -237,6 +239,68 @@ test('a first session names the icons, the next one doesn’t; Simple mode alway
   await expect(next.locator('.city-hud-bottom').getByText('Where to?')).toBeVisible();
   await next.close();
 });
+
+/** The map's buttons and their names, the pills, the phone and the nav: none on another. */
+const MAP_HUD = {
+  pills: '.hud-top > *, .hud-sub-left > *, .hud-slot > *',
+  bell: '.hud-bell',
+  bellName: '.hud-bell .hud-lbl',
+  rail: '.city-rail > .hud-ib',
+  railNames: '.city-rail > .hud-ib .hud-lbl',
+  phone: '.hud-phone',
+  phoneName: '.hud-phone .hud-lbl',
+  nav: '.nav',
+};
+
+for (const size of [
+  { width: 390, height: 844 },
+  { width: 1440, height: 900 },
+])
+  test.describe(`the map's rail at ${size.width}×${size.height}`, () => {
+    test.use({
+      viewport: size,
+      ...(size.width > 900 ? { isMobile: false, hasTouch: false, deviceScaleFactor: 1 } : {}),
+    });
+    test('compact, and nothing on anything, with names (a first session) and without', async ({
+      page,
+    }) => {
+      await page.addInitScript(() => {
+        if (sessionStorage.getItem('runway.hudFirst') !== '1')
+          localStorage.removeItem('runway.hudSeen');
+      });
+      await founder(page);
+      const html = page.locator('html');
+      await expect(html).toHaveAttribute('data-hud-labels', '');
+      const rail = page.getByRole('group', { name: 'Map actions' });
+      await expect(rail.getByRole('button', { name: 'Places' })).toBeVisible();
+      expect(await overlapping(page, MAP_HUD), 'first session').toEqual([]);
+      // The main button keeps its name beside it; on a phone the rest say
+      // theirs on a long press (no names stacked under every icon).
+      const main = rail.locator('[data-whatnow-open] .hud-lbl');
+      await expect(main).toBeVisible();
+      const mainBox = (await main.boundingBox())!;
+      const btnBox = (await rail.locator('[data-whatnow-open]').boundingBox())!;
+      expect(mainBox.x + mainBox.width).toBeLessThanOrEqual(btnBox.x);
+      if (size.width < 900)
+        await expect(rail.getByRole('button', { name: 'Places' }).locator('.hud-lbl')).toBeHidden();
+      // The rail keeps to the bottom right: not up the whole screen.
+      const box = (await rail.boundingBox())!;
+      expect(box.height).toBeLessThan(size.height * 0.4);
+      const sub = (await page.locator('.hud-bell').boundingBox())!;
+      expect(box.y).toBeGreaterThan(sub.y + sub.height + 40);
+
+      // A returning player: icons only, still clear.
+      const next = await page.context().newPage();
+      await withoutNetlifyDrawer(next);
+      await next.goto('/');
+      await expect(next.getByRole('application', { name: /Map of/ })).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(next.locator('html')).not.toHaveAttribute('data-hud-labels');
+      expect(await overlapping(next, MAP_HUD), 'returning').toEqual([]);
+      await next.close();
+    });
+  });
 
 test('nothing runs off a 360, 390 or 430px phone, or with bigger text', async ({ page }) => {
   await founder(page);

@@ -407,14 +407,6 @@
   align-self: flex-start;
   pointer-events: auto;
 }
-/* The view's round buttons (HudRail): down the right, clear of the
-   title at the top and the landmarks along the bottom. */
-.panorama .panorama-rail {
-  top: 50%;
-  bottom: auto;
-  transform: translateY(-50%);
-  z-index: 2;
-}
 .panorama header .panorama-actions button {
   width: var(--hud-ib);
   height: var(--hud-ib);
@@ -761,6 +753,17 @@
 }
 .panorama-controls {
   align-items: center;
+}
+/* The view's own buttons: small round ones in the row under the landmarks
+   (look, zoom, photo, pause), a finger's 40px each. */
+.panorama footer .panorama-ib {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
 }
 .panorama header {
   padding: 14px 14px 30px;
