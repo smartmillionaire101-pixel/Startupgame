@@ -81,7 +81,11 @@ test('the airport, the cabin, arrivals and the hotel ride in 3D, with people', a
   await terminalShows(page, 'security', 6);
   await page.waitForTimeout(2600);
   await shot(page, '05-airport-step-Security-3d');
-  await trip.getByRole('button', { name: 'Go through security' }).click();
+  // (Skipping the check-in moment may already have walked you through.)
+  await trip
+    .getByRole('button', { name: 'Go through security' })
+    .click({ timeout: 5000 })
+    .catch(() => undefined);
   await page.waitForTimeout(1500);
   await shot(page, '05-airport-through-the-arch-3d');
   await terminalShows(page, 'gate', 10);
@@ -107,9 +111,9 @@ test('the airport, the cabin, arrivals and the hotel ride in 3D, with people', a
   await expect
     .poll(async () => Number((await view.first().getAttribute('data-passengers')) ?? 0), {
       timeout: 60_000,
+      intervals: [100],
     })
     .toBeGreaterThan(20);
-  await page.waitForTimeout(1500);
   await shot(page, '08-flight-cruise-3d');
   await flight
     .getByRole('button', { name: 'Skip' })
@@ -138,7 +142,7 @@ test('the airport, the cabin, arrivals and the hotel ride in 3D, with people', a
   const ride = page.locator('[data-transfer]');
   await expect(ride).toBeVisible();
   await expect(ride.locator('canvas[data-transfer-3d]')).toBeAttached();
-  await page.waitForTimeout(2200);
+  await page.waitForTimeout(700);
   await shot(page, '13-hotel-transfer-3d');
   await expect(page.locator('.place-scene[data-scene="home"]')).toBeVisible({ timeout: 60_000 });
   expect(errors).toEqual([]);

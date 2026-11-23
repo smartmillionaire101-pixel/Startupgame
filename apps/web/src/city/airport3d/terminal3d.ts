@@ -1037,7 +1037,7 @@ export class TerminalWorld {
     this.staff(
       'gate',
       uniformLook(`${o.seed}:crew`, 'crew', o.livery),
-      { x: 41.1, z: -4.2, ry: -0.4, pose: 'idle' },
+      { x: 40.5, z: -4.55, ry: 0.5, pose: 'idle' },
       'gate:crew',
     );
     this.strollersIn('gate', 2, 28, 18, [2.6, 3.8]);
@@ -1369,7 +1369,7 @@ export class TerminalWorld {
       );
       c.root.add(this.nameTag(f.first));
     });
-    this.strollersIn('hall', 3, 28, 18, [0.8, 2.2, 3.6]);
+    this.strollersIn('hall', 2, 28, 18, [0.4, 1.3]);
   }
 
   // ------------------------------------------------------------------ crowds
@@ -1593,7 +1593,7 @@ export class TerminalWorld {
       case 'baggage':
         return { p: V(21.4, 3.0, 4.6), l: V(18.0, 0.55, -1.6) };
       case 'hall':
-        return { p: V(35.0, 2.35, 3.5), l: V(37.2, 1.3, -2.8) };
+        return { p: V(35.2, 2.7, 4.6), l: V(37.0, 1.3, -2.8) };
     }
   }
 
@@ -1716,7 +1716,8 @@ export class TerminalWorld {
       if (k >= 1) s = end;
     } else if (playK >= 0 && zone === 'board') {
       // Up to the door and out along the bridge.
-      const k = Math.min(1, playK / 3.0);
+      // (A moment at the door first: you walk in, show your pass, then go.)
+      const k = Math.max(0, Math.min(1, (playK - 2.4) / 3.0));
       pos.set(s.x, 0, s.z - k * 3.6);
       walking = k < 1;
       face = Math.PI;

@@ -39,8 +39,10 @@ function build(stage: Stage, P: Transfer3DProps) {
   const night = P.night;
   s.background = new THREE.Color(night ? '#0b1026' : '#9fd0ee');
   s.fog = new THREE.Fog(night ? '#0b1026' : '#cfe5f3', 40, 160);
-  stage.hemi.intensity = night ? 0.7 : 1.3;
-  stage.sun.intensity = night ? 0.35 : 2.0;
+  stage.hemi.intensity = night ? 1.15 : 1.3;
+  stage.hemi.color.set(night ? '#c7d2fe' : '#fff4e0');
+  stage.ambient.intensity = night ? 0.6 : 0.25;
+  stage.sun.intensity = night ? 0.6 : 2.0;
   stage.sun.color.set(night ? '#a5b4fc' : '#fff1d6');
   const rnd = seeded(fnv(`${P.seed}:ride`));
   // The road, its markings, the pavement and kerb.
