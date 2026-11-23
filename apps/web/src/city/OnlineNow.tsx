@@ -93,7 +93,8 @@ function OnlineRow({
   onLeave?: () => void;
 }) {
   const { toast, view } = useView();
-  const gender = view.players.find((x) => x.id === p.id)?.gender;
+  // Their face once the view describes them (a player in your market); their initial otherwise.
+  const known = view.players.find((x) => x.id === p.id);
   const [inviting, setInviting] = useState(false);
   const [sending, setSending] = useState(false);
   const where = [p.city, ...(p.placeName ? [tx(p.placeName)] : [])].join(' · ');
@@ -116,7 +117,11 @@ function OnlineRow({
     <li className="online-row" data-online-player={p.id}>
       <div className="online-id">
         <span className="online-avatar" aria-hidden="true">
-          <PersonPortrait id={p.id} bg={p.backgroundId} gender={gender} size="100%" />
+          {known ? (
+            <PersonPortrait id={p.id} bg={p.backgroundId} gender={known.gender} size="100%" />
+          ) : (
+            (p.name.trim()[0] ?? '?').toUpperCase()
+          )}
         </span>
         <span className="online-name">
           <span className="item-title">{p.name}</span>

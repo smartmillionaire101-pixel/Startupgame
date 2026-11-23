@@ -1860,6 +1860,20 @@ body:has(.app-city) .toasts {
   background: #fde68a;
   color: #78350f;
 }
+.board-face {
+  flex: none;
+}
+.board-initials {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
 .board-name {
   flex: 1;
   min-width: 0;

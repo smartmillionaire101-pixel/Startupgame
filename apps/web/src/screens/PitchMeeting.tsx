@@ -18,6 +18,7 @@ import { PersonPortrait } from '../avatar/PersonPortrait';
 import { amountInput, money, parseAmount, pct } from '../format';
 import { useLang, t, tx } from '../i18n';
 import { useView } from '../store';
+import { genderOf } from '../city/life';
 import { Button, Card, Field, Sheet, Stat } from '../ui';
 import { ScoreRing, markIcon } from './Interview';
 import './convo.css';
@@ -377,6 +378,10 @@ function LeaveMeeting({ pitchId }: { pitchId: string }) {
 
 function Scene({ p, m }: { p: PitchV; m: MeetingV }) {
   const { view } = useView();
+  // The people as the map draws them: you, a founder in town, a player investor.
+  const me = p.founderId === view.me.id;
+  const founder = view.players.find((x) => x.id === p.founderId);
+  const angel = view.players.find((x) => x.id === m.investor.playerId);
   const you = m.cofounder
     ? t('You + {name}', { name: first(m.cofounder.name) })
     : p.founderId === view.me.id
@@ -401,11 +406,21 @@ function Scene({ p, m }: { p: PitchV; m: MeetingV }) {
       </span>
       <div className="pm-people" aria-hidden="true">
         <figure>
-          <PersonPortrait id={p.founderId} size={84} />
+          <PersonPortrait
+            id={p.founderId}
+            bg={me ? view.me.background?.id : founder?.backgroundId}
+            gender={me ? genderOf(view.me) : founder?.gender}
+            size={84}
+          />
           <figcaption>{you}</figcaption>
         </figure>
         <figure>
-          <PersonPortrait id={m.investor.portraitId} bg="b-finance" size={84} />
+          <PersonPortrait
+            id={m.investor.portraitId}
+            bg={angel?.backgroundId ?? 'b-finance'}
+            gender={angel?.gender}
+            size={84}
+          />
           <figcaption>{m.investor.name}</figcaption>
         </figure>
       </div>

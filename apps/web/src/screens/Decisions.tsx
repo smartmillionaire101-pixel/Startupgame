@@ -628,8 +628,8 @@ function lifeOutcome(ev: Ev, ch: Choice): string {
 }
 
 /**
- * Life events about a person (a friend, a neighbour, a reporter, someone on
- * your team): their portrait, with the event's emoji as a badge. The value
+ * Life events about someone unnamed (a friend, a neighbour, a reporter): their
+ * portrait, with the event's emoji as a badge. The value
  * is the background their look is dressed from.
  */
 const LIFE_PERSON: Record<string, string | undefined> = {
@@ -640,7 +640,6 @@ const LIFE_PERSON: Record<string, string | undefined> = {
   'life-cofounder': 'f-engineer',
   'life-journalist': 'f-consultant',
   'life-coffee': 'i-exited',
-  'life-staff-ill': 'f-engineer',
 };
 
 /**

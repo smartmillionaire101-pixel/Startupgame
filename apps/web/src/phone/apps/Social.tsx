@@ -11,6 +11,7 @@ import { Button } from '../../ui';
 import { businessesOf } from '../../city/contract';
 import { eventsOf, newBusinessIds } from '../../city/people';
 import { cityViewOf } from '../../city/travel';
+import { genderOf } from '../../city/life';
 import type { IconName } from '../icons';
 import { Avatar, Nothing, RowIcon, type PhoneCtx } from '../shared';
 
@@ -68,7 +69,8 @@ export function Social({ ctx }: { ctx: PhoneCtx }) {
         icon: 'social',
         color: '#c026d3',
         who: e.host.name,
-        by: e.host.id || undefined,
+        // A host the view describes (a player here): their face; anyone else keeps the icon.
+        by: view.players.some((x) => x.id === e.host.id) ? e.host.id : undefined,
         text: t('Hosting “{title}”, {going} going.', { title: e.title, going: e.going }),
         month: e.month,
         place: 'eventhall',
@@ -144,7 +146,13 @@ export function Social({ ctx }: { ctx: PhoneCtx }) {
           {feed.slice(0, 50).map((p) => (
             <li key={p.key} className="phone-post-item">
               {p.by || p.key.startsWith('me:') ? (
-                <Avatar name={p.who} id={p.by ?? view.me.id} />
+                <Avatar
+                  name={p.who}
+                  id={p.by ?? view.me.id}
+                  {...((p.by ?? view.me.id) === view.me.id
+                    ? { bg: view.me.background?.id, gender: genderOf(view.me) }
+                    : {})}
+                />
               ) : (
                 <RowIcon name={p.icon} color={p.color} />
               )}

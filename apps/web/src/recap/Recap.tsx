@@ -689,15 +689,16 @@ function Bills({
 
 /**
  * The face of someone in the month's people, found by name among the players
- * and your contacts (the recap only names them); a stranger gets the
- * portrait their name would give them.
+ * and your contacts (the recap only names them); no face for someone it
+ * can't place (a guessed one could be the wrong person).
  */
 function RecapFace({ name }: { name: string }) {
   const { view } = useView();
   const pl = view.players.find((x) => x.name === name);
   if (pl) return <PersonPortrait id={pl.id} bg={pl.backgroundId} gender={pl.gender} size={32} />;
   const c = contactsOf(view).find((x) => x.name.split(',')[0]!.trim() === name);
-  return <PersonPortrait id={c ? (c.chatId ?? c.refId) : `name:${name}`} size={32} />;
+  if (!c) return null;
+  return <PersonPortrait id={c.chatId ?? c.refId} size={32} />;
 }
 
 function personText(p: RecapPerson): string {

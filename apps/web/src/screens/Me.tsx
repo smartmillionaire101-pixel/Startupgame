@@ -257,7 +257,7 @@ function Profile() {
           <ol className="board">
             {view.leaderboards.highestStars.slice(0, 5).map((r) => (
               <li key={r.id}>
-                <BoardFace id={r.id} />
+                <BoardFace id={r.id} name={r.name} />
                 <span className="board-name">
                   {r.name}
                   {r.ai ? '' : ` ${t('(player)')}`}
@@ -285,11 +285,26 @@ function Profile() {
   );
 }
 
-/** A leaderboard player's face, drawn as the map draws them. */
-function BoardFace({ id }: { id: string }) {
+/**
+ * A leaderboard player's face, drawn as the map draws them; someone the view
+ * doesn't describe (an AI founder out of sight) gets their initials, not a
+ * guessed face.
+ */
+function BoardFace({ id, name }: { id: string; name: string }) {
   const { view } = useView();
   const me = id === view.me.id;
   const p = me ? null : view.players.find((x) => x.id === id);
+  if (!me && !p)
+    return (
+      <span className="board-face board-initials" aria-hidden="true">
+        {name
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0]!.toUpperCase())
+          .join('')}
+      </span>
+    );
   return (
     <PersonPortrait
       id={id}

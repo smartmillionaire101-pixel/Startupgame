@@ -102,12 +102,14 @@ function EventRow({ e, hours }: { e: CityEventView; hours: number | null }) {
         </div>
         <div className="item-title">{e.title}</div>
         <div className="small muted event-host">
-          <PersonPortrait
-            id={e.youHost ? view.me.id : e.host.id}
-            bg={e.youHost ? view.me.background?.id : host?.backgroundId}
-            gender={e.youHost ? view.me.gender : host?.gender}
-            size={28}
-          />
+          {(e.youHost || host) && (
+            <PersonPortrait
+              id={e.youHost ? view.me.id : e.host.id}
+              bg={e.youHost ? view.me.background?.id : host?.backgroundId}
+              gender={e.youHost ? view.me.gender : host?.gender}
+              size={28}
+            />
+          )}
           {t('Hosted by {name} · {venue} · {date}', {
             name: e.host.name,
             venue: e.venue === 'office' ? t('their office') : venueLabel(e.venue),
