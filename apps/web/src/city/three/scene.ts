@@ -175,6 +175,7 @@ export class CityScene {
   following = true;
   /** Driving: the camera rides behind the car, looking down the road. */
   private chaseOn = false;
+  private chaseView = { dist: 48, pitch: 0.42, ahead: 12 };
   private savedRig: { dist: number; pitch: number; yaw: number } | null = null;
   /** Stop drawing on its own (screenshots and tests draw with renderNow). */
   paused = false;
@@ -1227,10 +1228,17 @@ export class CityScene {
     }
     const r = this.rig;
     r.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, r.pitch));
-    r.dist = Math.max(35, Math.min(this.maxDist(), r.dist));
+    // A ride on the map follows you closer (on foot, a bike) than you can zoom in.
+    r.dist = Math.max(
+      this.chaseOn ? Math.min(35, this.chaseView.dist) : 35,
+      Math.min(this.maxDist(), r.dist),
+    );
+    // Kept over the city; a ride followed to its edge (a road out of the map's
+    // area) keeps the camera on you.
     const [bx0, by0, bx1, by1] = this.geo.data.bounds;
-    r.x = Math.max(bx0, Math.min(bx1, r.x));
-    r.y = Math.max(by0, Math.min(by1, r.y));
+    const m = this.chaseOn ? 1500 : 0;
+    r.x = Math.max(bx0 - m, Math.min(bx1 + m, r.x));
+    r.y = Math.max(by0 - m, Math.min(by1 + m, r.y));
     const fx = Math.sin(r.yaw);
     const fz = -Math.cos(r.yaw);
     // Pulled right back, the view lowers towards the horizon (an aerial photo's angle).
@@ -1424,10 +1432,16 @@ export class CityScene {
     this.touch(1200);
   }
 
-  /** Driving your own car: a chase camera until endChase(). */
-  startChase() {
+  /**
+   * Driving your own car (or riding on the map): a chase camera until
+   * endChase(). `view`: how far behind (m), how steeply down (radians) and
+   * how far ahead of you it looks (m); a car's by default, closer for a bike
+   * or on foot, further back for a bus.
+   */
+  startChase(view: { dist?: number; pitch?: number; ahead?: number } = {}) {
     if (!this.chaseOn)
       this.savedRig = { dist: this.rig.dist, pitch: this.rig.pitch, yaw: this.rig.yaw };
+    this.chaseView = { dist: view.dist ?? 48, pitch: view.pitch ?? 0.42, ahead: view.ahead ?? 12 };
     this.chaseOn = true;
     this.following = true;
     this.touch(1000);
@@ -1555,12 +1569,13 @@ export class CityScene {
       let d = Math.PI - av.heading - this.rig.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       this.rig.yaw += d * ease;
-      this.rig.pitch += (0.42 - this.rig.pitch) * ease;
-      this.want.dist = 48;
+      const cv = this.chaseView;
+      this.rig.pitch += (cv.pitch - this.rig.pitch) * ease;
+      this.want.dist = cv.dist;
       if (this.following) {
         // Locked on (a fast car would outrun a lagging camera).
-        this.want.x = this.rig.x = av.x + Math.sin(av.heading) * 12;
-        this.want.y = this.rig.y = av.y + Math.cos(av.heading) * 12;
+        this.want.x = this.rig.x = av.x + Math.sin(av.heading) * cv.ahead;
+        this.want.y = this.rig.y = av.y + Math.cos(av.heading) * cv.ahead;
       }
       this.dirty = true;
     }
@@ -1584,6 +1599,14 @@ export class CityScene {
     // The people and the traffic move only in frames that are drawn.
     this.actors.setFocus(this.rig.x, this.rig.y, this.rig.dist);
     this.actors.update(t, this.opts.reduced, this.rig.dist);
+    if (this.chaseOn && this.following && !this.view) {
+      // The ride moved on this frame: the camera with it (a trip runs at tens of
+      // metres a frame, and a frame behind would leave the vehicle out of sight).
+      const a = this.actors.avatarPos();
+      const ahead = this.chaseView.ahead;
+      this.want.x = this.rig.x = a.x + Math.sin(a.heading) * ahead;
+      this.want.y = this.rig.y = a.y + Math.cos(a.heading) * ahead;
+    }
     // Shadows: redrawn with the camera, the avatar or the city changing; while
     // only the traffic and the passers-by move, every few frames.
     this.renderer.shadowMap.needsUpdate =

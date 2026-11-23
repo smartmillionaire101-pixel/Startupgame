@@ -13,6 +13,73 @@ import { Repeat, Sky, Skyline, slide, Street, VB, type SceneProps } from './art'
 const P = 1000;
 const BG = ['f-engineer', 'b-commercial', 'f-dropout', 'i-operator', 'f-corporate', 'b-fintech'];
 
+/** The stop ticker: the next stop moves on as the trip goes (k 0 … 1). */
+function StopTicker({
+  stops,
+  tickerRef,
+}: {
+  stops: string[];
+  tickerRef: React.RefObject<HTMLOListElement | null>;
+}) {
+  return (
+    <div className="bus-ticker" data-stop-ticker="">
+      <span className="bus-ticker-label">{t('Next stop')}</span>
+      <ol ref={tickerRef} aria-label={t('Stops')}>
+        {stops.map((s, n) => (
+          <li key={n} className={n === 0 ? 'is-next' : ''}>
+            {s}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** Which stop is next at k, marked on the ticker's items (returns its index). */
+function markStop(list: HTMLOListElement | null, stops: string[], k: number) {
+  const idx = Math.min(stops.length - 1, Math.floor(k * stops.length));
+  const items = list?.children;
+  if (items)
+    for (let i = 0; i < items.length; i++) {
+      items[i]!.classList.toggle('is-next', i === idx);
+      items[i]!.classList.toggle('is-past', i < idx);
+    }
+  return idx;
+}
+
+/**
+ * The bus on the 3D map (the city plays the ride: the bus or danfo on the
+ * road, its passengers at the windows): the route board and the stop ticker
+ * over the map.
+ */
+export function BusOnMap({
+  frameRef,
+  stops,
+  livery,
+}: Pick<SceneProps, 'frameRef'> & { stops: string[]; livery: string }) {
+  const ticker = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    let last = -1;
+    frameRef.current = (_ms, k) => {
+      const idx = Math.min(stops.length - 1, Math.floor(k * stops.length));
+      if (idx !== last) last = markStop(ticker.current, stops, k);
+    };
+    return () => {
+      frameRef.current = null;
+    };
+  }, [frameRef, stops]);
+  return (
+    <div className="bus is-onmap">
+      {stops.length > 1 && (
+        <p className="bus-board" style={{ borderColor: livery }} aria-hidden>
+          {`${stops[0]} → ${stops[stops.length - 1]}`}
+        </p>
+      )}
+      <StopTicker stops={stops} tickerRef={ticker} />
+    </div>
+  );
+}
+
 export function BusScene({
   uid,
   flavour,
@@ -49,14 +116,8 @@ export function BusScene({
       // The next stop: the ticker moves on as the trip goes.
       const idx = Math.min(stops.length - 1, Math.floor(k * stops.length));
       if (idx !== last) {
-        last = idx;
+        last = markStop(ticker.current, stops, k);
         if (call.current) call.current.textContent = `${stops[idx] ?? ''}!`;
-        const items = ticker.current?.children;
-        if (items)
-          for (let i = 0; i < items.length; i++) {
-            items[i]!.classList.toggle('is-next', i === idx);
-            items[i]!.classList.toggle('is-past', i < idx);
-          }
       }
     };
     return () => {
@@ -171,16 +232,7 @@ export function BusScene({
           </g>
         </g>
       </svg>
-      <div className="bus-ticker" data-stop-ticker="">
-        <span className="bus-ticker-label">{t('Next stop')}</span>
-        <ol ref={ticker} aria-label={t('Stops')}>
-          {stops.map((s, n) => (
-            <li key={n} className={n === 0 ? 'is-next' : ''}>
-              {s}
-            </li>
-          ))}
-        </ol>
-      </div>
+      <StopTicker stops={stops} tickerRef={ticker} />
     </div>
   );
 }

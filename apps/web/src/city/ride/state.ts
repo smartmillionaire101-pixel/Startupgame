@@ -94,6 +94,13 @@ export interface RideRequest {
   mapMs: number;
   /** Your own car with controls on the map (the 3D map's route card and pedals): no card here. */
   hud?: boolean;
+  /**
+   * The 3D map plays this ride itself (the vehicle on the road, a camera
+   * following it, the traffic around): the card, Skip and the ride's own
+   * overlays (a taxi's booking, its mini-map, a bus's stops) over the map
+   * instead of a drawn scene.
+   */
+  onMap?: boolean;
 }
 
 export interface Ride extends RideRequest {
@@ -113,11 +120,15 @@ export interface Ride extends RideRequest {
   car: string;
   /** The trip's minutes, as the chooser showed them. */
   minutes: number;
+  /** Played on the 3D map (see RideRequest.onMap). */
+  onMap: boolean;
 }
 
 export interface RideHandle {
   /** How long the trip takes on the map (ms). */
   ms: number;
+  /** The map plays the ride itself (its camera follows you): see RideRequest.onMap. */
+  onMap: boolean;
   /** The player skipped: jump to the arrival. */
   skipped: () => boolean;
   /** The trip is over (arrived or cancelled). */
@@ -131,6 +142,25 @@ export function sceneMs(mode: RideMode, tiles: number): number {
   const per = { walk: 70, cycle: 60, bus: 95, taxi: 80, drive: 90 }[mode];
   const max = mode === 'walk' ? 8000 : 12000;
   return Math.round(Math.min(max, Math.max(5000, 3800 + tiles * per)));
+}
+
+/** A taxi's pickup: the booking card while the car comes to you (ms). */
+export const PICKUP_MS = 2000;
+
+/**
+ * A ride played on the 3D map: long enough to see the city go by (a taxi's
+ * first two seconds are its pickup), 6–18 s by distance; on foot 6–10 s.
+ */
+export function mapSceneMs(mode: RideMode, tiles: number): number {
+  if (mode === 'walk') return Math.round(Math.min(10000, Math.max(6000, 4000 + tiles * 90)));
+  const ride = Math.round(Math.min(16000, Math.max(6000, tiles * 700)));
+  return mode === 'taxi' ? ride + PICKUP_MS : ride;
+}
+
+/** Screenshots on a slow machine: rides on the map last this many times longer (`runway.rideSlow`). */
+function slowRides(): number {
+  const n = Number(read('runway.rideSlow'));
+  return Number.isFinite(n) && n > 1 ? Math.min(20, n) : 1;
 }
 
 let current: Ride | null = null;
@@ -184,6 +214,7 @@ export function beginRide(req: RideRequest): RideHandle | null {
   if (typeof window === 'undefined' || skipRides()) return null;
   // Driving your own car plays on the map itself (the chase camera), under the trip card.
   const chase = reduceMotion() || req.mode === 'drive';
+  const onMap = !!req.onMap && !chase;
   const q = quote && quote.mode === req.mode ? quote : null;
   quote = null;
   const place = req.placeId ? req.layout.places.find((p) => p.id === req.placeId) : undefined;
@@ -197,7 +228,9 @@ export function beginRide(req: RideRequest): RideHandle | null {
         ? sceneMs('drive', req.tiles)
         : chase
           ? Math.max(1500, req.mapMs)
-          : sceneMs(req.mode, req.tiles),
+          : onMap
+            ? mapSceneMs(req.mode, req.tiles) * slowRides()
+            : sceneMs(req.mode, req.tiles),
     startedAt: performance.now(),
     where: q?.where || place?.name || (place ? (KIND_NAMES[place.kind] ?? '') : ''),
     fare: q?.fare ?? 0,
@@ -208,6 +241,7 @@ export function beginRide(req: RideRequest): RideHandle | null {
     fuel: q?.fuel ?? 0,
     car: q?.car ?? '',
     minutes: q?.minutes ?? rideMinutes(req.mode, req.tiles),
+    onMap,
   };
   current = ride;
   skipped = false;
@@ -217,6 +251,7 @@ export function beginRide(req: RideRequest): RideHandle | null {
   let over = false;
   return {
     ms: ride.ms,
+    onMap,
     skipped: () => skipped && current === ride,
     end: () => {
       if (over) return;

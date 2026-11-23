@@ -271,3 +271,78 @@
   content: '› ';
   opacity: 0.6;
 }
+
+/*
+ * On the 3D map: the city plays the ride (the vehicle on the road, the
+ * camera behind it). The map shows through; a soft shade at the top and
+ * bottom keeps the card and the buttons readable over it, and taps stay
+ * here (the camera follows the ride, it isn't panned away).
+ */
+.ride-scene.is-onmap {
+  background:
+    linear-gradient(to bottom, rgb(11 18 16 / 0.55), rgb(11 18 16 / 0) 150px),
+    linear-gradient(to top, rgb(11 18 16 / 0.55), rgb(11 18 16 / 0) 170px);
+  animation: none;
+}
+/* The City's own buttons wait under the ride (as they did under a drawn scene). */
+body:has(.ride-scene.is-onmap) :is(.hud-top, .hud-sub, .hud-bell, .hud-phone, .city-rail, .nav) {
+  visibility: hidden;
+}
+.ride-scene.is-onmap .taxi-booking {
+  inset: auto 16px calc(84px + env(safe-area-inset-bottom));
+  padding: 0.8rem 0.9rem;
+  border-radius: 18px;
+  background: rgb(15 23 42 / 0.9);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.35);
+}
+.ride-scene.is-onmap .taxi-booking-map {
+  width: min(260px, 100%);
+}
+.ride-scene.is-onmap .taxi-mini {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.taxi.is-onmap.is-riding .taxi-mini {
+  opacity: 1;
+}
+.taxi-chip {
+  position: absolute;
+  left: 156px;
+  right: 16px;
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 14px;
+  background: rgb(15 23 42 / 0.82);
+  font-size: 0.85rem;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 2;
+}
+.taxi.is-onmap.is-riding .taxi-chip {
+  opacity: 1;
+}
+.bus-board {
+  position: absolute;
+  left: 50%;
+  top: calc(96px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 0.35rem 0.8rem;
+  border: 2px solid;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fbbf24;
+  font:
+    800 0.85rem ui-monospace,
+    monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 2;
+}

@@ -26,7 +26,7 @@ import {
 } from '../layout';
 import { playersByPlace } from '../people';
 import { setRiding } from '../riding';
-import { beginRide } from '../ride/state';
+import { beginRide, PICKUP_MS } from '../ride/state';
 import { localHour, rideMinutes, rideMs, rideVehicle, SHORT_HOP, type RideMode } from '../travel';
 import type { VehicleSpec } from '../flavour';
 import { personScale } from './actors';
@@ -51,6 +51,22 @@ import { SKY_VIEWS } from '@runway/engine';
 import { openSky } from '../../experiences/sky-bus';
 
 const NONE: never[] = [];
+
+/**
+ * The camera behind a ride on the map: close on foot and on a bike, a car's
+ * length or so back from a taxi, further from a bus (it's long).
+ */
+function chaseView(mode: RideMode, spec: VehicleSpec | null) {
+  if (mode === 'walk') return { dist: 14, pitch: 0.42, ahead: 1.5 };
+  if (mode === 'cycle') return { dist: 13, pitch: 0.36, ahead: 2 };
+  if (mode === 'bus')
+    return spec &&
+      spec.len >= 0.8 &&
+      /^(danfo|matatu|trotro|podapoda|minibus|microbus)/.test(spec.id)
+      ? { dist: 22, pitch: 0.36, ahead: 4 }
+      : { dist: 34, pitch: 0.36, ahead: 6 };
+  return { dist: 20, pitch: 0.38, ahead: 3 };
+}
 const KEY_KINDS: Place['kind'][] = ['office', 'hub', 'airport', 'eventhall', 'golf', 'mall'];
 
 interface Lbl {
@@ -448,9 +464,8 @@ export default function CityMap3D(
       // Your own car goes even round the corner; other short hops walk.
       const mode: RideMode =
         len > SHORT_HOP || opts.mode === 'drive' ? (opts.mode ?? 'walk') : 'walk';
-      const spec0 = rideVehicle(mode, layout.marketId, layout.flavour.vehicles, cb.current.car);
-      const spec =
-        spec0 && mode !== 'bus' && mode !== 'drive' ? { ...spec0, body: look.top } : spec0;
+      // The city's own vehicle in its own colours (a yellow taxi, a London cab).
+      const spec = rideVehicle(mode, layout.marketId, layout.flavour.vehicles, cb.current.car);
       const driving = mode === 'drive';
       // Skipping the trip: no ride scene, you're simply there.
       const scene =
@@ -464,10 +479,26 @@ export default function CityMap3D(
               look,
               mapMs: rideMs(mode, len),
               hud: driving && !reduced && !!sceneRef.current && !!layout.geo,
+              // Any other ride plays here too: the vehicle on the road, the camera behind it.
+              onMap: !driving && !reduced && !!sceneRef.current && !!layout.geo,
             })
           : null;
+      // A ride played on the map (not your own car): its vehicle keeps to its lane
+      // (on foot, the pavement), the camera following; a taxi first comes to pick you up.
+      const onMap = !!scene?.onMap && !!sceneRef.current;
+      const laneRide = driving || (onMap && mode !== 'walk');
+      const hold = onMap && mode === 'taxi' ? PICKUP_MS : 0;
+      const endRide = () => {
+        if (!onMap) return;
+        const s = sceneRef.current;
+        s?.actors.setPickup(null);
+        if (mode !== 'walk') s?.actors.setDriving(false);
+        s?.endChase();
+        delete wrapRef.current?.dataset.ride3d;
+      };
       const done = () => {
         scene?.end();
+        endRide();
         if (driving) {
           driveRef.current?.end();
           setDriveCtl(null);
@@ -497,10 +528,21 @@ export default function CityMap3D(
       // The path runs along the road centre lines: on foot you take the
       // pavement, in a vehicle your lane.
       const street = s3 ? s3.actors.streetPath(path, mode === 'walk' ? 'walk' : 'lane') : path;
-      const ms = scene?.ms ?? rideMs(mode, len);
+      const ms = (scene?.ms ?? rideMs(mode, len)) - hold;
       // Driving: metres to go, and the pace that takes about the trip's time.
       const metres = pathLength(street) * GEO_TILE_M;
       const cruise = (metres / Math.max(0.5, ms / 1000)) * 1.15;
+      if (onMap && s3) {
+        if (mode !== 'walk') s3.actors.setDriving(true, path, cruise);
+        s3.startChase(chaseView(mode, spec));
+        if (wrapRef.current) wrapRef.current.dataset.ride3d = mode;
+        if (hold) {
+          // Waiting at the kerb, facing the way the taxi will go.
+          const a = pointAlong(street, 0);
+          placeAvatar(a.p, a.dx, a.dy);
+          s3.actors.setPickup(0);
+        }
+      }
       // Your own car, with its trip on screen: you drive it (GO and BRAKE,
       // a way at each junction). Skipping rides or reduced motion: it drives
       // itself, as a taxi does.
@@ -524,6 +566,16 @@ export default function CityMap3D(
       let cancelled = false;
       const step = (now: number) => {
         if (cancelled) return;
+        // A taxi on its way: you wait, the clock starts once you're in.
+        if (hold && now - t0 < hold && !scene?.skipped()) {
+          sceneRef.current?.actors.setPickup((now - t0) / hold);
+          sceneRef.current?.invalidate();
+          last = now;
+          walk.current!.raf = requestAnimationFrame(step);
+          return;
+        }
+        if (hold && sceneRef.current) sceneRef.current.actors.setPickup(null);
+        const tt = t0 + hold;
         let f: number;
         if (drive && !scene?.skipped()) {
           const r = drive.step((now - last) / 1000);
@@ -534,13 +586,13 @@ export default function CityMap3D(
           else done();
           return;
         }
-        if (driving && !scene?.skipped() && now - t0 < ms * 3) {
+        if (laneRide && !scene?.skipped() && now - tt < ms * 3) {
           // Your own car: up to speed, easing into the stop at the end, and
           // never into the car in front (it slows and waits behind it). A
           // trip held up twice as long as planned goes on regardless (and
           // at three times, you're simply there). Short steps, so a slow
           // frame (a software GPU) still keeps to the clock.
-          const lead = reduced || now - t0 > ms * 2 ? null : s3?.actors.leadAhead();
+          const lead = reduced || now - tt > ms * 2 ? null : s3?.actors.leadAhead();
           let room = lead ? Math.max(0, lead.gap - 2.5) : Infinity;
           for (let left = Math.min(1, (now - last) / 1000); left > 1e-4; left -= 0.05) {
             const dt = Math.min(0.05, left);
@@ -556,7 +608,7 @@ export default function CityMap3D(
           f = metres > 0 ? gone / metres : 1;
           if (metres - gone < 0.05) f = 1;
         } else {
-          const k = scene?.skipped() ? 1 : Math.min(1, (now - t0) / ms);
+          const k = scene?.skipped() ? 1 : Math.min(1, (now - tt) / ms);
           f = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
         }
         last = now;
@@ -571,6 +623,7 @@ export default function CityMap3D(
         cancel: () => {
           cancelled = true;
           scene?.end();
+          endRide();
           if (driving) {
             driveRef.current?.end();
             setDriveCtl(null);
