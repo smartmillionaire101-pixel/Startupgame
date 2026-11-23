@@ -14,6 +14,12 @@
   inset: 0;
   touch-action: none;
 }
+.air-canvas .sky-label[hidden] {
+  /* Laid out but not drawn: a hidden name keeps its real size, so the layout
+     (AirFlight.tsx) never places a box narrower than the name it then shows. */
+  display: block;
+  visibility: hidden;
+}
 .air-map {
   width: 100%;
   height: 100%;
