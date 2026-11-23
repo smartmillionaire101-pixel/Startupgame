@@ -16,7 +16,8 @@ import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { techEventsOf, type TechEventView } from '../phone/friends';
-import { AvatarFigure, avatarLook, type AvatarLook } from './art';
+import { avatarLook, type AvatarLook } from './art';
+import { PersonSprite } from './PersonSprite';
 import { pocketOf } from './pocket';
 import { hash } from './contract';
 import { genderOf } from './life';
@@ -171,9 +172,14 @@ function EventStage({
   const meLook = avatarLook(view.me.background?.id, view.me.id, genderOf(view.me));
   const crowd: AvatarLook[] = useMemo(
     () =>
-      SEATS.map((_, n) =>
-        avatarLook(CROWD_BG[hash(`${event.id}:${n}`) % CROWD_BG.length], `${event.id}:crowd:${n}`),
-      ),
+      // Nine faces through the hall (two rows apart): fewer pictures to draw on a weak phone.
+      SEATS.map((_, k) => {
+        const n = k % 9;
+        return avatarLook(
+          CROWD_BG[hash(`${event.id}:${n}`) % CROWD_BG.length],
+          `${event.id}:crowd:${n}`,
+        );
+      }),
     [event.id],
   );
   const mingling = phase === 'network';
@@ -248,7 +254,7 @@ function EventStage({
           <ellipse cx="180" cy="128" rx="120" ry="60" fill="url(#tech-spot)" />
           {/* Speaker (or you, pitching) at the lectern */}
           <g transform={`translate(${onStage ? 150 : 180} 140) scale(2)`}>
-            <AvatarFigure look={onStage ? meLook : speakerLook} />
+            <PersonSprite look={onStage ? meLook : speakerLook} pose="present" />
           </g>
           <rect x="196" y="116" width="26" height="30" rx="3" fill="#1f2937" />
           <rect x="194" y="112" width="30" height="6" rx="2" fill="#374151" />
@@ -264,7 +270,13 @@ function EventStage({
                 style={{ transform: `translate(${at.x}px, ${at.y}px) scale(1.5)` }}
                 data-you={you ? '' : undefined}
               >
-                <AvatarFigure look={you ? meLook : crowd[n]!} />
+                {/* The audience faces the stage (their backs to you); they turn to talk. */}
+                <PersonSprite
+                  look={you ? meLook : crowd[n]!}
+                  pose={mingling ? 'chat' : onStage ? 'clap' : 'stand'}
+                  angle={mingling ? 'three-quarter' : 'back'}
+                  flip={mingling && n % 2 === 0}
+                />
                 {mingling && !you && n % 4 === 1 && (
                   <text x="0" y="-26" textAnchor="middle" className="tech-chat-dot">
                     💬

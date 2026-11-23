@@ -17,7 +17,8 @@ import { LoanCard, PitchFlow, PitchSheet, moodLabel } from '../screens/Money';
 import { MeetingResume, PitchMeetingSheet, isLiveMeeting } from '../screens/PitchMeeting';
 import { Digest } from '../screens/News';
 import { stageLabel } from '../screens/common';
-import { AvatarFigure, Building, avatarLook, shade } from './art';
+import { Building, avatarLook, shade } from './art';
+import { PersonSprite } from './PersonSprite';
 import {
   activeCompany,
   hash,
@@ -109,8 +110,8 @@ function SceneHeader({
       </svg>
       {who && (
         <div className="interior-npc">
-          <svg viewBox="-14 -44 28 48" width="44" height="72">
-            <AvatarFigure look={look} />
+          <svg viewBox="-16 -48 32 50" width="46" height="72">
+            <PersonSprite look={look} />
           </svg>
           <div>
             <div className="item-title">{who}</div>

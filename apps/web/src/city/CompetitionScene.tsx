@@ -14,7 +14,8 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { reduceMotion } from '../ui';
 import { use3d } from '../three-kit/quality';
-import { AvatarFigure, avatarLook, type AvatarLook } from './art';
+import { avatarLook, type AvatarLook } from './art';
+import { PersonSprite } from './PersonSprite';
 import { hash } from './contract';
 import { genderOf } from './life';
 import { CompetitionActions, CompetitionFacts, ScorePicker, Standings } from './competition-ui';
@@ -360,7 +361,7 @@ function CompetitionArt({
       <rect x="10" y="160" width="340" height="8" fill="#2e1065" />
       <ellipse cx="270" cy="134" rx="70" ry="40" fill="#fef3c7" opacity={crowning ? 0.35 : 0.18} />
       <g transform="translate(262 152) scale(2)">
-        <AvatarFigure look={founderLook} />
+        <PersonSprite look={founderLook} pose={crowning ? 'cheer' : 'present'} />
       </g>
       <rect x="284" y="118" width="26" height="36" rx="3" fill="#1f2937" />
       <rect x="282" y="114" width="30" height="6" rx="2" fill="#6d28d9" />

@@ -13,7 +13,8 @@ import { money } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Bar, Button, Field } from '../ui';
-import { AvatarFigure, avatarLook } from '../city/art';
+import { avatarLook } from '../city/art';
+import { PersonSprite } from '../city/PersonSprite';
 import { genderOf } from '../city/life';
 import { RoomBack } from '../city/RoomArt';
 import { cafeContact } from './Coach';
@@ -101,10 +102,10 @@ export default function IdeaScene({ onClose }: { onClose: () => void }) {
         <svg viewBox="0 -80 360 320" preserveAspectRatio="xMidYMax slice">
           <RoomBack kind="cafe" tint="#b45309" sign={contact.cafe.toUpperCase().slice(0, 22)} />
           <g transform="translate(130 225) scale(2.4)">
-            <AvatarFigure look={me} />
+            <PersonSprite look={me} pose="chat" angle="three-quarter" flip />
           </g>
           <g transform="translate(225 225) scale(2.4) scale(-1 1)">
-            <AvatarFigure look={npc} />
+            <PersonSprite look={npc} pose="chat" angle="three-quarter" flip />
           </g>
         </svg>
       </div>
