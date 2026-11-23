@@ -50,12 +50,10 @@ async function open3d(page: Page, name: string, market: RegExp, city: RegExp) {
     try {
       localStorage.setItem('runway.mapQuality', '3d');
       localStorage.removeItem('runway.skipRides');
-      if (hq) {
-        // Screenshots: full quality, by day.
-        localStorage.setItem('runway.hq', '1');
-        // (Full quality on a software GPU draws a frame a second: rides last longer to be caught.)
-        localStorage.setItem('runway.rideSlow', '4');
-      }
+      // A software GPU draws a few frames a second: rides last longer, to be
+      // caught under way (four times at full quality, for screenshots).
+      localStorage.setItem('runway.rideSlow', hq ? '4' : '3');
+      if (hq) localStorage.setItem('runway.hq', '1');
     } catch {
       /* storage blocked */
     }
@@ -146,7 +144,7 @@ async function arrive(page: Page, scene: ReturnType<Page['locator']>, skip = tru
       .getByRole('button', { name: 'Skip' })
       .dispatchEvent('click', undefined, { timeout: 5000 })
       .catch(() => undefined);
-  await expect(scene).toBeHidden({ timeout: 60_000 });
+  await expect(scene).toBeHidden({ timeout: 150_000 });
   const map = page.getByRole('application', { name: /Map of/ });
   await expect(map).not.toHaveAttribute('data-ride3d', /./);
   const place = page.locator('.place-scene');
