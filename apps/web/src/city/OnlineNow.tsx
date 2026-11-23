@@ -94,7 +94,7 @@ function OnlineRow({
 }) {
   const { toast, view } = useView();
   // Their face once the view describes them (a player in your market); their initial otherwise.
-  const known = view.players.find((x) => x.id === p.id);
+  const known = view?.players?.find((x) => x.id === p.id);
   const [inviting, setInviting] = useState(false);
   const [sending, setSending] = useState(false);
   const where = [p.city, ...(p.placeName ? [tx(p.placeName)] : [])].join(' · ');
