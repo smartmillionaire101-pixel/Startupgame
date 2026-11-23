@@ -30,6 +30,8 @@ export interface Transfer3DProps {
   seconds: number;
   seed: string;
   onFail?: () => void;
+  /** The ride has played (its length, counted from the first frame). */
+  onDone?: () => void;
 }
 
 const CAR_Z = 0.95;
@@ -333,12 +335,20 @@ export default function Transfer3D(props: Transfer3DProps): ReactElement {
     const ro = new ResizeObserver(size);
     ro.observe(parent);
     let lastX = w.car.position.x;
+    let over = false;
+    stage.onFrame = () => {
+      canvas.dataset.ready = 'yes';
+    };
     const off = stage.add((t) => {
       if (held) return true;
       if (t0Ref.t < 0) t0Ref.t = t;
       const e = t - t0Ref.t;
       const D = live.current.seconds;
       const board = D * 0.52;
+      if (!over && e >= D) {
+        over = true;
+        live.current.onDone?.();
+      }
       // The doors slide open, then close behind the last of you.
       const open = Math.min(1, e / 0.45) * (1 - Math.max(0, Math.min(1, (e - board * 0.75) / 0.4)));
       w.doors.forEach((d, n) => (d.position.x = DOOR_X + (n ? 1 : -1) * (0.55 + 1.0 * open)));

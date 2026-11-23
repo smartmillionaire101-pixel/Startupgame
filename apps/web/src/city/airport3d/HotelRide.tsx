@@ -4,7 +4,7 @@
  * the kerb with your friends, and away into town; in Lite (or without
  * WebGL) the drawn road with its car. The words are the same either way.
  */
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../../i18n';
 import { useView } from '../../store';
 import { use3d } from '../../three-kit/quality';
@@ -17,17 +17,33 @@ import './terminal.css';
 const Transfer3D = lazy(() => import('./Transfer3D'));
 
 /** How long the ride shows (ms): the drawn car's dash, or the 3D ride. */
-export const rideMs = (three: boolean) => (three ? 5200 : 2200);
+export const rideMs = (three: boolean) => (three ? 5200 * ridePace() : 2200);
+
+/**
+ * `runway.flightPace` (1–10), as the flight reads it: the 3D ride slowed down
+ * that many times too (software WebGL in screenshots draws a few frames a second).
+ */
+function ridePace(): number {
+  try {
+    const n = Number(localStorage.getItem('runway.flightPace'));
+    return Number.isFinite(n) && n >= 1 ? Math.min(10, n) : 1;
+  } catch {
+    return 1;
+  }
+}
 
 export function HotelRide({
   market,
   abroad,
   hotel,
+  onDone,
 }: {
   market: string;
   abroad: boolean;
   /** The hotel's name (or Home). */
   hotel: string;
+  /** The ride is over (3D: its length after its first frame; drawn: the car's dash). */
+  onDone?: () => void;
 }) {
   const { view } = useView();
   const three = use3d();
@@ -42,6 +58,16 @@ export function HotelRide({
     [view, market, abroad],
   );
   const drawn = !three || failed;
+  const doneRef = useRef(onDone);
+  useEffect(() => {
+    doneRef.current = onDone;
+  });
+  // Drawn (WebGL failed): the car's dash, then on.
+  useEffect(() => {
+    if (!three || !failed) return;
+    const id = window.setTimeout(() => doneRef.current?.(), rideMs(false));
+    return () => window.clearTimeout(id);
+  }, [three, failed]);
   return (
     <div className={`stay-transfer${drawn ? '' : ' is-3d'}`} role="status" data-transfer>
       {drawn ? (
@@ -60,6 +86,7 @@ export function HotelRide({
               seconds={rideMs(true) / 1000}
               seed={`${market}:${view.me.id}`}
               onFail={() => setFailed(true)}
+              onDone={() => doneRef.current?.()}
             />
           </Suspense>
         </div>
