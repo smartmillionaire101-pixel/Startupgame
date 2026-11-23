@@ -11,7 +11,9 @@
  */
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AvatarFigure, avatarLook, MAP_FIGURE_SCALE } from './art';
+import { avatarLook, MAP_FIGURE_SCALE } from './art';
+import { hash } from './contract';
+import { WalkSprite } from './WalkSprite';
 import { project, TW, type Pt } from './layout';
 import { personAt, type Walker } from './people';
 
@@ -25,7 +27,9 @@ interface Slot {
 }
 
 function Figure({ w, setRef }: { w: Walker; setRef: (id: string, slot: Slot | null) => void }) {
-  const look = useMemo(() => avatarLook(w.bg, w.id), [w.bg, w.id]);
+  // Passers-by are nobody in particular: a few looks each (by their kind of
+  // person), so a weak phone draws a handful of pictures, not one per walker.
+  const look = useMemo(() => avatarLook(w.bg, `passerby:${w.bg}:${hash(w.id) % 2}`), [w.bg, w.id]);
   const [host] = useState(() => {
     const g = document.createElementNS(SVG_NS, 'g') as SVGGElement;
     g.setAttribute('pointer-events', 'none');
@@ -40,7 +44,7 @@ function Figure({ w, setRef }: { w: Walker; setRef: (id: string, slot: Slot | nu
       transform="translate(-9999,-9999)"
     >
       <g className="city-person-fig" transform={`scale(${MAP_FIGURE_SCALE},${MAP_FIGURE_SCALE})`}>
-        <AvatarFigure look={look} />
+        <WalkSprite look={look} frames={1} />
       </g>
     </g>,
     host,

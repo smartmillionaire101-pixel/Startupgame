@@ -1747,3 +1747,64 @@ html[data-simple] .app-scene .city-hud-bottom {
   gap: 0.4rem;
   margin-bottom: 0.3rem;
 }
+
+/* Map people's pictures (WalkSprite.tsx): a two-frame walk while walking,
+   once both frames are drawn; a standing picture (has-rest) when stopped. */
+.walk-sprite .ws-b,
+.walk-sprite.has-rest .ws-a {
+  visibility: hidden;
+}
+.is-walking
+  .walk-sprite:has(.ws-a > [data-sprite='ready']):has(.ws-b > [data-sprite='ready'])
+  .ws-rest {
+  visibility: hidden;
+}
+.is-walking
+  .walk-sprite:has(.ws-a > [data-sprite='ready']):has(.ws-b > [data-sprite='ready'])
+  .ws-a {
+  animation: ws-a 0.56s steps(1) infinite;
+}
+.is-walking
+  .walk-sprite:has(.ws-a > [data-sprite='ready']):has(.ws-b > [data-sprite='ready'])
+  .ws-b {
+  animation: ws-b 0.56s steps(1) infinite;
+}
+@keyframes ws-a {
+  0% {
+    visibility: visible;
+  }
+  50% {
+    visibility: hidden;
+  }
+}
+@keyframes ws-b {
+  0% {
+    visibility: hidden;
+  }
+  50% {
+    visibility: visible;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-walking .walk-sprite .ws-a,
+  .is-walking .walk-sprite .ws-b {
+    animation: none;
+  }
+}
+/* Passers-by have one walking picture: a gentle bob as they go. */
+.city-passerby.is-walking .walk-sprite {
+  animation: ws-bob 0.56s ease-in-out infinite alternate;
+}
+@keyframes ws-bob {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-1.2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .city-passerby.is-walking .walk-sprite {
+    animation: none;
+  }
+}
