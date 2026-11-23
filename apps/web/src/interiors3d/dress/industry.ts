@@ -490,6 +490,30 @@ function cold(_c: DressCtx, d: Dresser) {
   }
   floorLine(d, -5.9, -0.2, 5.9, -0.2, '#38bdf8');
   poster(d, -0.4, 2.3, 1.8, 0.35, '−18 °C', '#0369a1');
+  // A pallet truck, crates of fish on ice and a scale by the door.
+  if (d.fits(-1.4, 0.4, 1.6, 0.6)) {
+    d.box(0.55, 0.08, 1.2, '#dc2626', -1.4, 0.05, 0.4);
+    d.box(0.1, 1.0, 0.08, '#dc2626', -1.4, 0.1, -0.2, { rx: -0.25 });
+    for (let t = 0; t < 2; t++)
+      for (let k = 0; k < 2; k++)
+        d.bit(0.5, 0.25, 0.55, '#f8fafc', -1.4, 0.13 + t * 0.26, 0.15 + k * 0.56, { plain: true });
+  }
+  for (const [x, z] of [
+    [-4.6, 0.6],
+    [-3.8, 1.2],
+  ] as const)
+    if (d.fits(x, z, 0.7, 0.5)) {
+      d.box(0.6, 0.3, 0.45, '#1d4ed8', x, 0, z);
+      for (let k = 0; k < 6; k++)
+        d.ball(
+          0.07,
+          '#cbd5e1',
+          x - 0.2 + (k % 3) * 0.2,
+          0.32,
+          z - 0.1 + Math.floor(k / 3) * 0.2,
+          0.5,
+        );
+    }
 }
 
 function lounge(c: DressCtx, d: Dresser, t: Ind) {

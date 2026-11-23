@@ -229,7 +229,7 @@ function accel(c: DressCtx, d: Dresser) {
 function dev(c: DressCtx, d: Dresser, t: Fund) {
   const L = d.flip ? 1 : -1;
   // A row of flags and the logo; reception on one side.
-  const fx = L < 0 ? -4.8 : 3.2;
+  const fx = L < 0 ? -4.2 : 2.4;
   const palettes = [
     ['#15803d', '#ffffff', '#15803d'],
     ['#1d4ed8', '#ffffff', '#dc2626'],
@@ -290,6 +290,16 @@ function dev(c: DressCtx, d: Dresser, t: Fund) {
     [4.9, 2.6],
   ] as const)
     if (d.fits(d.mx(x), z, 1.9, 0.9)) sofa(d, d.mx(x), z, Math.PI, 1.8, '#475569', 'couch');
+  // A waiting corner: armchairs round a low table on a rug, art over it.
+  const wx = L < 0 ? 3.4 : -3.6;
+  if (d.free(Dresser.rect(wx, 0.3, 2.4, 1.4))) {
+    rug(d, wx, 0.3, 2.6, 1.6, '#1e3a8a');
+    armchair(d, wx - 0.8, 0.3, Math.PI / 2, '#8a6e57');
+    armchair(d, wx + 0.8, 0.3, -Math.PI / 2, '#8a6e57');
+    coffeeTable(d, wx, 0.3, 0.7, 0.5, Math.PI / 2);
+    d.claim(Dresser.rect(wx, 0.3, 2.6, 1.4));
+  }
+  art(d, L < 0 ? 1.6 : -1.6, 1.25, 0.9, 0.7);
   plantsAlong(d, [-5.6, 5.6], 0.6, [3, 3]);
 }
 

@@ -87,8 +87,8 @@ function look(c: DressCtx, d: Dresser): Look {
 /** Where the venue's name goes (the screen takes the middle of the hall's back wall). */
 function signAt(c: DressCtx): { x: number; y: number } | null {
   const t = hallOf(c);
-  if (t === 'event' || t === 'chamber') return { x: 3.3, y: 2.45 };
-  if (t === 'lobby') return { x: -3.4, y: 2.45 };
+  if (t === 'event' || t === 'chamber') return { x: 1.7, y: 2.5 };
+  if (t === 'lobby') return { x: -2.9, y: 2.45 };
   return null;
 }
 
@@ -106,17 +106,17 @@ function eventHall(c: DressCtx, d: Dresser, chamber: boolean) {
     chamber ? '#6b4a33' : '#2a2a30',
   );
   if (chamber) {
-    d.cyl(0.5, 0.5, 0.05, '#d4af37', 0, 1.9, BACK + 0.03, {
+    d.cyl(0.5, 0.5, 0.05, '#d4af37', -1.6, 1.6, BACK + 0.03, {
       rx: Math.PI / 2,
       metal: 0.7,
       rough: 0.3,
     });
-    d.cyl(0.38, 0.38, 0.06, tone(c.tint, -0.1), 0, 1.9, BACK + 0.04, { rx: Math.PI / 2 });
+    d.cyl(0.38, 0.38, 0.06, tone(c.tint, -0.1), -1.6, 1.6, BACK + 0.04, { rx: Math.PI / 2 });
     for (const x of [-2.4, 2.4]) flag(d, x, BACK + 0.4, [c.tint, '#ffffff', c.tint]);
     // (Flags stand on the stage.)
   } else {
-    d.box(3.2, 1.9, 0.05, '#0b0d12', -0.2, 0.7, BACK + 0.03);
-    d.screenAt(3.0, 1.7, -0.2, 0.8 + 0.85, BACK + 0.06);
+    d.box(3.2, 1.6, 0.05, '#0b0d12', -1.6, 0.5, BACK + 0.03);
+    d.screenAt(3.0, 1.45, -1.6, 0.6 + 0.725, BACK + 0.06);
     truss(d, 0, -1.55, 6.8, 2.85, 6);
   }
   lectern(d, 2.0, BACK + 0.85, STAGE_H, c.tint);

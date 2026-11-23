@@ -11,6 +11,7 @@ import { BACK } from '../roomGeom';
 import { tone } from '../kit';
 import { Dresser, jitter } from './core';
 import {
+  beamSeats,
   bike,
   bolts,
   chandelier,
@@ -582,6 +583,15 @@ function laundry(_c: DressCtx, d: Dresser) {
   if (d.fits(0.4, BACK + 0.5, 1.6, 0.6))
     clothesRail(d, 0.4, BACK + 0.5, 0, 1.6, ['#f1f5f9', '#e0f2fe', '#f8fafc', '#cbd5e1']);
   poster(d, -3.3, 2.3, 2.4, 0.4, 'WASH · DRY · IRON', '#0369a1');
+  // Waiting chairs and a drinks machine by the door, an ironing board.
+  if (d.fits(3.6, 1.0, 1.7, 0.6)) beamSeats(d, 3.6, 1.0, Math.PI, 3, '#0ea5e9');
+  if (d.fits(5.4, -0.6, 0.8, 0.8)) drinksFridge(d, 5.4, -0.6, -Math.PI / 2, 0.8, '#1d4ed8');
+  if (d.fits(-4.6, 2.3, 1.4, 0.5)) {
+    d.box(1.3, 0.03, 0.35, '#e0f2fe', -4.6, 0.85, 2.3);
+    d.box(0.04, 0.85, 0.3, '#94a3b8', -4.3, 0, 2.3, { rz: 0.4 });
+    d.box(0.04, 0.85, 0.3, '#94a3b8', -4.9, 0, 2.3, { rz: -0.4 });
+    d.box(0.22, 0.1, 0.12, '#f8fafc', -4.2, 0.88, 2.3);
+  }
 }
 
 function tailor(_c: DressCtx, d: Dresser) {
@@ -658,6 +668,12 @@ function printShop(_c: DressCtx, d: Dresser) {
     d.bit(0.4, 0.04, 0.3, '#fde68a', -2.2, 0.9, -0.9, { plain: true });
   }
   poster(d, -3.3, 2.3, 2.4, 0.4, 'PRINT · COPY · BIND', '#111827');
+  // A rack of samples and a wide-format roll by the counter.
+  if (d.fits(4.6, 1.0, 1.4, 0.5)) magazineRack(d, 4.6, 1.0, Math.PI, 1.2, 3, '#1f2937');
+  if (d.fits(0.4, -1.0, 1.8, 0.5)) {
+    d.can(0.08, 1.6, '#f8fafc', -0.4, 0.75, -1.0, { rz: Math.PI / 2 });
+    for (const s of [-0.5, 1.2]) d.box(0.06, 0.8, 0.4, '#475569', s, 0, -1.0);
+  }
 }
 
 function phone(_c: DressCtx, d: Dresser) {
@@ -711,6 +727,12 @@ function phone(_c: DressCtx, d: Dresser) {
   }
   wallTv(d, 0.2, 1.3, 1.2);
   poster(d, -3.4, 2.4, 2.6, 0.4, 'SCREENS FIXED WHILE YOU WAIT', '#4338ca');
+  // A stand of accessories in the middle and a bench to wait on.
+  if (d.fits(-2.4, -1.0, 2.6, 1.0))
+    gondola(d, -2.4, -1.0, 0, 2.0, ['#111827', '#f8fafc', '#2563eb', '#db2777', '#16a34a'], {
+      h: 1.3,
+    });
+  if (d.fits(4.4, 1.2, 1.7, 0.6)) beamSeats(d, 4.4, 1.2, Math.PI, 3, '#4338ca');
 }
 
 function money(_c: DressCtx, d: Dresser) {
@@ -760,6 +782,11 @@ function money(_c: DressCtx, d: Dresser) {
       );
   }
   plantsAlong(d, [5.5], 0.6, [2]);
+  if (d.fits(3.3, 1.2, 1.7, 0.6)) beamSeats(d, 3.3, 1.2, Math.PI, 3, '#16a34a');
+  if (d.fits(-2.6, 0.4, 0.4, 0.4)) {
+    d.box(0.32, 0.95, 0.32, '#e5e7eb', -2.6, 0, 0.4, { round: 0.02 });
+    d.can(0.14, 0.42, '#7dd3fc', -2.6, 0.95, 0.4);
+  }
 }
 
 function marina(c: DressCtx, d: Dresser) {
@@ -797,6 +824,14 @@ function marina(c: DressCtx, d: Dresser) {
   for (let i = 0; i < 3; i++)
     d.box(0.06, 2.0, 0.12, '#a16207', 5.5 + i * 0.12, 0, BACK + 0.1, { rz: 0.08 });
   poster(d, 3.2, 2.35, 2.0, 0.35, 'CHANDLERY', '#1e3a8a');
+  // Life jackets on a rail and a dinghy on trestles.
+  if (d.fits(-4.6, 1.0, 1.6, 0.6))
+    clothesRail(d, -4.6, 1.0, 0, 1.4, ['#ea580c', '#f97316', '#facc15']);
+  if (d.fits(4.4, 1.0, 2.2, 1.0)) {
+    for (const s of [-0.7, 0.7]) d.box(0.08, 0.5, 0.8, '#7c5a3c', 4.4 + s, 0, 1.0);
+    d.kit.sphere(0.5, '#f8fafc', 4.4, 0.75, 1.0, { sx: 2.2, sy: 0.45 });
+    d.box(1.9, 0.05, 0.12, '#1e3a8a', 4.4, 0.9, 1.0);
+  }
 }
 
 function ballroom(_c: DressCtx, d: Dresser) {
