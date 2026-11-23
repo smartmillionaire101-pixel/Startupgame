@@ -14,10 +14,10 @@
  * The root sits at the feet and faces +z; turn it with `root.rotation.y`.
  */
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { shade, type AvatarLook } from '../city/art';
 import { mat, contactShadow } from './kit';
 import { attachModel, posedModel, refreshModel } from './characterModel';
+import { afroGeometry, twistsGeometry } from './characterHead';
 import { facialHairColour } from '../avatar/tone';
 import {
   BAG_COLOUR,
@@ -135,8 +135,8 @@ function buildHair(look: AvatarLook): THREE.Group {
     o.position.set(x, y, z);
     o.scale.set(sx, sy, sz);
     o.castShadow = true;
-    // The hairstyle itself (hidden when the CC0 model wears its own hair).
-    if (m === hm) o.userData.hairPiece = true;
+    // The low-poly person's: the CC0 model wears its own, fitted (./characterHead.ts).
+    o.userData.procBody = true;
     g.add(o);
     return o;
   };
@@ -469,7 +469,7 @@ export function makeCharacter(
               glasses === 'shades' ? gm : mat('#e2e8f0', { rough: 0.2, opacity: 0.35 }),
             );
       r.position.set(sx * 0.052, 0.215, 0.14);
-      r.userData.acc = true;
+      r.userData.procBody = true;
       head.add(r);
     }
     const b = new THREE.Mesh(
@@ -477,7 +477,7 @@ export function makeCharacter(
       gm,
     );
     b.position.set(0, 0.22, 0.145);
-    b.userData.acc = true;
+    b.userData.procBody = true;
     head.add(b);
   }
   // A cap (Phase 6a headwear, or an outfit's).
@@ -488,17 +488,22 @@ export function makeCharacter(
       cm,
     );
     c.position.y = 0.23;
-    c.userData.acc = true;
+    c.userData.procBody = true;
     head.add(c);
     const brim = new THREE.Mesh(
       geo('brim', () => new THREE.BoxGeometry(0.2, 0.015, 0.14)),
       cm,
     );
     brim.position.set(0, 0.24, 0.17);
-    brim.userData.acc = true;
+    brim.userData.procBody = true;
     head.add(brim);
-    hair.visible =
+    // (Only the low-poly hair: the model's own is fitted under its cap, ./characterHead.ts.)
+    const hangs =
       look.hairStyle === 'long' || look.hairStyle === 'braids' || look.hairStyle === 'locs';
+    for (const o of hair.children) {
+      o.visible = hangs;
+      o.userData.capped = !hangs;
+    }
   }
   // Long tops: a kaftan to the knee, a dress that flares. A man's kaftan is a
   // straight tunic to mid-thigh over his trousers, so it never reads as a dress.
@@ -520,10 +525,11 @@ export function makeCharacter(
     // not a tee): drawn only with the model (the low-poly body has its own above).
     if (tunic) {
       const t = new THREE.Mesh(
-        geo('tunic-cc0', () => new THREE.CylinderGeometry(0.16, 0.24, 0.46, 14, 1, true)),
+        geo('tunic-cc0', () => new THREE.CylinderGeometry(0.16, 0.25, 0.56, 16, 1, true)),
         mat(top, { rough: 0.85, side: THREE.DoubleSide }),
       );
-      t.position.y = 0.0;
+      t.scale.z = 0.9;
+      t.position.set(0, -0.06, 0.05);
       t.castShadow = true;
       t.visible = false;
       t.userData.acc = true;
@@ -566,7 +572,7 @@ export function makeCharacter(
       const e = new THREE.Mesh(SKIN_GEO, mat(SILVER, { rough: 0.2 }));
       e.scale.setScalar(0.014);
       e.position.set(sx * 0.14, 0.16, 0.0);
-      e.userData.acc = true;
+      e.userData.procBody = true;
       head.add(e);
     }
   // A bag on the shoulder (a briefcase is carried and a folio held: ./dressBody).
@@ -858,6 +864,63 @@ function pocketSquare(b: Body, colour: string) {
   b.torso.add(sq);
 }
 
+/**
+ * The CC0 woman's top is a tee: a hoodie's hood bunched on her shoulders, its
+ * drawstrings and its pocket are worn over it (drawn only with the model).
+ */
+function modelHoodie(b: Body, top: string) {
+  const hm = mat(top, { rough: 0.95 });
+  const parts: THREE.Mesh[] = [];
+  const ring = new THREE.Mesh(
+    geo('m-hood-ring', () => new THREE.TorusGeometry(0.075, 0.03, 8, 20)),
+    hm,
+  );
+  ring.rotation.x = Math.PI / 2 - 0.3;
+  ring.position.set(0, HOOD.ringY, HOOD.ringZ);
+  parts.push(ring);
+  const hood = new THREE.Mesh(
+    geo('m-hood', () => new THREE.SphereGeometry(0.1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2)),
+    hm,
+  );
+  hood.scale.set(1.05, 0.75, 0.5);
+  hood.rotation.x = HOOD.hoodRot;
+  hood.position.set(0, HOOD.hoodY, HOOD.hoodZ);
+  parts.push(hood);
+  const sm = mat('#f1f5f9', { rough: 0.7 });
+  for (const sx of [-1, 1]) {
+    const d = new THREE.Mesh(
+      geo('m-string', () => new THREE.CylinderGeometry(0.005, 0.005, 0.12, 5)),
+      sm,
+    );
+    d.position.set(sx * 0.028, HOOD.stringY, HOOD.stringZ);
+    d.rotation.x = -0.25;
+    parts.push(d);
+    const tip = new THREE.Mesh(
+      geo('m-string-tip', () => new THREE.SphereGeometry(0.009, 6, 4)),
+      sm,
+    );
+    tip.position.set(sx * 0.028, HOOD.stringY - 0.062, HOOD.stringZ + 0.016);
+    parts.push(tip);
+  }
+  for (const p of parts) {
+    p.castShadow = true;
+    p.visible = false;
+    p.userData.acc = true;
+    p.userData.modelOnly = true;
+    b.torso.add(p);
+  }
+}
+/** Where the hood sits on the CC0 woman (torso space: her neck is at y 0.46, z 0.07). */
+const HOOD = {
+  ringY: 0.45,
+  ringZ: 0.065,
+  hoodY: 0.43,
+  hoodZ: -0.0,
+  hoodRot: -1.25,
+  stringY: 0.375,
+  stringZ: 0.155,
+};
+
 /** The top's layers by style, the tie, and a bag carried in the hand or under the arm. */
 function dressBody(look: AvatarLook, b: Body) {
   const top = look.top;
@@ -967,6 +1030,7 @@ function dressBody(look: AvatarLook, b: Body) {
       hem.position.y = -0.03;
       b.torso.add(hem);
       sleeves(b, top, rib);
+      if (b.female) modelHoodie(b, top);
       break;
     }
     case 'shirt': {
@@ -1045,54 +1109,6 @@ function dressBody(look: AvatarLook, b: Body) {
     f.userData.acc = true;
     b.foreL.add(f);
   }
-}
-
-/** An afro: a lumpy sphere (deterministic bumps), pulled back clear of the face. */
-function afroGeometry(): THREE.BufferGeometry {
-  const g = new THREE.SphereGeometry(0.2, 22, 16);
-  const p = g.getAttribute('position') as THREE.BufferAttribute;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < p.count; i++) {
-    v.fromBufferAttribute(p, i);
-    const n =
-      Math.sin(v.x * 41 + v.y * 13) * Math.sin(v.z * 37 - v.y * 29) * Math.cos(v.x * 23 + v.z * 17);
-    v.multiplyScalar(1 + n * 0.07);
-    // The face: below the brow and in front, the hair is pushed back to the hairline.
-    if (v.z > 0.06 && v.y < 0.06) v.z = 0.06 + (v.z - 0.06) * 0.25;
-    p.setXYZ(i, v.x, v.y, v.z);
-  }
-  g.computeVertexNormals();
-  return g;
-}
-
-/** Twists: tapered cones over the crown and sides, along the head's normal, clear of the face. */
-function twistsGeometry(): THREE.BufferGeometry {
-  const parts: THREE.BufferGeometry[] = [];
-  const up = new THREE.Vector3(0, 1, 0);
-  const q = new THREE.Quaternion();
-  for (let i = 0; i < 70; i++) {
-    // A spiral over the upper head.
-    const y = 1 - ((i + 0.5) / 70) * 1.15;
-    const r = Math.sqrt(Math.max(0, 1 - y * y));
-    const a = i * 2.39996;
-    const n = new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
-    if (n.y < -0.1 || (n.z > 0.45 && n.y < 0.55)) continue;
-    const len = 0.035 + ((i * 7) % 5) * 0.007;
-    const c = new THREE.CapsuleGeometry(0.021, len, 2, 6);
-    c.translate(0, len / 2, 0);
-    // Droop: tilt towards down at the back and sides.
-    const dir = n
-      .clone()
-      .add(new THREE.Vector3(0, -0.6, 0))
-      .normalize();
-    q.setFromUnitVectors(up, dir);
-    c.applyQuaternion(q);
-    c.translate(n.x * 0.14, n.y * 0.15 + 0.005, n.z * 0.145 - 0.005);
-    parts.push(c.toNonIndexed());
-  }
-  const g = mergeGeometries(parts, false)!;
-  g.computeVertexNormals();
-  return g;
 }
 
 /** Swap a person's hair (a haircut). */

@@ -10,6 +10,8 @@
  * every material of a part is named in the kit (Skin, Hair, Suit, White…).
  */
 import { legsColour, shoeColour, SHIRT_WHITE, BLOUSE_IVORY, TIE_COLOUR } from '../../avatar/worn';
+import { facialHairColour } from '../../avatar/tone';
+import type { FaceHair } from './face';
 
 export interface OutfitLook {
   skin: string;
@@ -20,6 +22,7 @@ export interface OutfitLook {
   gender?: 'female' | 'male';
   topStyle?: string;
   headwear?: string;
+  facialHair?: string;
   accessory?: string;
   shoes?: string;
   legs?: string;
@@ -40,10 +43,26 @@ export interface Outfit {
   modelHair: boolean;
   /** `${node}/${material}` → colour (#rrggbb). Materials not listed keep the kit's colour. */
   colours: Record<string, string>;
+  /** Facial hair grown on the head's jaw (./face.ts), and its colour. */
+  facialHair?: { style: FaceHair; colour: string };
+  /** Close-cropped hair grown over the bare head (under a hat, a buzz cut, under twists): its colour. */
+  scalp?: string;
 }
+
+const FACE_HAIR = new Set<string>(['beard', 'stubble', 'moustache', 'goatee']);
 
 /** Hairstyles the kit's heads have no match for: drawn by our own hair over a bare head. */
 export const OWN_HAIR = new Set(['afro', 'twists', 'bald']);
+/**
+ * And per kit, styles its heads only roughly match: a man's bun, braids and
+ * locs (the kit's nearest is slicked-back hair), a woman's buzz cut, braids
+ * and locs (the nearest is a bob): our own hair, fitted to the bare head
+ * (../../interiors3d/characterHead.ts).
+ */
+const OWN_HAIR_KIT: Record<Kit, ReadonlySet<string>> = {
+  men: new Set(['bun', 'braids', 'locs']),
+  women: new Set(['buzz', 'braids', 'locs']),
+};
 
 /** The kit's head for a hairstyle (its own hair shown), per kit. */
 const HAIR_HEAD: Record<Kit, Record<string, string>> = {
@@ -150,7 +169,8 @@ export function outfitFor(look: OutfitLook, opts: { ownHair?: boolean } = {}): O
 
   // Head: the hairstyle's head; headwear or a style the kit hasn't got: our own hair.
   const headwear = (look.headwear && look.headwear !== 'none') || look.accessory === 'cap';
-  const own = ownHair && (OWN_HAIR.has(look.hairStyle) || headwear);
+  const own =
+    ownHair && (OWN_HAIR.has(look.hairStyle) || OWN_HAIR_KIT[kit].has(look.hairStyle) || headwear);
   const headOutfit = HAIR_HEAD[kit][look.hairStyle] ?? HAIR_HEAD[kit].short!;
   const modelHair = !own && look.hairStyle !== 'bald';
 
@@ -164,8 +184,9 @@ export function outfitFor(look: OutfitLook, opts: { ownHair?: boolean } = {}): O
         ? 'Suit'
         : legsWorn
           ? 'Casual2'
-          : suit
-            ? 'Suit'
+          : suit || style === 'kaftan'
+            ? // (A kaftan, an agbada, over trousers: never shorts under it.)
+              'Suit'
             : shoes === 'flipflops' || shoes === 'sandals'
               ? 'Beach'
               : 'Casual2';
@@ -243,5 +264,18 @@ export function outfitFor(look: OutfitLook, opts: { ownHair?: boolean } = {}): O
       colours[`${body}/Tie`] = tie ?? SHIRT_WHITE;
     }
   }
-  return { kit, head, body, legs, feet, modelHair, colours };
+  const out: Outfit = { kit, head, body, legs, feet, modelHair, colours };
+  const facial = look.facialHair ?? 'none';
+  if (FACE_HAIR.has(facial)) {
+    // Hair, darker than the skin (../../avatar/tone.ts); stubble is the skin a shade darker.
+    const fc = facialHairColour(skin, hair);
+    out.facialHair = {
+      style: facial as FaceHair,
+      colour: facial === 'stubble' ? mix(skin, fc, 0.42) : mix(fc, '#3b2a1e', 0.16),
+    };
+  }
+  // Our own hair over the bare head: close-cropped hair under it (not under a wrap or a gele).
+  const covered = look.headwear === 'headwrap' || look.headwear === 'gele';
+  if (own && look.hairStyle !== 'bald' && !covered) out.scalp = hair;
+  return out;
 }

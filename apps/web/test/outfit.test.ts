@@ -105,4 +105,30 @@ describe('a look as the CC0 modular people', () => {
     expect(outfitFor(l).colours['Casual_Head/Hair_Brown']).toBe(mix('#e2c290', '#140d08', 0.55));
     expect(mix('#000000', '#ffffff', 0.5)).toBe('#808080');
   });
+
+  it('facial hair is grown on the head in a hair colour darker than the skin; stubble is a darker skin', () => {
+    const beard = outfitFor({ ...base, facialHair: 'beard' }).facialHair!;
+    expect(beard.style).toBe('beard');
+    const stubble = outfitFor({ ...base, skin: '#c68642', facialHair: 'stubble' }).facialHair!;
+    expect(stubble.style).toBe('stubble');
+    // Between the skin and the hair: a shadow, not a mask.
+    expect(stubble.colour).not.toBe('#c68642');
+    expect(outfitFor({ ...base, facialHair: 'none' }).facialHair).toBeUndefined();
+  });
+
+  it('our own hair gets close-cropped hair under it (not under a wrap), per kit styles', () => {
+    expect(outfitFor({ ...base, headwear: 'cap' }).scalp).toBe(base.hair);
+    expect(outfitFor({ ...base, headwear: 'gele' }).scalp).toBeUndefined();
+    expect(outfitFor({ ...base, hairStyle: 'bald' }).scalp).toBeUndefined();
+    expect(outfitFor({ ...base, hairStyle: 'short' }).scalp).toBeUndefined();
+    // The kit's heads have no bun, braids or locs for men, no buzz cut for women.
+    for (const hairStyle of ['bun', 'braids', 'locs'])
+      expect(outfitFor({ ...base, hairStyle }).modelHair, hairStyle).toBe(false);
+    expect(outfitFor({ ...base, gender: 'female', hairStyle: 'buzz' }).modelHair).toBe(false);
+    expect(outfitFor({ ...base, gender: 'female', hairStyle: 'bun' }).modelHair).toBe(true);
+  });
+
+  it('a man in a kaftan wears trousers under it, even in sandals', () => {
+    expect(outfitFor({ ...base, topStyle: 'kaftan', shoes: 'sandals' }).legs).toBe('Suit_Legs');
+  });
 });

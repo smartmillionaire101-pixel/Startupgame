@@ -15,13 +15,17 @@
  *
  * The low-poly body is then hidden, and its joints are moved onto the model's
  * bones (their world matrices), so whatever hangs on them still sits right:
- * hair the kit hasn't got (an afro, locs, a gele), glasses, a cap, a
- * necklace, a bag, a mic or a glass in the hand. Until the kit has arrived,
+ * a necklace, a bag, a mic or a glass in the hand. What goes on the head is
+ * made for the model's own head instead (./characterHead.ts: hats, a gele,
+ * glasses, our own hair where the kit has none, lips), and facial hair is
+ * grown on its skin (../three-kit/humans/face.ts); the low-poly versions are
+ * hidden with the low-poly body. Until the kit has arrived,
  * or if it fails, the low-poly person is simply drawn as before.
  */
 import * as THREE from 'three';
 import { Human, kitNow, AIMED, type AimedBone } from '../three-kit/humans/kit';
 import { outfitFor } from '../three-kit/humans/outfit';
+import { buildModelHead } from './characterHead';
 import { softwareGl } from '../three-kit/quality';
 import type { Character, PoseId } from './character';
 
@@ -191,18 +195,31 @@ export function attachModel(c: Character, restPose: (c: Character) => void) {
         st.human = null;
       }
       STATE.delete(c);
-      show(c, true, true);
+      show(c, true);
     }
   };
 }
 
-/** Show or hide the low-poly body (and its hair when the model wears its own). */
-function show(c: Character, body: boolean, hair: boolean) {
+/** Show the low-poly body (its hair, hats, glasses…) or the model and what is fitted to it. */
+function show(c: Character, body: boolean) {
   c.body.traverse((o) => {
-    if (o.userData.procBody) o.visible = body;
-    else if (o.userData.hairPiece) o.visible = hair;
+    if (o.userData.procBody) o.visible = body && !o.userData.capped;
     else if (o.userData.modelOnly) o.visible = !body;
   });
+}
+
+/** The parts fitted to the model's head (./characterHead.ts), on the hair group. */
+function fitHead(c: Character, h: Human) {
+  for (const o of [...c.hair.children]) if (o.userData.modelHead) o.removeFromParent();
+  const fit = h.kit.fit.get(h.outfit.head);
+  if (!fit) return;
+  const g = buildModelHead(c.look, fit, {
+    ownHair: !h.outfit.modelHair,
+    facialColour: h.outfit.facialHair?.colour,
+  });
+  g.userData.modelHead = true;
+  g.traverse((o) => (o.userData.character = c.id));
+  c.hair.add(g);
 }
 
 function measureRest(c: Character, restPose: (c: Character) => void) {
@@ -272,7 +289,8 @@ function build(c: Character, st: State, restPose: (c: Character) => void) {
     offsets.set(k, off);
   }
   st.offsets = offsets;
-  show(c, false, !h.outfit.modelHair);
+  fitHead(c, h);
+  show(c, false);
   h.object.updateMatrixWorld(true);
   return true;
 }

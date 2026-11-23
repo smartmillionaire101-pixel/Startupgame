@@ -21,6 +21,16 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { hairMaterial, type Kit, type Outfit } from './outfit';
+import {
+  faceGrow,
+  headPoints,
+  measureHead,
+  scalpGrow,
+  shellGeometry,
+  shellMaterial,
+  type HeadFit,
+  type HeadFrame,
+} from './face';
 
 /** How tall a person stands (metres), as the game's own people are. */
 export const PERSON_HEIGHT = 1.75;
@@ -36,6 +46,9 @@ export interface KitData {
   refWorld: Map<string, THREE.Matrix4>;
   /** Each head's skull in its Head bone's space: centre and half width (kit units). */
   skull: Map<string, { c: THREE.Vector3; r: number }>;
+  /** Each head's frame (bone space → the person's head frame) and its features there (./face.ts). */
+  frames: Map<string, HeadFrame>;
+  fit: Map<string, HeadFit>;
 }
 
 const base = (): string => {
@@ -169,7 +182,62 @@ function prepare(kit: Kit, scene: THREE.Group, animations: THREE.AnimationClip[]
     if (eye && !eye.isEmpty()) c.y = eye.getCenter(v).y - (0.015 / 0.142) * r;
     skull.set(node, { c, r });
   }
-  return { kit, scene, clips, scale, refLocal, refWorld, skull };
+  // Each head measured in the person's head frame: hats, glasses and hair are made to fit it.
+  const frames = new Map<string, HeadFrame>();
+  const fit = new Map<string, HeadFit>();
+  const q = new THREE.Quaternion();
+  refWorld.get('Head')?.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+  for (const [node, sk] of skull) frames.set(node, { c: sk.c, k: sk.r / 0.142, q });
+  const parts = new Map<
+    string,
+    { skin: Float32Array[]; eyes: Float32Array[]; brows: Float32Array[] }
+  >();
+  scene.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (!m.isSkinnedMesh) return;
+    const node = nodeOf(m);
+    const frame = frames.get(node);
+    const head = m.skeleton.bones.findIndex((b) => b.name === 'Head');
+    if (!frame || head < 0) return;
+    const mat = (m.material as THREE.Material).name;
+    const kind = SKIN_MATS.has(mat)
+      ? 'skin'
+      : mat === 'Eye' || mat === 'Brown'
+        ? 'eyes'
+        : mat === 'Eyebrows' || mat === 'Hair_Brown'
+          ? 'brows'
+          : null;
+    if (!kind) return;
+    const p = parts.get(node) ?? { skin: [], eyes: [], brows: [] };
+    p[kind].push(headPoints(m, head, frame));
+    parts.set(node, p);
+  });
+  for (const [node, p] of parts)
+    if (p.skin.length) fit.set(node, measureHead(p.skin, p.eyes, p.brows));
+  return { kit, scene, clips, scale, refLocal, refWorld, skull, frames, fit };
+}
+
+/** A head's skin (Casual2's jaw is a darker skin of its own). */
+const SKIN_MATS = new Set(['Skin', 'Skin_Darker']);
+
+/** Hair grown on the heads (./face.ts), made once per kit, head, skin part and style. */
+const SHELLS = new WeakMap<KitData, Map<string, THREE.BufferGeometry | null>>();
+function shell(kit: KitData, node: string, m: THREE.SkinnedMesh, what: string) {
+  let byKit = SHELLS.get(kit);
+  if (!byKit) SHELLS.set(kit, (byKit = new Map()));
+  const key = `${node}|${(m.material as THREE.Material).name}|${what}`;
+  if (byKit.has(key)) return byKit.get(key)!;
+  const frame = kit.frames.get(node);
+  const fit = kit.fit.get(node);
+  const head = m.skeleton.bones.findIndex((b) => b.name === 'Head');
+  let g: THREE.BufferGeometry | null = null;
+  if (frame && fit && head >= 0) {
+    const grow =
+      what === 'scalp' ? scalpGrow(fit) : faceGrow(fit, what as Parameters<typeof faceGrow>[1]);
+    g = shellGeometry(m, head, frame, grow);
+  }
+  byKit.set(key, g);
+  return g;
 }
 
 /** The kit node (Suit_Body…) a skinned mesh belongs to. */
@@ -266,6 +334,35 @@ export class Human {
       this.meshes.push(m);
     });
     for (const d of drop) d.removeFromParent();
+    // Hair grown on the head: facial hair, close-cropped hair under a hat (./face.ts).
+    const grown: [string, string, 'hair' | 'stubble'][] = [];
+    // (A moustache is shaped over the lip instead: ../../interiors3d/characterHead.ts.)
+    if (outfit.facialHair && outfit.facialHair.style !== 'moustache')
+      grown.push([
+        outfit.facialHair.style,
+        outfit.facialHair.colour,
+        outfit.facialHair.style === 'stubble' ? 'stubble' : 'hair',
+      ]);
+    if (outfit.scalp) grown.push(['scalp', outfit.scalp, 'hair']);
+    for (const src of [...this.meshes]) {
+      if (nodeOf(src) !== outfit.head || !SKIN_MATS.has((src.material as THREE.Material).name))
+        continue;
+      for (const [what, colour, kind] of grown) {
+        const g = shell(kit, outfit.head, src, what);
+        if (!g) continue;
+        const m = new THREE.SkinnedMesh(g, shellMaterial(colour, kind));
+        m.name = `${outfit.head}_${what}`;
+        m.position.copy(src.position);
+        m.quaternion.copy(src.quaternion);
+        m.scale.copy(src.scale);
+        m.bind(src.skeleton, src.bindMatrix);
+        m.castShadow = kind === 'hair';
+        m.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 3);
+        m.userData.character = id;
+        src.parent?.add(m);
+        this.meshes.push(m);
+      }
+    }
     // Empty part groups go too.
     for (const c of [...(model.getObjectByName('CharacterArmature')?.children ?? [])])
       if (!(c as THREE.Bone).isBone && c.children.length === 0 && !(c as THREE.Mesh).isMesh)
