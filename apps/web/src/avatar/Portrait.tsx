@@ -39,6 +39,18 @@ function ShapeEl({ s }: { s: Shape }) {
   );
 }
 
+/** The flat portrait's shapes (in its 100 × 100 box), back to front. */
+export function PortraitShapes({ look }: { look: AvatarLook }) {
+  const shapes = useMemo(() => portraitShapes(look), [look]);
+  return (
+    <>
+      {shapes.map((s, i) => (
+        <ShapeEl key={i} s={s} />
+      ))}
+    </>
+  );
+}
+
 /** The portrait of a look. `size` in CSS pixels (or any CSS length). */
 export const PortraitOf = memo(function PortraitOf({
   look,
@@ -52,7 +64,6 @@ export const PortraitOf = memo(function PortraitOf({
   /** Read out by screen readers; without it the portrait is decoration. */
   label?: string;
 }) {
-  const shapes = useMemo(() => portraitShapes(look), [look]);
   return (
     <svg
       className={`portrait${className ? ` ${className}` : ''}`}
@@ -66,9 +77,7 @@ export const PortraitOf = memo(function PortraitOf({
     >
       {/* Round by CSS (border-radius), so many portraits on a page share no ids. */}
       <rect className="portrait-bg" x="0" y="0" width="100" height="100" />
-      {shapes.map((s, i) => (
-        <ShapeEl key={i} s={s} />
-      ))}
+      <PortraitShapes look={look} />
     </svg>
   );
 });

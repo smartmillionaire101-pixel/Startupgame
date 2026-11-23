@@ -19,7 +19,8 @@ import {
   fitAppearance,
   type Appearance,
 } from '@runway/engine';
-import { AvatarFigure, lookFromAppearance } from '../city/art';
+import { lookFromAppearance } from '../city/art';
+import { PersonSprite } from '../city/PersonSprite';
 import { t } from '../i18n';
 import { Button } from '../ui';
 import { PortraitOf } from './Portrait';
@@ -257,7 +258,7 @@ export function Creator({
             height="94"
             aria-hidden="true"
           >
-            <AvatarFigure look={look} />
+            <PersonSprite look={look} />
           </svg>
         </Look3D>
       </div>

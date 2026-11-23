@@ -15,7 +15,8 @@
 import { useMemo, useState } from 'react';
 import type { Command, MallShopId, Removable } from '@runway/engine';
 import { REMOVABLE, roleOutfit, type RoleOutfit } from '@runway/engine';
-import { AvatarFigure, avatarLook, drawnGender, type AvatarLook } from '../city/art';
+import { avatarLook, drawnGender, type AvatarLook } from '../city/art';
+import { PersonSprite } from '../city/PersonSprite';
 import { Look3D } from './Look3D';
 import { useLookVersion } from '../city/acts/look';
 import { genderOf } from '../city/life';
@@ -87,20 +88,9 @@ const asItem = (e: WardrobeItemView) => ({
     : {}),
 });
 
-/** A small figure of a look (feet at the bottom). */
+/** A small figure of a look (feet at the bottom): the 3D person's picture, the 2D figure until it's ready. */
 function Figure({ look, size, label }: { look: AvatarLook; size: number; label?: string }) {
-  return (
-    <svg
-      viewBox="-16 -48 32 50"
-      width={size * 0.64}
-      height={size}
-      role={label ? 'img' : undefined}
-      aria-label={label}
-      aria-hidden={label ? undefined : true}
-    >
-      <AvatarFigure look={look} />
-    </svg>
-  );
+  return <PersonSprite html look={look} height={size} label={label} />;
 }
 
 /** Your purchases, in a sheet (from the mall or Me). */

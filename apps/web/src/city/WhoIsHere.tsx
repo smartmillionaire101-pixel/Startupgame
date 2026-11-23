@@ -25,7 +25,7 @@ import { useView } from '../store';
 import { Button, Sheet } from '../ui';
 import { avatarLook } from './art';
 import { useLookVersion } from './acts/look';
-import { PortraitOf } from '../avatar/Portrait';
+import { PersonPortraitOf } from '../avatar/PersonPortrait';
 import { angelsOf, businessesOf, hash } from './contract';
 import type { CityLayout, Place } from './layout';
 import { angelsAtOf, cityAngelsOf, looseCmd, lunchVenueOf, lunchVenues } from './life';
@@ -274,7 +274,7 @@ function Face({ p, size = 40 }: { p: PersonHere; size?: number }) {
   const v = useLookVersion();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- v: a saved look changed
   const look = useMemo(() => lookOf(p), [p, v]);
-  return <PortraitOf look={look} size={size} className={`who-face who-${p.kind}`} />;
+  return <PersonPortraitOf look={look} size={size} className={`who-face who-${p.kind}`} />;
 }
 
 /** The id `venue.buy` takes for a guest: a player, a fund, or one of your contacts. */
