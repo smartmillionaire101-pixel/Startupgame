@@ -48,7 +48,8 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { openPhone, type PhoneOpen } from '../phone/bus';
 import { HudButton, HudRail } from '../ui';
-import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
+import { avatarLook, type AvatarLook } from '../city/art';
+import { PersonSprite } from '../city/PersonSprite';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, shopOf, storeForSlot } from '../city/life';
 import type { SceneProps } from '../city/PlaceScene';
@@ -1930,8 +1931,12 @@ export function HomeScene({
               fill="#000"
               opacity="0.16"
             />
-            <g className="city-avatar">
-              <AvatarFigure look={p.look} />
+            {/* Standing (or walking), and sitting: the pose shows the one that fits (home.css). */}
+            <g className="city-avatar home-fig-stand">
+              <PersonSprite look={p.look} angle="three-quarter" flip shadow={false} />
+            </g>
+            <g className="home-fig-sit">
+              <PersonSprite look={p.look} pose="sit" angle="three-quarter" flip shadow={false} />
             </g>
             {/* Round 7e: lying down (Lite): under the covers, the head on the pillow. */}
             <g className="home-covers" aria-hidden="true">

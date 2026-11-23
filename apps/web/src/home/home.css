@@ -137,6 +137,14 @@
 .home-person {
   pointer-events: none;
 }
+/* The sprite drawn for the pose: standing (and walking, lying) or sitting. */
+.home-fig-sit,
+.home-person[data-pose='sit'] .home-fig-stand {
+  visibility: hidden;
+}
+.home-person[data-pose='sit'] .home-fig-sit {
+  visibility: visible;
+}
 .home-person[data-pose='sit'] .city-leg,
 .home-person[data-pose='lie'] .city-leg {
   display: none;
