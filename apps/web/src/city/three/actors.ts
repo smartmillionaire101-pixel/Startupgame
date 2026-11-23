@@ -635,9 +635,16 @@ export class Actors {
       const rx = v.x - this.pos.x;
       const ry = v.y - this.pos.y;
       const along = rx * hx + ry * hy;
-      const blocks =
-        behind > 0 && along < 0 && along > -behind && Math.abs(rx * hy - ry * hx) < 2.6;
-      if (v.e < 0 || blocks) _s.set(0, 0, 0);
+      const across = Math.abs(rx * hy - ry * hx);
+      const blocks = behind > 0 && along < 0 && along > -behind && across < 2.6;
+      // Nor anything where your own vehicle is (the trip runs faster than the
+      // traffic can get out of its way): never drawn through it.
+      const len = v.kind === 'bus' ? (this.busHalf[j] ?? 5) * 2 : LIGHT_AT[v.kind].half * 2 + 0.4;
+      const clips =
+        this.lane > 0 &&
+        Math.abs(along) < ((this.rideLen + len) / 2 + 0.6) * vs &&
+        across < 2.3 * vs;
+      if (v.e < 0 || blocks || clips) _s.set(0, 0, 0);
       else if (v.kind === 'bus' && this.doubleDecker) _s.set(vs, vs * 1.6, vs);
       else _s.set(vs, vs, vs);
       _q.setFromAxisAngle(_up, -Math.atan2(v.dy, v.dx));

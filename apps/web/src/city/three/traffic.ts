@@ -282,7 +282,7 @@ export interface Focus {
   hy?: number;
 }
 
-/** You, on the road: traffic behind you slows down and waits. */
+/** You, on the road: traffic behind you (or level with you) slows down and waits. */
 export interface Obstacle {
   x: number;
   y: number;
@@ -754,7 +754,9 @@ export class TrafficSim {
         const ry = you.y - v.y;
         const along = rx * v.dx + ry * v.dy;
         const across = Math.abs(-rx * v.dy + ry * v.dx);
-        if (along > 0 && along < 30 && across < 2.6) {
+        // (Alongside you too: one level with you holds back and lets you by,
+        // instead of driving through you.)
+        if (along > -(LENGTH[v.kind] / 2) * this.size && along < 30 && across < 2.6) {
           const gap = along - (LENGTH[v.kind] / 2) * this.size - 4.5;
           want = Math.min(want, Math.max(0, gap * 0.8));
           room = Math.min(room, gap);
