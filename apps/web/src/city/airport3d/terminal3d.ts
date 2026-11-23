@@ -234,7 +234,7 @@ export class TerminalWorld {
     this.root.add(this.me.root);
     // You stand out: "You" over your head, a soft ring at your feet.
     this.youTag = this.nameTag('You', 'rgba(15,118,110,0.92)', '#ffffff');
-    this.youTag.scale.set(0.5, 0.16, 1);
+    this.youTag.scale.set(0.62, 0.2, 1);
     this.me.root.add(this.youTag);
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.34, 0.43, 40).rotateX(-Math.PI / 2),
