@@ -14,7 +14,7 @@ import type { PoseId } from '../../interiors3d/character';
 import { webglAvailable } from '../quality';
 
 /** Bump when the pictures would come out differently (lighting, framing, models). */
-export const SPRITE_VERSION = 1;
+export const SPRITE_VERSION = 2;
 
 /** Every pose the 3D person has (../../interiors3d/character.ts `pose`). */
 export type SpritePose = PoseId;
@@ -74,6 +74,17 @@ export interface SpriteSpec {
  * its figures in, so a sprite drops in where the 2D figure was.
  */
 export const FRAME = { x: -16, y: -48, w: 32, h: 50 } as const;
+/**
+ * Poses whose hands go above the head or out to the side (cheering, dancing,
+ * a singer's arm): drawn in a bigger box, `REACH_FRAME`, with the same feet
+ * and the same scale, so the person is exactly where and as big as in
+ * `FRAME`; only the hands overflow it (callers let SVG overflow show).
+ */
+export const REACH_POSES: ReadonlySet<SpritePose> = new Set<SpritePose>(['cheer', 'dance', 'sing']);
+export const REACH_FRAME = { x: -25, y: -60, w: 50, h: 62 } as const;
+/** The box a pose's picture covers (feet at 0,0, AvatarFigure units). */
+export const frameFor = (pose: SpritePose) => (REACH_POSES.has(pose) ? REACH_FRAME : FRAME);
+
 /** AvatarFigure units per metre (a 1.75 m person stands 38 tall). */
 export const UNITS_PER_M = 38 / 1.75;
 

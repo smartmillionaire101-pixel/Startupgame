@@ -34,7 +34,12 @@
  * the person is foreshortened, feet still at the anchor).
  *
  * The frame is `FRAME` (x -16..16, y -48..2, the wardrobe's figure box): a
- * person 1.75 m tall stands 38 units, like AvatarFigure.
+ * person 1.75 m tall stands 38 units, like AvatarFigure. Poses that reach
+ * up or out (cheer, dance, sing: `REACH_POSES`) draw a bigger picture,
+ * `REACH_FRAME` (x -25..25, y -60..2), at the same place and scale: the body
+ * is where it always is, the raised hands overflow `FRAME` by up to 12
+ * units above and 6 each side, so give those poses room (the HTML box lets
+ * them overflow; inside an SVG, leave room or let it overflow).
  *
  * ## Fallback
  *
@@ -46,8 +51,10 @@
  * lazily (when the element nears the screen), one at a time, and kept (an LRU
  * this session, CacheStorage across visits): ../three-kit/humans/spriteCache.ts.
  *
- * Look fields: skin, hair colour and style (the kit's heads; afro, twists
- * and headwear are the game's own hair over the model's head), facial hair,
+ * Look fields: skin, hair colour and style (the kit's heads; an afro,
+ * twists, a man's bun, braids and locs, a woman's buzz cut, and hair under
+ * headwear are the game's own hair fitted to the model's head), facial hair
+ * (grown on the jaw, lips left bare),
  * glasses, headwear, top style (tee, hoodie, shirt, blazer, suit, dress,
  * kaftan as the kit's nearest outfit, recoloured), top and bottom colours,
  * legs (jeans, chinos), shoes, tie, watch, necklace, earrings, scarf, belt
@@ -59,7 +66,13 @@ import { useRef } from 'react';
 import { AvatarFigure, type AvatarLook } from './art';
 import { SeatedFigure } from './acts/figure';
 import { useSprite } from '../three-kit/humans/useSprite';
-import { FRAME, SEATED, type SpriteAngle, type SpritePose } from '../three-kit/humans/spriteCache';
+import {
+  FRAME,
+  SEATED,
+  frameFor,
+  type SpriteAngle,
+  type SpritePose,
+} from '../three-kit/humans/spriteCache';
 
 export type { SpriteAngle, SpritePose } from '../three-kit/humans/spriteCache';
 export { SPRITE_POSES } from '../three-kit/humans/spriteCache';
@@ -122,6 +135,7 @@ function SpriteG({
   className,
 }: PersonSpriteProps) {
   const frame = useRef<SVGRectElement>(null);
+  const pic = frameFor(pose);
   const { url, state } = useSprite(
     { kind: 'body', look, pose, angle, phase, ...(height ? { cssPx: height } : {}) },
     frame,
@@ -152,10 +166,10 @@ function SpriteG({
       {url && (
         <image
           href={url}
-          x={FRAME.x}
-          y={FRAME.y}
-          width={FRAME.w}
-          height={FRAME.h}
+          x={pic.x}
+          y={pic.y}
+          width={pic.w}
+          height={pic.h}
           preserveAspectRatio="none"
           transform={flip ? 'scale(-1 1)' : undefined}
           role={label ? 'img' : undefined}

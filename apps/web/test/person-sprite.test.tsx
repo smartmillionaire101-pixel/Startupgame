@@ -11,6 +11,8 @@ import { PersonPortraitOf } from '../src/avatar/PersonPortrait';
 import {
   FRAME,
   Lru,
+  REACH_FRAME,
+  frameFor,
   RenderQueue,
   bucketPx,
   createSpriteSource,
@@ -265,5 +267,18 @@ describe('fallback (no WebGL in tests)', () => {
     expect(svg.getAttribute('aria-label')).toBe('Ade');
     expect(svg.querySelector('[data-part="face"]')).not.toBeNull();
     expect(svg.querySelector('image')).toBeNull();
+  });
+});
+
+describe('poses that reach', () => {
+  it('cheer, dance and sing get a bigger box with the same feet and scale', () => {
+    for (const p of ['cheer', 'dance', 'sing'] as const) expect(frameFor(p)).toBe(REACH_FRAME);
+    expect(frameFor('stand')).toBe(FRAME);
+    expect(frameFor('wave')).toBe(FRAME);
+    // The feet line is the same, and it contains the standing box.
+    expect(REACH_FRAME.y + REACH_FRAME.h).toBe(FRAME.y + FRAME.h);
+    expect(REACH_FRAME.x).toBeLessThan(FRAME.x);
+    expect(REACH_FRAME.y).toBeLessThan(FRAME.y);
+    expect(REACH_FRAME.x + REACH_FRAME.w / 2).toBe(0);
   });
 });

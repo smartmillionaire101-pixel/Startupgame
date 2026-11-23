@@ -27,6 +27,7 @@ import { outfitFor } from './outfit';
 import {
   FRAME,
   SEATED,
+  frameFor,
   UNITS_PER_M,
   type Rendered,
   type SpriteAngle,
@@ -169,23 +170,25 @@ export async function renderSprite(spec: SpriteSpec): Promise<Rendered | null> {
     );
     let camera: THREE.Camera;
     let w: number;
-    const h = spec.px;
+    // (A pose that reaches out has a bigger box at the same scale: `px` is FRAME's height.)
+    const F = spec.kind === 'body' ? frameFor(spec.pose) : FRAME;
+    const h = Math.round((spec.px * F.h) / FRAME.h);
     let exposure = 1.1;
     if (spec.kind === 'body') {
-      // Exactly FRAME (AvatarFigure units) round the feet at the origin.
+      // Exactly the pose's frame (AvatarFigure units) round the feet at the origin.
       const o = r.ortho;
       const m = 1 / UNITS_PER_M;
-      o.left = FRAME.x * m;
-      o.right = (FRAME.x + FRAME.w) * m;
-      o.top = -FRAME.y * m;
-      o.bottom = -(FRAME.y + FRAME.h) * m;
+      o.left = F.x * m;
+      o.right = (F.x + F.w) * m;
+      o.top = -F.y * m;
+      o.bottom = -(F.y + F.h) * m;
       o.position.copy(dir).multiplyScalar(6);
       o.up.set(0, 1, 0);
       o.lookAt(0, 0, 0);
       o.updateProjectionMatrix();
       o.updateMatrixWorld();
       camera = o;
-      w = Math.round((h * FRAME.w) / FRAME.h);
+      w = Math.round((h * F.w) / F.h);
       light(r, view.az, new THREE.Vector3(0, SEATED.has(spec.pose) ? 0.7 : 0.95, 0));
     } else {
       // Head and shoulders, framed on the model's head bone (the base of the skull):
@@ -197,13 +200,15 @@ export async function renderSprite(spec: SpriteSpec): Promise<Rendered | null> {
       const skull = headBone
         ? headBone.getWorldPosition(new THREE.Vector3())
         : c.head.localToWorld(new THREE.Vector3(0, 0.05, 0));
-      const span = PORTRAIT_SPAN;
+      // A gele stands tall over the head: a little more room above for its fan.
+      const tall = spec.look.headwear === 'gele';
+      const span = PORTRAIT_SPAN * (tall ? 1.12 : 1);
       const p = r.persp;
       p.aspect = 1;
       const az = 0.38;
       const pdir = new THREE.Vector3(Math.sin(az), 0.06, Math.cos(az)).normalize();
       const dist = span / 2 / Math.tan((p.fov * Math.PI) / 360);
-      const target = skull.clone().add(new THREE.Vector3(0, PORTRAIT_LIFT, 0));
+      const target = skull.clone().add(new THREE.Vector3(0, PORTRAIT_LIFT + (tall ? 0.05 : 0), 0));
       p.position.copy(target).addScaledVector(pdir, dist);
       p.up.set(0, 1, 0);
       p.lookAt(target);
