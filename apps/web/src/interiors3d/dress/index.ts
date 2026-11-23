@@ -8,6 +8,7 @@ import type { RoomKind } from '../../city/rooms';
 import { offices } from './offices';
 import { funds } from './funds';
 import { shops } from './shops';
+import { halls } from './halls';
 import type { Family } from './types';
 
 const BY_KIND: Partial<Record<RoomKind, Family>> = {
@@ -20,6 +21,9 @@ const BY_KIND: Partial<Record<RoomKind, Family>> = {
   shop: shops,
   appliance: shops,
   furniture: shops,
+  eventhall: halls,
+  lounge: halls,
+  bar: halls,
 };
 
 /** Rooms whose own props (../venues.ts) stay, with the family's added round them. */
