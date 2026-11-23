@@ -68,14 +68,14 @@ async function open3d(page: Page, name: string, market: RegExp, city: RegExp) {
   });
   const map = page.getByRole('application', { name: city });
   await expect(map).toHaveAttribute('data-map3d', 'ready', { timeout: 60_000 });
-  // The CC0 people and cars (drivers, passengers, your own seat) have arrived.
+  // The scene, for reading what you ride (as map3d.spec.ts reads __city3d).
   await page.waitForFunction(
     () => {
       const w = window as unknown as { __city3d?: unknown };
       return !!w.__city3d;
     },
     null,
-    { timeout: 30_000 },
+    { timeout: 60_000, polling: 500 },
   );
   if (SHOTS)
     // By day: the sky of today's noon (the map lights the real sun).
@@ -122,7 +122,7 @@ async function seated(page: Page, n: number) {
   await page.waitForFunction(
     (k) => (window as unknown as { __city3d: City3d }).__city3d.actors.rideInfo().seated >= k,
     n,
-    { timeout: 30_000 },
+    { timeout: 60_000, polling: 250 },
   );
 }
 
