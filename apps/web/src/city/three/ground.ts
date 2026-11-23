@@ -32,7 +32,9 @@ uniform vec3 uSunColor;
 uniform float uNight;
 vec3 skyColor(vec3 d) {
   float y = max(d.y, 0.0);
-  vec3 c = mix(uHorizon, uZenith, pow(y, 0.55));
+  // Twilight (uNight mid-way): a narrower horizon band under a deep blue
+  // sky, not a warm horizon and a blue zenith mixed to grey up the sky.
+  vec3 c = mix(uHorizon, uZenith, pow(y, mix(0.55, 0.3, uNight * (1.0 - uNight) * 4.0)));
   float s = max(dot(normalize(d), uSunDir), 0.0);
   c += uSunColor * (pow(s, 600.0) * 6.0 + pow(s, 12.0) * 0.18) * (1.0 - uNight * 0.8);
   // Below the horizon: the haze carries on.
@@ -248,8 +250,8 @@ function waterMesh(sky: SkyUniforms, look: CityLook, size: number) {
         R.y = abs(R.y);
         float fr = 0.03 + 0.97 * pow(1.0 - max(dot(n, V), 0.0), 5.0);
         vec3 deep = mix(uDeep, uShallow, 0.25 + 0.25 * vn(p * 0.004));
-        // Night water: dark blue, not black (the bank stays readable).
-        deep *= mix(1.0, 0.45, uNight);
+        // Night water: near black, the city's lights reflected in it.
+        deep *= mix(1.0, 0.25, uNight);
         vec3 col = mix(deep, skyColor(R), clamp(fr * 0.85, 0.0, 1.0));
         float sun = pow(max(dot(R, uSunDir), 0.0), 220.0);
         col += uSunColor * sun * 2.5 * (1.0 - uNight);

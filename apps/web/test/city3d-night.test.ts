@@ -42,33 +42,47 @@ describe('nightFactor', () => {
 describe('the night sky', () => {
   it('turns the exposure down at night, not up', () => {
     expect(nightExposure(0)).toBe(1);
-    expect(nightExposure(1)).toBeLessThan(0.8);
-    // …but not so far that the city goes black (player feedback).
-    expect(nightExposure(1)).toBeGreaterThan(0.7);
+    expect(nightExposure(1)).toBeLessThan(0.65);
+    expect(nightExposure(1)).toBeGreaterThan(0.5);
     expect(skyAt(23, 6.5, 0.7).exposure).toBeLessThan(skyAt(12, 6.5, 0.7).exposure);
   });
 
-  it('is a city night: a dark blue sky, blue moonlight, the outline still readable', () => {
+  it('is a dark city night: a near-black sky, faint blue moonlight, little ambient', () => {
+    // Players preferred this to a navy sky lighting the city a flat grey-blue.
     const s = skyAt(23.5, 51.5, 0.65);
     const day = skyAt(12.5, 51.5, 0.65);
     expect(s.night).toBe(1);
     const hsl = (c: typeof s.zenith) => c.getHSL({ h: 0, s: 0, l: 0 });
-    // Dark and blue overhead, not black; lighter towards the horizon (linear
-    // colour: the old near-black sky was under 0.005).
-    expect(hsl(s.zenith).l).toBeLessThan(0.06);
-    expect(hsl(s.zenith).l).toBeGreaterThan(0.012);
+    // Near black overhead with a hint of navy (linear colour), lighter towards
+    // the horizon where the city glows.
+    expect(hsl(s.zenith).l).toBeLessThan(0.008);
     expect(s.zenith.b).toBeGreaterThan(s.zenith.r * 2);
     expect(hsl(s.horizon).l).toBeGreaterThan(hsl(s.zenith).l);
-    expect(hsl(s.horizon).l).toBeLessThan(0.25);
-    // Moonlight: cool, a fraction of the sun, enough to model the buildings.
+    expect(hsl(s.horizon).l).toBeLessThan(0.05);
+    // Moonlight: cool and faint; the sky's fill dim and blue, never off.
     expect(s.sunColor.b).toBeGreaterThan(s.sunColor.r);
-    expect(s.sunIntensity).toBeGreaterThan(0.5);
-    expect(s.sunIntensity).toBeLessThan(day.sunIntensity * 0.3);
-    // The sky's fill: dimmer and bluer than by day, never off.
-    expect(s.hemiIntensity).toBeGreaterThan(0.35);
+    expect(s.sunIntensity).toBeLessThan(0.4);
+    expect(s.sunIntensity).toBeGreaterThan(0.1);
+    expect(s.hemiIntensity).toBeLessThan(0.3);
+    expect(s.hemiIntensity).toBeGreaterThan(0.1);
     expect(s.hemiIntensity).toBeLessThan(day.hemiIntensity);
-    expect(hsl(s.hemiSky).l).toBeGreaterThan(0.1);
     expect(s.hemiSky.b).toBeGreaterThan(s.hemiSky.r);
+  });
+
+  it('is a dusk, not a grey haze: a deep blue zenith over a warm horizon', () => {
+    // Lagos, 20 October, about 18:00: the sun just down, half dark.
+    const at = Date.UTC(2026, 9, 20, 17, 32);
+    const s = skyAt(18.5, 6.5, 0.7, citySun('lagos', at));
+    expect(s.night).toBeGreaterThan(0.2);
+    expect(s.night).toBeLessThan(0.8);
+    // The horizon warm (red over blue), the zenith a saturated deep blue.
+    expect(s.horizon.r).toBeGreaterThan(s.horizon.b);
+    const z = s.zenith.getHSL({ h: 0, s: 0, l: 0 });
+    expect(z.s).toBeGreaterThan(0.4);
+    expect(s.zenith.b).toBeGreaterThan(s.zenith.r * 2);
+    // The city's ambient already dimmer and bluer than by day.
+    const day = skyAt(12.5, 6.5, 0.7);
+    expect(s.hemiIntensity).toBeLessThan(day.hemiIntensity * 0.8);
   });
 
   it('dims the light smoothly through dusk (no jump when the moon takes over)', () => {

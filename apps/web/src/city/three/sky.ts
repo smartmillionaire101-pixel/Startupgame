@@ -68,41 +68,50 @@ export function skyAt(
   const horizonDay = mixC(C('#c6dbea'), C(tint), haze * 0.6);
   const zenithGold = C('#5a7bb0');
   const horizonGold = C('#f0b27a');
-  // Night is a deep navy overhead (player feedback: "can't even see the
-  // outline of the city anymore"; a city's night sky is never black), a
-  // lighter blue lower down, and the horizon tinged by the city's own glow
-  // (sodium orange over Lagos, white over London), so the skyline stands out.
-  const zenithNight = C('#0a1838');
-  const horizonNight = mixC(C('#22325e'), C(glow), 0.4 + haze * 0.2);
-  // Blue hour: between the gold and the dark the sky goes a deep blue first.
+  // Night is near black overhead (a hint of navy, so the moon and the stars
+  // sit in a sky), a deep blue lower down, and the horizon tinged by the
+  // city's own glow (sodium orange over Lagos, white over London). Players
+  // preferred this to a navy sky lighting the whole city a flat grey-blue: the
+  // skyline reads from its lit windows and lamps against the dark.
+  const zenithNight = C('#030a19');
+  const horizonNight = mixC(C('#0d152c'), C(glow), 0.45 + haze * 0.2);
+  // Twilight: a deep blue overhead and a warm afterglow low down, never a
+  // grey haze (the haze takes the horizon's colour). Colours mix in linear
+  // light, where the pale day sky wins: the afterglow is given a strong share.
   const blue = night * (1 - night) * 4;
   let zenith = mixC(zenithDay, zenithGold, golden * 0.6);
   let horizon = mixC(horizonDay, horizonGold, golden * 0.85);
-  zenith = mixC(zenith, C('#1b2f63'), blue * 0.6);
-  horizon = mixC(horizon, C('#4a4f7a'), blue * 0.45);
+  zenith = mixC(zenith, C('#16285a'), blue * 0.75);
+  horizon = mixC(horizon, C('#d9875f'), Math.min(1, blue * 0.9));
   zenith = mixC(zenith, zenithNight, smooth(0.35, 1, night));
-  horizon = mixC(horizon, horizonNight, smooth(0.25, 1, night));
+  horizon = mixC(horizon, horizonNight, smooth(0.3, 1, night));
 
-  const sunColor = mixC(C('#fff3e0'), C('#ffb066'), golden);
-  // Moonlight: cool blue from high up, strong enough to model the buildings
-  // (a night-time city photograph, not a black screen). The sun has faded out
-  // by the time the moon takes over (night 0.35: early, so dusk is not darker
-  // than the night after it), and the moon fades in, so the light never jumps.
-  const moon = C('#a9bde6');
-  const isMoon = night > 0.35;
+  // A low sun is orange: sunrise and sunset light the walls gold.
+  const sunColor = mixC(C('#fff3e0'), C('#ffa45c'), Math.min(1, golden * 1.5));
+  // Moonlight: faint and blue, from high up: enough to pick out the edges of
+  // the buildings, not to light them. The sun has faded out by the time the
+  // moon takes over (night 0.5), and the moon fades in, so the light never jumps.
+  const moon = C('#8fa8d8');
+  const isMoon = night > 0.5;
   const sunFade = smooth(-0.04, 0.16, sunUp);
   const lightDir = isMoon ? new THREE.Vector3(-0.3, 0.8, 0.4).normalize() : sunDir;
+  // The sky's own light turns blue as soon as the sun is down and dims through
+  // twilight: a dusk city is in blue shade, not lit a flat grey.
+  const twi = smooth(0, 0.3, night);
+  const dark = smooth(0.25, 0.85, night);
   return {
     sunDir: lightDir,
     sunColor: isMoon ? moon : sunColor,
     sunIntensity: isMoon
-      ? 0.95 * smooth(0.35, 0.8, night)
+      ? 0.3 * smooth(0.5, 0.9, night)
       : 3.4 * Math.min(day, sunFade) + 0.2 * smooth(0.5, 0, night),
-    // The night sky's own light: a blue fill that keeps walls, roads, water
-    // and parks readable, with the lamps and windows still the brightest things.
-    hemiSky: mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#5d74b4'), night),
-    hemiGround: mixC(C('#8c8476'), C('#2c3144'), night),
-    hemiIntensity: 0.75 - 0.22 * night,
+    hemiSky: mixC(
+      mixC(mixC(C('#b9d3ee'), C('#f4c9a0'), golden * 0.5), C('#7088c0'), twi * 0.6),
+      C('#1a2850'),
+      dark,
+    ),
+    hemiGround: mixC(C('#8c8476'), C('#0d0c12'), smooth(0, 0.6, night)),
+    hemiIntensity: 0.75 - 0.25 * twi - 0.28 * dark,
     zenith,
     horizon,
     night,

@@ -1168,7 +1168,7 @@ export class CityScene {
     this.env?.dispose();
     this.env = skyEnvironment(this.renderer, this.sky);
     this.scene.environment = this.env.texture;
-    this.scene.environmentIntensity = 0.55 - this.skyState.night * 0.3;
+    this.scene.environmentIntensity = 0.55 - this.skyState.night * 0.4;
   }
 
   // ---------------------------------------------------------------------------
@@ -1249,7 +1249,7 @@ export class CityScene {
     this.dome.position.copy(this.camera.position);
     this.dome.scale.setScalar(this.camera.far * 0.9);
     // Haze: thicker the further you see, by the city's air.
-    this.fog.density = (0.55 + this.look.haze * 0.9) / (4.2 * r.dist + 1800);
+    this.fog.density = (this.hazeK() * (0.55 + this.look.haze * 0.9)) / (4.2 * r.dist + 1800);
     // Shadows: fitted around what is in view, off when the whole city shows.
     const S = Math.max(90, Math.min(1600, r.dist * 1.15));
     const sd = this.skyState.sunDir;
@@ -1287,8 +1287,17 @@ export class CityScene {
       (this.size.h * this.dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
     this.dome.position.copy(cam.position);
     this.dome.scale.setScalar(cam.far * 0.9);
-    this.fog.density = (0.55 + this.look.haze * 0.9) / (5.5 * o.reach + 2400);
+    this.fog.density = (this.hazeK() * (0.55 + this.look.haze * 0.9)) / (5.5 * o.reach + 2400);
     this.sun.castShadow = false;
+  }
+
+  /**
+   * The haze's share by the light: all of it by day, thinning from the first
+   * of twilight to 55% at night, so the far lights carry to the horizon
+   * instead of fading into a grey murk.
+   */
+  private hazeK() {
+    return 1 - 0.45 * Math.sqrt(this.skyState.night);
   }
 
   groundAt(x: number, y: number) {
