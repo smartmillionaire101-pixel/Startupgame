@@ -91,9 +91,9 @@ export default function Terminal3D(props: Terminal3DProps): ReactElement {
       canvas.dataset.ready = 'yes';
       live.current.onReady?.();
     };
-    const off = stage.add((t, dt) => {
+    const off = stage.add((t) => {
       world.setZone(live.current.zone, live.current.playing, t);
-      return world.update(t, dt);
+      return world.update(t);
     });
     const lost = (e: Event) => {
       e.preventDefault();

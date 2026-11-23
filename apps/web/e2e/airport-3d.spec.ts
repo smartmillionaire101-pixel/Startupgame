@@ -21,7 +21,7 @@ test.use({
 });
 
 /** The terminal's canvas has drawn, with at least `min` people in the zone. */
-async function terminalShows(page: Page, zone: string, min: number) {
+async function terminalShows(page: Page, zone: string | RegExp, min: number) {
   const canvas = page.locator('canvas[data-terminal-3d]');
   await expect(canvas).toHaveAttribute('data-ready', 'yes', { timeout: 60_000 });
   await expect(canvas).toHaveAttribute('data-zone', zone, { timeout: 20_000 });
@@ -77,17 +77,22 @@ test('the airport, the cabin, arrivals and the hotel ride in 3D, with people', a
     .click({ timeout: 3000 })
     .catch(() => undefined);
 
-  // Security, then the gate.
-  await trip.getByRole('button', { name: 'Go through security' }).click();
+  // Security (through the arch), the seats by the gate (economy), then boarding.
   await terminalShows(page, 'security', 6);
   await page.waitForTimeout(2600);
   await shot(page, '05-airport-step-Security-3d');
-  await trip.getByRole('button', { name: 'Go to the gate' }).click({ timeout: 20_000 });
+  await trip.getByRole('button', { name: 'Go through security' }).click();
+  await page.waitForTimeout(1500);
+  await shot(page, '05-airport-through-the-arch-3d');
   await terminalShows(page, 'gate', 10);
-  await page.waitForTimeout(2600);
-  await shot(page, '06-airport-gate-3d');
+  await page.waitForTimeout(3000);
+  await shot(page, '05-airport-step-Waitingarea-3d');
+  await trip.getByRole('button', { name: 'Go to the gate' }).click({ timeout: 20_000 });
+  await terminalShows(page, 'board', 8);
   const board = trip.getByRole('button', { name: 'Board for London' });
   await expect(board).toBeVisible({ timeout: 20_000 });
+  await page.waitForTimeout(3000);
+  await shot(page, '06-airport-gate-3d');
   await shot(page, '05-airport-step-Boarding-3d');
   await board.click();
 

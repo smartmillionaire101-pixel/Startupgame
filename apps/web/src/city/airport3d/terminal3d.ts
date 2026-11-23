@@ -187,6 +187,7 @@ export class TerminalWorld {
   private camFrom = { p: new THREE.Vector3(), l: new THREE.Vector3() };
   private camAt = { p: new THREE.Vector3(), l: new THREE.Vector3() };
   private camT = 1;
+  private camStart = -1;
   private aspect = 1;
   private taxiPlane: THREE.Group | null = null;
   private myBag: THREE.Group;
@@ -1606,6 +1607,7 @@ export class TerminalWorld {
       this.camFrom.p.copy(this.eye.position);
       this.camFrom.l.copy(this.camLook);
       this.camT = 0;
+      this.camStart = -1;
     }
     this.camAt = c;
     this.aimSun(c.l.x);
@@ -1678,10 +1680,11 @@ export class TerminalWorld {
   }
 
   /** A frame: returns true while something moves. */
-  update(t: number, dt: number): boolean {
+  update(t: number): boolean {
     // The camera glides between zones.
     if (this.camT < 1) {
-      this.camT = Math.min(1, this.camT + dt / 1.8);
+      if (this.camStart < 0) this.camStart = t;
+      this.camT = Math.min(1, (t - this.camStart) / 1.8);
       this.applyCamera(this.camT);
       if (this.camT >= 1 && this.from) {
         this.from = null;

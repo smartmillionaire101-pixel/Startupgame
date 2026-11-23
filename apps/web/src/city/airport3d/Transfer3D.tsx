@@ -64,10 +64,13 @@ function build(stage: Stage, P: Transfer3DProps) {
   k.box(400, 0.14, 6, '#d6d3d1', 150, 0, KERB_Z - 3.1);
   // The terminal's front: glass, the canopy, its sign (at the start).
   k.box(36, 7, 0.5, '#cbd5e1', -2, 0, -9);
-  k.box(30, 4.2, 0.1, '#7fa9c4', -2, 0.2, -8.7, { rough: 0.1, metal: 0.4 });
+  k.box(30, 4.2, 0.1, '#a9cbe0', -2, 0.2, -8.7, {
+    rough: 0.15,
+    emissive: '#dbeafe',
+    emissiveIntensity: 0.25,
+  });
   for (let x = -16; x <= 12; x += 3) k.box(0.12, 4.2, 0.2, '#475569', x, 0.2, -8.6);
-  k.box(32, 0.35, 6.5, '#e5e7eb', -2, 4.3, -5.6);
-  for (let x = -14; x <= 10; x += 8) k.cyl(0.14, 0.14, 4.3, '#94a3b8', x, 0, -2.8);
+  k.box(32, 0.3, 1.6, '#e5e7eb', -2, 4.6, -8.0);
   // Then the city: blocks of buildings, trees, street lights, along the road.
   for (let x = 18; x < 360; x += 9 + rnd() * 6) {
     const h = 8 + rnd() * 26;
@@ -116,7 +119,7 @@ function build(stage: Stage, P: Transfer3DProps) {
       }),
     );
   })();
-  sign.position.set(-3, 5.4, -2.3);
+  sign.position.set(-1.2, 5.6, -8.6);
   root.add(sign);
   if (night) {
     for (let x = 24; x < 120; x += 14) {
@@ -128,7 +131,7 @@ function build(stage: Stage, P: Transfer3DProps) {
   // The car at the kerb, and the people.
   const car = new THREE.Group();
   root.add(car);
-  car.position.set(1.2, 0, CAR_Z);
+  car.position.set(0.8, 0, CAR_Z);
   const people: Character[] = [P.me, ...P.party.slice(0, 3)].map((look, n) => {
     const c = makeCharacter(look, n ? `ride:${n}` : 'me');
     root.add(c.root);
@@ -197,41 +200,44 @@ export default function Transfer3D(props: Transfer3DProps): ReactElement {
       stage.setSize(r.width, r.height);
       aspect = r.width / Math.max(1, r.height);
       eye.aspect = aspect;
-      const v = (2 * Math.atan(Math.tan((62 * Math.PI) / 360) / aspect) * 180) / Math.PI;
-      eye.fov = Math.max(40, Math.min(75, v));
+      const v = (2 * Math.atan(Math.tan((34 * Math.PI) / 360) / aspect) * 180) / Math.PI;
+      eye.fov = Math.max(34, Math.min(62, v));
       eye.updateProjectionMatrix();
     };
     size();
     const ro = new ResizeObserver(size);
     ro.observe(parent);
     let lastX = w.car.position.x;
+    let camX = 0;
     const off = stage.add((t) => {
+      if (held) return true;
       if (t0Ref.t < 0) t0Ref.t = t;
       const e = t - t0Ref.t;
       const D = live.current.seconds;
-      const board = Math.min(1.5, D * 0.4);
+      const board = D * 0.5;
       // People out of the doors to the car, one after another, then in.
       w.people.forEach((c, n) => {
-        const start = n * 0.18;
-        const k = Math.max(0, Math.min(1, (e - start) / (board - 0.25)));
-        const from = new THREE.Vector3(-4.2 + n * 0.7, 0, -4.6 - n * 0.3);
-        const to = new THREE.Vector3(0.4 + n * 0.85, 0, KERB_Z - 0.35);
-        const p = from.lerp(to, k);
+        const start = n * 0.22;
+        const k = Math.max(0, Math.min(1, (e - start) / (board - 0.45)));
+        const from = new THREE.Vector3(-1.6 + n * 0.55, 0, -4.4 - (n % 2) * 0.4);
+        const to = new THREE.Vector3(-0.3 + n * 0.7, 0, KERB_Z - 0.3);
+        const p = from.clone().lerp(to, k);
         c.root.position.copy(p);
-        c.root.rotation.y = Math.atan2(to.x - (-4.2 + n * 0.7), to.z - (-4.6 - n * 0.3));
-        c.root.visible = k < 1 || e < board + n * 0.08;
+        c.root.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
+        c.root.visible = e < board + n * 0.1;
         pose(c, k < 1 ? 'walk' : 'idle', t, { phase: n });
       });
       // Then the car pulls away, faster and faster.
-      const go = Math.max(0, e - board - 0.15);
-      const x = 1.2 + 2.2 * go * go + 1.5 * go;
+      const go = Math.max(0, e - board - 0.1);
+      const x = 0.8 + 2.4 * go * go + 1.2 * go;
       w.car.position.x = x;
       if (model) spinWheels(model, x - lastX);
       lastX = x;
-      // The camera alongside, a little behind, catching up.
-      const cx = Math.max(0, x - 1.2) * 0.86;
-      eye.position.set(cx - 2.6, 2.1, 9.2);
-      eye.lookAt(cx + 0.6, 0.9, -0.6);
+      // The camera alongside, catching up with it.
+      camX = Math.max(0, x - 0.8 - 0.8 * Math.min(1, go));
+      const cx = camX;
+      eye.position.set(cx + 1.2, 5.9, 9.2);
+      eye.lookAt(cx + 0.4, 0.9, -1.3);
       stage.eyeMoved();
       return true;
     });
