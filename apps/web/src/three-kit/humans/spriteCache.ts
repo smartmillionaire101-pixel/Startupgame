@@ -11,7 +11,7 @@
  */
 import type { AvatarLook } from '../../city/art';
 import type { PoseId } from '../../interiors3d/character';
-import { webglAvailable } from '../quality';
+import { softwareGl, webglAvailable } from '../quality';
 
 /** Bump when the pictures would come out differently (lighting, framing, models). */
 export const SPRITE_VERSION = 2;
@@ -171,13 +171,25 @@ interface Job<T> {
  * jobs it gives the page a breath (`pause`), so a screenful of people never
  * blocks a frame for long.
  */
+/**
+ * A breath between renders: wait for the browser to be idle (or 120 ms at
+ * most), so taps and frames get in between pictures on a slow phone.
+ */
+function idleBreath(): Promise<void> {
+  return new Promise((r) => {
+    const w = typeof window === 'undefined' ? undefined : window;
+    if (w && 'requestIdleCallback' in w) w.requestIdleCallback(() => r(), { timeout: 120 });
+    else setTimeout(r, 16);
+  });
+}
+
 export class RenderQueue<T> {
   private waiting: Job<T>[] = [];
   private jobs = new Map<string, Job<T>>();
   private running = 0;
   constructor(
     readonly concurrency = 1,
-    private pause: () => Promise<void> = () => new Promise((r) => setTimeout(r, 0)),
+    private pause: () => Promise<void> = idleBreath,
   ) {}
 
   /** Ask for a job; `cancel` says this caller no longer wants it. Resolves null if dropped or failed. */
@@ -379,7 +391,8 @@ export function createSpriteSource(opts: {
 /**
  * Whether people are drawn from the 3D model at all: WebGL works, and
  * neither the CC0 models (`runway.models` = off) nor the sprites
- * (`runway.sprites` = off) are turned off. Never in tests (jsdom).
+ * (`runway.sprites` = off) are turned off, and the GPU is real (not
+ * WebGL on the CPU, unless `runway.hq` asks). Never in tests (jsdom).
  */
 export function spritesEnabled(): boolean {
   if (typeof window === 'undefined' || typeof document === 'undefined') return false;
@@ -389,7 +402,9 @@ export function spritesEnabled(): boolean {
   } catch {
     /* storage blocked: on */
   }
-  return webglAvailable();
+  // WebGL drawn on the CPU (no GPU): each picture would cost a few hundred
+  // milliseconds of main thread, so the drawn figures stay.
+  return webglAvailable() && !softwareGl();
 }
 
 let source: ReturnType<typeof createSpriteSource> | null = null;
