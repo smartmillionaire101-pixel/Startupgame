@@ -1578,7 +1578,7 @@ export class TerminalWorld {
     const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
     switch (zone) {
       case 'ticket':
-        return { p: V(-3.0, 2.5, 4.4), l: V(-6.4, 1.2, -2.2) };
+        return { p: V(-1.4, 2.6, 4.8), l: V(-5.0, 1.15, -2.2) };
       case 'checkin':
         return { p: V(3.3, 2.45, 3.9), l: V(0.5, 1.15, -2.3) };
       case 'security':
@@ -1618,7 +1618,7 @@ export class TerminalWorld {
     this.eye.position.lerpVectors(this.camFrom.p, this.camAt.p, e);
     this.camLook.lerpVectors(this.camFrom.l, this.camAt.l, e);
     this.eye.lookAt(this.camLook);
-    const hfov = 58;
+    const hfov = this.aspect > 1.2 ? 72 : 58;
     const v = (2 * Math.atan(Math.tan((hfov * Math.PI) / 360) / this.aspect) * 180) / Math.PI;
     this.eye.fov = Math.max(36, Math.min(66, v));
     this.eye.aspect = this.aspect;

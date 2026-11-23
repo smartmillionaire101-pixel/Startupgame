@@ -1,0 +1,58 @@
+/* The terminal in 3D, in the airport's view (departures) and in Arrivals. */
+.terminal-scene {
+  position: relative;
+  flex: 1 1 220px;
+  min-height: 200px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #a9d3ee 0%, #e8eef3 60%, #d9d4c8 100%);
+}
+.terminal-scene .terminal-3d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: pan-y;
+}
+/* Arrivals: the hall taller in 3D (people at a size you can see). */
+.arr-hall.is-3d {
+  height: clamp(240px, 38vh, 360px);
+}
+.arr-hall > .terminal-scene {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+}
+/* The hotel ride: the words (and, drawn, the road) in the middle… */
+.stay-transfer-words {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+}
+/* …or, in 3D, the ride full screen and the words over its foot. */
+.stay-transfer.is-3d {
+  place-content: end center;
+  padding: 0 1.25rem calc(2.2rem + env(safe-area-inset-bottom, 0px));
+  background: #0f172a;
+}
+.stay-transfer-scene {
+  position: absolute;
+  inset: 0;
+}
+.stay-transfer-scene .transfer-3d {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.stay-transfer.is-3d .stay-transfer-words {
+  position: relative;
+  padding: 0.9rem 1.2rem 1rem;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(6px);
+}
+.terminal-loading {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #a9d3ee 0%, #e8eef3 60%, #d9d4c8 100%);
+}
