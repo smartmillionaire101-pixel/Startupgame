@@ -400,8 +400,11 @@ export function mergedOf(
   const hit = extraMerged.get(name);
   if (hit) return hit;
   let m: { geometry: THREE.BufferGeometry; length: number } | null = null;
-  if (name === 'Danfo') m = finish(danfoParts(new Parts(null)), 4.7);
-  else if (name === 'Moto' || name === 'MotoPax' || name === 'Keke') m = withRiders(name);
+  if (name === 'Danfo') {
+    coarse = true;
+    m = finish(danfoParts(new Parts(null)), 4.7);
+    coarse = false;
+  } else if (name === 'Moto' || name === 'MotoPax' || name === 'Keke') m = withRiders(name);
   else if (name === 'Bus') {
     const bus = propsNow('transport')?.models.get('Bus');
     if (bus) m = mergeCar(bus.group);
@@ -416,9 +419,11 @@ export function mergedOf(
  */
 export function codeFleetMesh(name: 'Moto' | 'Keke' | 'Danfo', count: number) {
   const p = new Parts(null);
+  coarse = true;
   if (name === 'Moto') motoParts(p);
   else if (name === 'Keke') kekeParts(p, KEKE_CANOPY);
   else danfoParts(p);
+  coarse = false;
   const geo = p.merged().rotateY(Math.PI / 2);
   const m = new THREE.InstancedMesh(geo, fleetMaterial(), Math.max(1, count));
   m.count = count;
@@ -491,11 +496,18 @@ class Parts {
 
 const finish = (p: Parts, length: number) => ({ geometry: p.merged(), length });
 
+/**
+ * Traffic is drawn many times over (a phone, or a software GPU, draws every
+ * triangle of every okada): it's built coarser than the vehicle you ride.
+ */
+let coarse = false;
 const rbox = (w: number, h: number, d: number, r = 0.06) =>
-  new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3));
+  coarse
+    ? new THREE.BoxGeometry(w, h, d)
+    : new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3));
 const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
 const cyl = (r0: number, r1: number, h: number, seg = 12) =>
-  new THREE.CylinderGeometry(r0, r1, h, seg);
+  new THREE.CylinderGeometry(r0, r1, h, coarse ? Math.max(5, Math.round(seg / 2)) : seg);
 const SIDE: [number, number, number] = [0, 0, Math.PI / 2];
 const ALONG: [number, number, number] = [Math.PI / 2, 0, 0];
 
@@ -531,12 +543,24 @@ function wheel(
   const w = o.width ?? t * 1.6;
   p.turning(tag, x, y, z);
   const YZ: [number, number, number] = [0, Math.PI / 2, 0];
-  const tyre = new THREE.TorusGeometry(r - t, t, 6, 20).scale(1, 1, w / (2 * t));
+  const tyre = new THREE.TorusGeometry(r - t, t, coarse ? 4 : 6, coarse ? 12 : 20).scale(
+    1,
+    1,
+    w / (2 * t),
+  );
   p.add(tyre, '#151515', x, y, z, YZ, tag);
   const rimR = r - t * 1.7;
-  p.add(new THREE.TorusGeometry(rimR, t * 0.35, 4, 18), o.rim ?? '#9ca3af', x, y, z, YZ, tag);
+  p.add(
+    new THREE.TorusGeometry(rimR, t * 0.35, coarse ? 3 : 4, coarse ? 10 : 18),
+    o.rim ?? '#9ca3af',
+    x,
+    y,
+    z,
+    YZ,
+    tag,
+  );
   p.add(cyl(r * 0.18, r * 0.18, w * 1.1, 10), o.hub ?? '#6b7280', x, y, z, SIDE, tag);
-  const n = o.spokes ?? 0;
+  const n = coarse ? Math.min(4, o.spokes ?? 0) : (o.spokes ?? 0);
   if (n)
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI;
@@ -789,28 +813,63 @@ export const SEATS = {
 export const seatAt = (s: { seat: Seat; at: readonly [number, number, number] }) =>
   at(s.at[0], s.at[1] - seatHeight(s.seat), s.at[2]);
 
+/**
+ * Each baked person, once: one at a time, a few frames apart (posing and
+ * copying a person takes a moment; a phone's frame, or a tap, shouldn't wait
+ * for all of them at once).
+ */
+const baked = new Map<string, THREE.BufferGeometry>();
+let lastBake = -Infinity;
+const BAKE_GAP_MS = 400;
+function bakeOnce(key: string, make: () => THREE.BufferGeometry | null) {
+  const hit = baked.get(key);
+  if (hit) return hit;
+  const now = performance.now();
+  if (now - lastBake < BAKE_GAP_MS) return null;
+  const g = make();
+  if (g) {
+    lastBake = now;
+    baked.set(key, g);
+  }
+  return g;
+}
+
 /** An okada or a keke with its people baked in (null while they're on their way). */
 function withRiders(name: 'Moto' | 'MotoPax' | 'Keke') {
-  const p = new Parts(null);
-  if (name === 'Keke') kekeParts(p, KEKE_CANOPY);
-  else motoParts(p);
+  const vehicle = () => {
+    const p = new Parts(null);
+    coarse = true;
+    if (name === 'Keke') kekeParts(p, KEKE_CANOPY);
+    else motoParts(p);
+    coarse = false;
+    return p;
+  };
   const length = name === 'Keke' ? 2.7 : 2;
   // People off (or never coming): the vehicle alone.
-  if (seatedUnavailable('men') || seatedUnavailable('women')) return finish(p, length);
+  if (seatedUnavailable('men') || seatedUnavailable('women')) return finish(vehicle(), length);
   const rider =
     name === 'Keke'
-      ? bakeSeated(KEKE_DRIVER, SEATS.keke.seat, seatAt(SEATS.keke))
-      : bakeSeated(RIDER_LOOKS[name === 'MotoPax' ? 1 : 0]!, SEATS.moto.seat, seatAt(SEATS.moto), {
-          paintTop: true,
-          helmet: name === 'Moto' ? '#1f2937' : undefined,
-        });
+      ? bakeOnce('keke-driver', () => bakeSeated(KEKE_DRIVER, SEATS.keke.seat, seatAt(SEATS.keke)))
+      : bakeOnce(`moto-rider-${name}`, () =>
+          bakeSeated(
+            RIDER_LOOKS[name === 'MotoPax' ? 1 : 0]!,
+            SEATS.moto.seat,
+            seatAt(SEATS.moto),
+            { paintTop: true, helmet: name === 'Moto' ? '#1f2937' : undefined },
+          ),
+        );
   const pax =
     name === 'MotoPax'
-      ? bakeSeated(PAX_LOOK, SEATS.pillion.seat, seatAt(SEATS.pillion))
+      ? bakeOnce('moto-pillion', () =>
+          bakeSeated(PAX_LOOK, SEATS.pillion.seat, seatAt(SEATS.pillion)),
+        )
       : name === 'Keke'
-        ? bakeSeated(PAX_LOOK, 'sit', seatAt(SEATS.kekeBack).multiply(at(0.3, 0, 0)))
+        ? bakeOnce('keke-pax', () =>
+            bakeSeated(PAX_LOOK, 'sit', seatAt(SEATS.kekeBack).multiply(at(0.3, 0, 0))),
+          )
         : undefined;
   if (!rider || pax === null) return null;
+  const p = vehicle();
   p.raw(rider);
   if (pax) p.raw(pax);
   return finish(p, length);
