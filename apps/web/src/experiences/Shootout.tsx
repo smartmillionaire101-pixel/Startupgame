@@ -6,7 +6,8 @@
  * saves, the woodwork, the net bulging, the crowd. Round 7e: the kicker
  * (you, in a kit in your outfit's colours, or whoever is up) waits behind
  * the ball, then runs up and strikes it (in 3D, over the 2D pitch:
- * ./game-avatar3d.ts).
+ * ./game-avatar3d.ts). In full 3D the stand behind the goal is a crowd of
+ * real 3D people (./stadium3d.ts) who get up when their end scores.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -25,6 +26,7 @@ import { softwareGl, useQuality, webglAvailable } from '../three-kit/quality';
 import { avatarLook } from '../city/art';
 import { genderOf } from '../city/life';
 import type { PitchLayer } from './game-avatar3d';
+import type { StandFrames } from './stadium3d';
 import {
   ballAt,
   KICK_RUN,
@@ -45,6 +47,9 @@ type Room = PlayerView['playRooms'][number];
 /** Slow motion: the flight (≈0.4 s for real) is shown over this long. */
 const FLIGHT_MS = 1100;
 const AFTER_MS = 1300;
+/** How long an end celebrates (ms), and how fast its two frames swap. */
+const CHEER_MS = 2800;
+const CHEER_FRAME_MS = 170;
 
 const DIVE_LABELS = [
   'Dive top left',
@@ -97,12 +102,48 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
   /** The kick on screen: `ms` into the ball's flight, `k` since the run-up began. */
   const [anim, setAnim] = useState<{ p: Penalty; ms: number; k: number } | null>(null);
   const [banner, setBanner] = useState<{ text: string; good: boolean } | null>(null);
+  /** The stand of 3D people (full 3D only), and which end is up celebrating. */
+  const [stands, setStands] = useState<StandFrames | null>(null);
+  const [cheer, setCheer] = useState<{ side: 'home' | 'away'; frame: 0 | 1 } | null>(null);
+  const cheerTimer = useRef<{ iv: number; to: number } | null>(null);
   const [trail, setTrail] = useState<SwipePoint[]>([]);
   const [hint, setHint] = useState('');
   const pts = useRef<SwipePoint[]>([]);
   const seen = useRef<number | null>(null);
   const shooting = room.shooter === me;
   const locked = room.myMove !== null;
+  /** The end that celebrates a kick: the scorer's on a goal, the other on a miss (first member: home). */
+  const celebrate = (p: Penalty) => {
+    const home = p.shooter === room.members[0]?.id;
+    const side: 'home' | 'away' = home === p.goal ? 'home' : 'away';
+    if (cheerTimer.current) {
+      clearInterval(cheerTimer.current.iv);
+      clearTimeout(cheerTimer.current.to);
+    }
+    setCheer({ side, frame: 0 });
+    const still = reduceMotion();
+    const iv = still
+      ? 0
+      : window.setInterval(
+          () => setCheer((c) => (c ? { ...c, frame: c.frame ? 0 : 1 } : c)),
+          CHEER_FRAME_MS,
+        );
+    const to = window.setTimeout(() => {
+      clearInterval(iv);
+      cheerTimer.current = null;
+      setCheer(null);
+    }, CHEER_MS);
+    cheerTimer.current = { iv, to };
+  };
+  useEffect(
+    () => () => {
+      if (cheerTimer.current) {
+        clearInterval(cheerTimer.current.iv);
+        clearTimeout(cheerTimer.current.to);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -138,6 +179,7 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
       const id = requestAnimationFrame(() => {
         setBanner({ text, good });
         setShown(count);
+        celebrate(p);
       });
       return () => cancelAnimationFrame(id);
     }
@@ -167,6 +209,7 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
         else if (p.goal) sfx.net();
         if (p.outcome === 'post-in' || p.outcome === 'bar-in') sfx.post();
         sfx.crowd(p.goal, 0.05);
+        celebrate(p);
       }
       setAnim({ p, ms, k });
       if (ms < FLIGHT_MS + AFTER_MS) raf = requestAnimationFrame(step);
@@ -184,6 +227,28 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
     const id = setTimeout(() => setBanner(null), 2600);
     return () => clearTimeout(id);
   }, [banner, playing]);
+
+  // The stand of 3D people, drawn through this camera (full 3D on a real GPU only).
+  const city = view.market.id;
+  useEffect(() => {
+    if (!hq || !gl) return;
+    let gone = false;
+    const scale = Math.min(window.devicePixelRatio || 1, 2.5);
+    const id = window.setTimeout(() => {
+      void import('./stadium3d')
+        .then((m) => m.bakeStands(cam, { city, scale, cancelled: () => gone }))
+        .then((f) => {
+          if (!gone && f) setStands(f);
+        })
+        .catch(() => {
+          /* the painted stand stays */
+        });
+    }, 60);
+    return () => {
+      gone = true;
+      clearTimeout(id);
+    };
+  }, [hq, gl, cam, city]);
 
   // Round 7e: the kicker, in 3D over the pitch (loaded when the game opens in 3D).
   useEffect(() => {
@@ -244,7 +309,11 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
     return { ball: { x: 0, y: FOOTBALL_R, z: SPOT }, dive: -1, kt: 0, bulge: 0, end: null };
   }, [anim]);
 
-  const backdrop = useMemo(() => drawBackdrop(cam, hq), [cam, hq]);
+  // A stand drawn for another size waits for its own (the painted one meanwhile).
+  const crowd =
+    stands && stands.calm.width === Math.round(cam.width * stands.scale) ? stands : null;
+  const backdrop = useMemo(() => drawBackdrop(cam, hq, !!crowd), [cam, hq, crowd]);
+  const crowdFrame = crowd ? (cheer ? crowd[cheer.side][cheer.frame] : crowd.calm) : null;
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
@@ -258,7 +327,11 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
     const g = c.getContext('2d');
     if (!g) return;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (backdrop) g.drawImage(backdrop, 0, 0, cam.width, cam.height);
+    if (backdrop) {
+      g.drawImage(backdrop.back, 0, 0, cam.width, cam.height);
+      if (crowdFrame) g.drawImage(crowdFrame, 0, 0, cam.width, cam.height);
+      g.drawImage(backdrop.front, 0, 0, cam.width, cam.height);
+    }
     drawNet(g, cam, scene.end, scene.bulge);
     const ballBehind = scene.ball.z < 0.35;
     if (ballBehind) drawBall(g, cam, scene.ball, hq);
@@ -274,7 +347,7 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
       trail.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)));
       g.stroke();
     }
-  }, [cam, backdrop, scene, trail, hq]);
+  }, [cam, backdrop, crowdFrame, scene, trail, hq]);
 
   const point = (e: React.PointerEvent) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -385,6 +458,7 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
               return [l.x, l.y, r.x, r.y].map(Math.round).join(',');
             })()}
             data-playing={playing ? '1' : '0'}
+            data-crowd={crowd ? (cheer ? cheer.side : 'calm') : 'painted'}
             data-turn={canAct ? (shooting ? 'shoot' : 'dive') : 'wait'}
             onPointerDown={onDown}
             onPointerMove={onMove}
@@ -427,16 +501,31 @@ export function Shootout({ room, me, live }: { room: Room; me: string; live: boo
 
 // ---------------------------------------------------------------- Drawing
 
-/** The stadium, the boards and the pitch with its markings (drawn once per size). */
-function drawBackdrop(c: Camera, hq: boolean): HTMLCanvasElement | null {
+/**
+ * The stadium, the boards and the pitch with its markings (drawn once per
+ * size), in two layers: `back` (the night sky and, without a stand of 3D
+ * people, the painted stand) and `front` (the floodlights' glow, the boards
+ * and the pitch), the stand of people drawn between them.
+ */
+function drawBackdrop(
+  c: Camera,
+  hq: boolean,
+  people: boolean,
+): { back: HTMLCanvasElement; front: HTMLCanvasElement } | null {
   if (typeof document === 'undefined') return null;
   const k = hq ? 2 : 1.25;
-  const cv = document.createElement('canvas');
-  cv.width = Math.round(c.width * k);
-  cv.height = Math.round(c.height * k);
-  const g = cv.getContext('2d');
-  if (!g) return null;
-  g.scale(k, k);
+  const layer = () => {
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(c.width * k);
+    cv.height = Math.round(c.height * k);
+    const g = cv.getContext('2d');
+    g?.scale(k, k);
+    return { cv, g };
+  };
+  const back = layer();
+  const front = layer();
+  if (!back.g || !front.g) return null;
+  let g = back.g;
   const W = c.width,
     H = c.height;
   // Night sky and the stand.
@@ -447,23 +536,36 @@ function drawBackdrop(c: Camera, hq: boolean): HTMLCanvasElement | null {
   g.fillRect(0, 0, W, H);
   const boardTop = project(c, 0, 1.0, -7).y;
   const standTop = project(c, 0, 9, -14).y;
-  g.fillStyle = '#16202f';
-  g.fillRect(0, standTop, W, boardTop - standTop);
-  // The crowd: rows of heads in club colours.
-  let seed = 11;
-  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const shirts = ['#d33', '#e8e8e8', '#2b6fd6', '#f2c230', '#2a2a2a', '#c94d8a'];
-  const rows = hq ? 14 : 8;
-  for (let r = 0; r < rows; r++) {
-    const y = standTop + ((boardTop - standTop) * (r + 0.5)) / rows;
-    const step = hq ? 5 : 8;
-    for (let x = rnd() * step; x < W; x += step * (0.8 + rnd() * 0.5)) {
-      g.fillStyle = shirts[Math.floor(rnd() * shirts.length)]!;
-      g.globalAlpha = 0.45 + rnd() * 0.4;
-      g.fillRect(x, y, step * 0.7, ((boardTop - standTop) / rows) * 0.7);
+  if (!people) {
+    g.fillStyle = '#16202f';
+    g.fillRect(0, standTop, W, boardTop - standTop);
+    // The painted crowd: rows of fans (a head over shoulders), red and white with a blue corner.
+    let seed = 11;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const home = ['#c8102e', '#c8102e', '#f8fafc', '#c8102e', '#2a2a2a', '#f2c230'];
+    const away = ['#38bdf8', '#38bdf8', '#1e3a8a'];
+    const skins = ['#8d5524', '#5c3a1e', '#c68642', '#e0ac69', '#3b2219', '#f1c27d'];
+    const rows = hq ? 12 : 8;
+    const rh = (boardTop - standTop) / rows;
+    for (let r = 0; r < rows; r++) {
+      const y = standTop + rh * (r + 0.5);
+      const step = rh * 0.62;
+      for (let x = rnd() * step; x < W; x += step * (0.85 + rnd() * 0.35)) {
+        const shirts = x > W * 0.74 ? away : home;
+        g.globalAlpha = 0.6 + rnd() * 0.35;
+        g.fillStyle = shirts[Math.floor(rnd() * shirts.length)]!;
+        g.beginPath();
+        g.ellipse(x, y + rh * 0.3, step * 0.42, rh * 0.32, 0, Math.PI, 0);
+        g.fill();
+        g.fillStyle = skins[Math.floor(rnd() * skins.length)]!;
+        g.beginPath();
+        g.arc(x, y - rh * 0.05, step * 0.24, 0, Math.PI * 2);
+        g.fill();
+      }
     }
+    g.globalAlpha = 1;
   }
-  g.globalAlpha = 1;
+  g = front.g;
   // Floodlight glow.
   if (hq)
     for (const fx of [0.08, 0.92]) {
@@ -529,7 +631,7 @@ function drawBackdrop(c: Camera, hq: boolean): HTMLCanvasElement | null {
   v.addColorStop(1, 'rgba(0,0,0,0.35)');
   g.fillStyle = v;
   g.fillRect(0, 0, W, H);
-  return cv;
+  return { back: back.cv, front: front.cv };
 }
 
 /** The net: its back and sides, bulging where a goal hits it. */
