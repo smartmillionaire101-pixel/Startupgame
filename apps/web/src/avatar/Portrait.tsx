@@ -39,16 +39,16 @@ function ShapeEl({ s }: { s: Shape }) {
   );
 }
 
-/** The flat portrait's shapes (in its 100 × 100 box), back to front. */
-export function PortraitShapes({ look }: { look: AvatarLook }) {
+/** The flat portrait's shapes (in its 100 × 100 box), back to front; `only` keeps some parts. */
+export function PortraitShapes({
+  look,
+  only,
+}: {
+  look: AvatarLook;
+  only?: (part: string) => boolean;
+}) {
   const shapes = useMemo(() => portraitShapes(look), [look]);
-  return (
-    <>
-      {shapes.map((s, i) => (
-        <ShapeEl key={i} s={s} />
-      ))}
-    </>
-  );
+  return <>{shapes.map((s, i) => (only && !only(s.part) ? null : <ShapeEl key={i} s={s} />))}</>;
 }
 
 /** The portrait of a look. `size` in CSS pixels (or any CSS length). */

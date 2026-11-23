@@ -107,12 +107,19 @@ function makeRig(): Rig {
 }
 
 /** Lights placed round the camera's direction (azimuth `az`), aimed at `at`. */
-function light(r: Rig, az: number, at: THREE.Vector3, keySide = -0.75) {
+function light(
+  r: Rig,
+  az: number,
+  at: THREE.Vector3,
+  o: { keySide?: number; keyUp?: number; fillUp?: number; fill?: number } = {},
+) {
+  const keySide = o.keySide ?? -0.75;
   const around = (a: number, up: number, d: number) =>
     new THREE.Vector3(Math.sin(a) * d, up, Math.cos(a) * d).add(at);
   // The key from above, to one side of the camera; the fill from the other; the rim behind.
-  r.key.position.copy(around(az + keySide, 3.2, 3));
-  r.fill.position.copy(around(az - keySide * 0.7, 1.2, 3));
+  r.key.position.copy(around(az + keySide, o.keyUp ?? 3.2, 3));
+  r.fill.position.copy(around(az - keySide * 0.7, o.fillUp ?? 1.2, 3));
+  r.fill.intensity = o.fill ?? 0.75;
   r.rim.position.copy(around(az + Math.PI + 0.6, 2.4, 3));
   for (const l of [r.key, r.fill, r.rim]) {
     l.target.position.copy(at);
@@ -204,9 +211,10 @@ export async function renderSprite(spec: SpriteSpec): Promise<Rendered | null> {
       p.updateMatrixWorld();
       camera = p;
       w = h;
-      exposure = 1.12;
+      exposure = 1.2;
       // (Broad light: the key on the side the face is turned to.)
-      light(r, az, skull, 0.55);
+      // (Lower and softer than for a figure: no deep shadow under the brow, dark skin reads.)
+      light(r, az, skull, { keySide: 0.55, keyUp: 1.7, fillUp: 0.15, fill: 1.25 });
     }
     // (Matrices are current: the render mustn't move the model on again.)
     r.scene.matrixWorldAutoUpdate = false;

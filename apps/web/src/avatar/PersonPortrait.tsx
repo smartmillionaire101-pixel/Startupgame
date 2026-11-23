@@ -21,6 +21,9 @@ import { useSprite } from '../three-kit/humans/useSprite';
 import { PortraitShapes } from './Portrait';
 import './avatar.css';
 
+const isBg = (part: string) => part === 'bg';
+const notBg = (part: string) => part !== 'bg';
+
 /** The portrait of a look. `size` in CSS pixels (or any CSS length: measured). */
 export const PersonPortraitOf = memo(function PersonPortraitOf({
   look,
@@ -53,8 +56,10 @@ export const PersonPortraitOf = memo(function PersonPortraitOf({
       {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}
     >
       <rect className="portrait-bg" x="0" y="0" width="100" height="100" />
+      {/* The flat portrait's own background (its top's colour, softened) stays behind the picture. */}
+      <PortraitShapes look={look} only={isBg} />
       <g visibility={url ? 'hidden' : undefined}>
-        <PortraitShapes look={look} />
+        <PortraitShapes look={look} only={notBg} />
       </g>
       {url && <image href={url} x="0" y="0" width="100" height="100" />}
     </svg>
