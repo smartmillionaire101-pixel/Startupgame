@@ -86,7 +86,8 @@ import { WhoIsAround } from './WhoIsHere';
 import { OnlineNowList } from './OnlineNow';
 import { usePresence } from './presence';
 import { HolidayBanner } from '../phone/apps/Holiday';
-import { RideWith } from './companions';
+import { HotelRide, rideMs } from './airport3d/HotelRide';
+import { use3d } from '../three-kit/quality';
 import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
 import { cachedCityLayout, hasCityLayout } from './geoLayout';
@@ -889,6 +890,8 @@ function CityBodyInner({
   const [transfer, setTransfer] = useState<string | null>(null);
   const transferTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(transferTimer.current), []);
+  // (In 3D the ride is a short scene of its own: a little longer.)
+  const ride3d = use3d();
   const rideToStay = useCallback(() => {
     const stay = layout.places.find((p) => p.id === 'home');
     if (!stay) return goToStory('home');
@@ -900,9 +903,9 @@ function CityBodyInner({
         setInside(stay);
         setTransfer(null);
       },
-      reduceMotion() ? 400 : 2200,
+      reduceMotion() ? 400 : rideMs(ride3d),
     );
-  }, [layout, goToStory, hotelName]);
+  }, [layout, goToStory, hotelName, ride3d]);
   const office = layout.places.find((p) => p.kind === 'office')!;
   // Going home is a trip like any other: the ticket home is booked, then you
   // go to the airport and check in for it (lite mode, without the airport
@@ -1458,20 +1461,7 @@ function CityBodyInner({
           )}
         </Sheet>
       )}
-      {transfer && (
-        <div className="stay-transfer" role="status" data-transfer>
-          <div className="stay-transfer-road" aria-hidden="true">
-            <span className="stay-transfer-car">🚗</span>
-          </div>
-          <p className="stay-transfer-title">
-            {abroad ? t('On your way to {hotel}', { hotel: transfer }) : t('On your way home')}
-          </p>
-          {abroad && <RideWith market={layout.marketId} />}
-          <p className="stay-transfer-sub">
-            {abroad ? t('Your driver is taking you to the hotel.') : t('Nearly there.')}
-          </p>
-        </div>
-      )}
+      {transfer && <HotelRide market={layout.marketId} abroad={abroad} hotel={transfer} />}
       {inside && (
         <Suspense
           fallback={<div className="scene-loading" role="status" aria-label={t('Loading…')} />}

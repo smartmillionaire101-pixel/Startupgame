@@ -83,7 +83,7 @@ export function arrivalParty(
 }
 
 /** Everyone sharing your hotel transfer: the companions in the city with you. */
-function rideParty(view: PlayerView, market: string): Traveller[] {
+export function rideParty(view: PlayerView, market: string): Traveller[] {
   const h = holidayIn(view, market);
   if (!h) return [];
   return h.companions.filter((c) => c.sameFlight || c.here).map(traveller);
