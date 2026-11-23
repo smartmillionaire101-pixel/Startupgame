@@ -21,6 +21,10 @@ export interface SkyUniforms {
   uSunColor: { value: THREE.Color };
   uTime: { value: number };
   uNight: { value: number };
+  /** Golden hour: the glow low on the sky towards the sun, the pink band above it, and how strong. */
+  uGlow: { value: THREE.Color };
+  uBand: { value: THREE.Color };
+  uGold: { value: number };
 }
 
 /** The sky's colour in a direction (shared by the sky dome and the water). */
@@ -30,15 +34,32 @@ uniform vec3 uHorizon;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
 uniform float uNight;
+uniform vec3 uGlow;
+uniform vec3 uBand;
+uniform float uGold;
 vec3 skyColor(vec3 d) {
+  d = normalize(d);
   float y = max(d.y, 0.0);
   // Twilight (uNight mid-way): a narrower horizon band under a deep blue
   // sky, not a warm horizon and a blue zenith mixed to grey up the sky.
-  vec3 c = mix(uHorizon, uZenith, pow(y, mix(0.55, 0.3, uNight * (1.0 - uNight) * 4.0)));
-  float s = max(dot(normalize(d), uSunDir), 0.0);
-  c += uSunColor * (pow(s, 600.0) * 6.0 + pow(s, 12.0) * 0.18) * (1.0 - uNight * 0.8);
-  // Below the horizon: the haze carries on.
-  if (d.y < 0.0) c = uHorizon;
+  // Golden hour: the blue comes down closer to the horizon too.
+  float e = mix(0.55, 0.3, uNight * (1.0 - uNight) * 4.0) * (1.0 - 0.5 * uGold);
+  vec3 c = mix(uHorizon, uZenith, pow(y, e));
+  float s = max(dot(d, uSunDir), 0.0);
+  // Golden hour: the sky burns orange and red low down towards the sun, under a
+  // pink band, and stays cooler behind you (side: 1 facing the sun, 0 away).
+  vec2 hd = d.xz / max(length(d.xz), 1e-4);
+  vec2 hs = uSunDir.xz / max(length(uSunDir.xz), 1e-4);
+  float side = dot(hd, hs) * 0.5 + 0.5;
+  side *= side;
+  c = mix(c, uGlow, uGold * exp(-y * mix(12.0, 6.5, side)) * (0.15 + 0.85 * side));
+  float bd = (y - 0.06 - 0.06 * side) * 9.0;
+  c = mix(c, uBand, uGold * exp(-bd * bd) * (0.2 + 0.25 * side));
+  // The sun: a disc (a hot core in an orange rim near the horizon, not a
+  // blown-out white circle) and a warm halo round it.
+  float disc = pow(s, 600.0) * mix(6.0, 2.2, uGold) + pow(s, 3000.0) * 6.0 * uGold;
+  float halo = pow(s, 10.0) * 0.08 + pow(s, 90.0) * 0.3;
+  c += uSunColor * ((disc + pow(s, 12.0) * 0.18) * step(0.0, d.y) + halo * uGold) * (1.0 - uNight * 0.8);
   return c;
 }
 `;
@@ -253,8 +274,9 @@ function waterMesh(sky: SkyUniforms, look: CityLook, size: number) {
         // Night water: near black, the city's lights reflected in it.
         deep *= mix(1.0, 0.25, uNight);
         vec3 col = mix(deep, skyColor(R), clamp(fr * 0.85, 0.0, 1.0));
-        float sun = pow(max(dot(R, uSunDir), 0.0), 220.0);
-        col += uSunColor * sun * 2.5 * (1.0 - uNight);
+        float sd = max(dot(R, uSunDir), 0.0);
+        // The sun's glitter: a long, warm path across the water at golden hour.
+        col += uSunColor * (pow(sd, 220.0) * 2.5 + pow(sd, 24.0) * 0.9 * uGold) * (1.0 - uNight);
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

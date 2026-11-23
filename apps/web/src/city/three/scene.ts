@@ -38,7 +38,15 @@ import { homeModel, lifestyleHome, PLOT, setHomesNight } from './homes3d';
 import { ROAD_HALF, COVER } from './mask';
 import { hoodAt, type OwnedProperty } from '../properties';
 import { covered } from '../../three-kit/cover';
-import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
+import {
+  applySky,
+  hazeToward,
+  skyAt,
+  skyDome,
+  skyEnvironment,
+  skyUniforms,
+  type SkyState,
+} from './sky';
 import { canopyMeshes, forestSpots, treeMeshes, treeSpots, type TreeSpot } from './trees';
 import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './landmarks';
 import {
@@ -196,6 +204,7 @@ export class CityScene {
   private sun = new THREE.DirectionalLight(0xffffff, 3);
   private hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 1);
   private fog: THREE.FogExp2;
+  private tmpDir = new THREE.Vector3();
   private dome: THREE.Mesh;
   private skyState: SkyState;
   private env: THREE.WebGLRenderTarget | null = null;
@@ -1169,7 +1178,10 @@ export class CityScene {
     this.env?.dispose();
     this.env = skyEnvironment(this.renderer, this.sky);
     this.scene.environment = this.env.texture;
-    this.scene.environmentIntensity = 0.55 - this.skyState.night * 0.4;
+    // Golden hour: less of the (blue) sky's reflection, so the low sun's warm
+    // light carries the city instead of a lilac wash.
+    this.scene.environmentIntensity =
+      (0.55 - this.skyState.night * 0.4) * (1 - 0.45 * this.skyState.gold);
   }
 
   // ---------------------------------------------------------------------------
@@ -1258,10 +1270,14 @@ export class CityScene {
     this.dome.scale.setScalar(this.camera.far * 0.9);
     // Haze: thicker the further you see, by the city's air.
     this.fog.density = (this.hazeK() * (0.55 + this.look.haze * 0.9)) / (4.2 * r.dist + 1800);
+    // Golden hour: orange haze looking towards the sun, cooler looking away.
+    hazeToward(this.skyState, fx, fz, this.fog.color);
     // Shadows: fitted around what is in view, off when the whole city shows.
     const S = Math.max(90, Math.min(1600, r.dist * 1.15));
     const sd = this.skyState.sunDir;
-    this.sun.castShadow = !this.degraded && r.dist < 4500 && sd.y > 0.05;
+    // Down to a sun on the horizon (the key light never dips below 0.012): the
+    // long shadows of golden hour.
+    this.sun.castShadow = !this.degraded && r.dist < 4500 && sd.y > 0.01;
     const cam = this.sun.shadow.camera;
     cam.left = -S;
     cam.right = S;
@@ -1296,6 +1312,8 @@ export class CityScene {
     this.dome.position.copy(cam.position);
     this.dome.scale.setScalar(cam.far * 0.9);
     this.fog.density = (this.hazeK() * (0.55 + this.look.haze * 0.9)) / (5.5 * o.reach + 2400);
+    cam.getWorldDirection(this.tmpDir);
+    hazeToward(this.skyState, this.tmpDir.x, this.tmpDir.z, this.fog.color);
     this.sun.castShadow = false;
   }
 
