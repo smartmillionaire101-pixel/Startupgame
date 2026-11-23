@@ -10,16 +10,10 @@ import * as THREE from 'three';
 import type { RoomKind, Slot } from '../city/rooms';
 import { buildModel, chairAt, type Model } from './furniture';
 import { FLOOR_SCALE, Kit, floorTexture, mat, signTexture, type FloorKind, tone } from './kit';
+import { Dresser, KEEP_PROPS, familyOf, type DressCtx, type SeatCall } from './dress';
 
-export const RW = 12;
-export const RD = 6.6;
-export const BACK = -RD / 2;
-export const WALL_H = 3.0;
-
-/** 2D room x → metres. */
-export const vx = (x: number) => ((x - 180) / 360) * RW;
-/** 2D room y (feet) → metres (z). */
-export const vz = (y: number) => BACK + 0.8 + ((Math.max(118, y) - 130) / 110) * (RD - 1.1);
+export { BACK, RD, RW, WALL_H, vx, vz } from './roomGeom';
+import { BACK, RD, RW, WALL_H, vx, vz } from './roomGeom';
 
 type SeatStyle =
   'table' | 'desk' | 'stool' | 'row' | 'armchair' | 'salon' | 'lounger' | 'sofa' | 'none';
@@ -99,6 +93,8 @@ export interface VenueRoom {
   /** Coloured lights that sweep (a club). */
   movers: THREE.PointLight[];
   lamps: THREE.PointLight[];
+  /** Standing higher (on a stage), by slot. */
+  lift?: Map<number, number>;
 }
 
 const place = (root: THREE.Group, m: Model, x: number, z: number, ry = 0) => {
@@ -147,11 +143,50 @@ export interface VenueOpts {
   sign?: string;
   slots: Slot[];
   night: boolean;
+  /**
+   * What the place is (a business's kind, a city place's role, the place's
+   * kind): which interior of its kind it gets (./dress).
+   */
+  variant?: string;
+  /** The place's own layout: the same place is always furnished the same way. */
+  seed?: string;
+  /** 1 basic … 3 luxury (floors, walls and furniture). */
+  tier?: 1 | 2 | 3;
+}
+
+/** A tier from a seed when the place doesn't say (mostly middling). */
+function tierOf(seed: string): 1 | 2 | 3 {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const r = h % 10;
+  return r < 3 ? 1 : r < 8 ? 2 : 3;
 }
 
 export function buildVenue(o: VenueOpts): VenueRoom {
-  const st = ROOM_STYLE[o.kind];
   const root = new THREE.Group();
+  // The room's own furnishing (./dress): its family, the shell it chooses, a seeded layout.
+  const variant = o.variant ?? '';
+  const seed = o.seed ?? `${o.kind}:${variant}:${o.sign ?? ''}`;
+  const fam = familyOf(o.kind, variant);
+  const ctx: DressCtx = {
+    kind: o.kind,
+    variant,
+    seed,
+    tier: o.tier ?? tierOf(seed),
+    tint: o.tint,
+    sign: o.sign,
+    night: o.night,
+    slots: o.slots,
+  };
+  const dz = new Dresser(
+    root,
+    seed,
+    ctx.tier,
+    o.slots.map((s) => [vx(s.x), vz(s.y)] as [number, number]),
+  );
+  const look = fam?.look?.(ctx, dz) ?? null;
+  const st: RoomStyle = look ? { ...ROOM_STYLE[o.kind], ...look } : ROOM_STYLE[o.kind];
+  const seatBy = (call: SeatCall) => !!fam?.seat?.(ctx, dz, call);
   const seats = new Map<number, SeatSpot>();
   const screens: THREE.MeshStandardMaterial[] = [];
   const decks: THREE.Object3D[] = [];
@@ -238,9 +273,12 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       ).map;
       sm.material.map!.repeat.set(1, 0.25);
       sm.material.map!.offset.set(0, 0.75);
+      const at = fam?.signAt?.(ctx) ?? null;
+      dz.signX =
+        at?.x ?? (o.kind === 'club' || o.kind === 'cinema' || o.kind === 'stage' ? -3.6 : 0);
       sm.position.set(
-        o.kind === 'club' || o.kind === 'cinema' || o.kind === 'stage' ? -3.6 : 0,
-        2.55,
+        at?.x ?? (o.kind === 'club' || o.kind === 'cinema' || o.kind === 'stage' ? -3.6 : 0),
+        at?.y ?? 2.55,
         BACK + 0.02,
       );
       root.add(sm);
@@ -256,6 +294,21 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     for (const p of pairs(seated)) {
       const ax = vx(p.a.s.x);
       const az = vz(p.a.s.y);
+      if (
+        p.b &&
+        seatBy({ style, pair: true, ax, bx: vx(p.b.s.x), z: az, acts: [p.a.s.act, p.b.s.act] })
+      ) {
+        seat(p.a.i, ax, az, Math.PI / 2, 0.45);
+        seat(p.b.i, vx(p.b.s.x), az, -Math.PI / 2, 0.45);
+        continue;
+      }
+      if (
+        !p.b &&
+        seatBy({ style, pair: false, x: ax, z: az, dir: p.a.s.flip ? -1 : 1, act: p.a.s.act })
+      ) {
+        seat(p.a.i, ax, az, ((p.a.s.flip ? -1 : 1) * Math.PI) / 2, 0.45);
+        continue;
+      }
       if (p.b) {
         const bx = vx(p.b.s.x);
         const mx = (ax + bx) / 2;
@@ -290,7 +343,8 @@ export function buildVenue(o: VenueOpts): VenueRoom {
       const x = vx(s.x);
       const z = vz(s.y);
       // The desk behind them (its chair, at local z = 0.55, under them), the screen towards us.
-      add('office-desk', x, z - 0.55, 1.3, 0.8, 0);
+      if (!seatBy({ style, pair: false, x, z, dir: 0, act: s.act }))
+        add('office-desk', x, z - 0.55, 1.3, 0.8, 0);
       seat(i, x, z, Math.PI, 0.46);
     }
   } else if (style === 'stool') {
@@ -313,6 +367,8 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     for (const { s, i } of seated) {
       const x = vx(s.x);
       const z = vz(s.y);
+      seat(i, x, z, Math.PI, 0.48);
+      if (seatBy({ style, pair: false, x, z, dir: 0, act: s.act })) continue;
       add(
         'cinema-seats',
         x,
@@ -322,12 +378,23 @@ export function buildVenue(o: VenueOpts): VenueRoom {
         Math.PI,
         o.kind === 'cinema' ? '#991b1b' : o.kind === 'airport' ? '#334155' : '#0f766e',
       );
-      seat(i, x, z, Math.PI, 0.48);
     }
   } else if (style === 'armchair' || style === 'sofa') {
     for (const p of pairs(seated)) {
       const ax = vx(p.a.s.x);
       const az = vz(p.a.s.y);
+      if (
+        p.b &&
+        seatBy({ style, pair: true, ax, bx: vx(p.b.s.x), z: az, acts: [p.a.s.act, p.b.s.act] })
+      ) {
+        seat(p.a.i, ax, az, Math.PI / 2, 0.5);
+        seat(p.b.i, vx(p.b.s.x), az, -Math.PI / 2, 0.5);
+        continue;
+      }
+      if (!p.b && seatBy({ style, pair: false, x: ax, z: az, dir: 0, act: p.a.s.act })) {
+        seat(p.a.i, ax, az, Math.PI, 0.5);
+        continue;
+      }
       if (p.b) {
         const bx = vx(p.b.s.x);
         add('armchair', ax, az, 0.9, 0.9, Math.PI / 2, o.kind === 'lounge' ? '#6d28d9' : undefined);
@@ -384,289 +451,294 @@ export function buildVenue(o: VenueOpts): VenueRoom {
   // ---- Props by kind.
   const counterAt = (x2d: number, y2d: number, w: number, tint?: string) =>
     add('counter', vx(x2d), vz(y2d) + 0.6, w, 0.7, 0, tint ?? o.tint);
-  switch (o.kind) {
-    case 'restaurant': {
-      add('bar-counter', vx(286), vz(150) + 0.6, 3.4, 2.2, 0, '#7c2d12');
-      add('plants', -RW / 2 + 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
-      add('plants', RW / 2 - 0.5, RD / 2 - 0.6, 0.8, 0.8, 0, undefined, 3);
-      for (const x of [-4, 0, 4])
-        add('art', x - 1.2, backZ(1) - 0.45, 1, 1, 0, undefined, 2, x + 9);
-      break;
-    }
-    case 'cafe': {
-      counterAt(86, 146, 3.4, '#a16207');
-      const em = add('espresso', vx(86) + 0.9, vz(146) + 0.6, 0.6, 0.45);
-      em.group.position.y = 1.03;
-      add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
-      add('art', 3, backZ(1) - 0.45, 1.2, 1, 0, undefined, 3, 4);
-      break;
-    }
-    case 'club':
-    case 'stage': {
-      const djX = vx(o.kind === 'club' ? 180 : 116);
-      if (o.kind === 'stage') add('stage', 0.6, BACK + 1.3, 7.5, 2.4, 0, o.tint);
-      add('dj-booth', djX, vz(136) + 0.75, 1.8, 0.8, 0, o.tint);
-      add('bar-counter', RW / 2 - 1.6, 1.0, 3.5, 1.6, -Math.PI / 2, '#312e81');
-      for (const [x, c] of [
-        [-3, '#ec4899'],
-        [0, '#22d3ee'],
-        [3, '#a3e635'],
-      ] as const) {
-        const l = new THREE.PointLight(c, 6, 9, 1.4);
-        l.position.set(x, 2.6, 0.5);
+  if (fam) {
+    fam.dress(ctx, dz);
+    screens.push(...dz.screens);
+  }
+  if (!fam || KEEP_PROPS.has(o.kind))
+    switch (o.kind) {
+      case 'restaurant': {
+        add('bar-counter', vx(286), vz(150) + 0.6, 3.4, 2.2, 0, '#7c2d12');
+        add('plants', -RW / 2 + 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
+        add('plants', RW / 2 - 0.5, RD / 2 - 0.6, 0.8, 0.8, 0, undefined, 3);
+        for (const x of [-4, 0, 4])
+          add('art', x - 1.2, backZ(1) - 0.45, 1, 1, 0, undefined, 2, x + 9);
+        break;
+      }
+      case 'cafe': {
+        counterAt(86, 146, 3.4, '#a16207');
+        const em = add('espresso', vx(86) + 0.9, vz(146) + 0.6, 0.6, 0.45);
+        em.group.position.y = 1.03;
+        add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
+        add('art', 3, backZ(1) - 0.45, 1.2, 1, 0, undefined, 3, 4);
+        break;
+      }
+      case 'club':
+      case 'stage': {
+        const djX = vx(o.kind === 'club' ? 180 : 116);
+        if (o.kind === 'stage') add('stage', 0.6, BACK + 1.3, 7.5, 2.4, 0, o.tint);
+        add('dj-booth', djX, vz(136) + 0.75, 1.8, 0.8, 0, o.tint);
+        add('bar-counter', RW / 2 - 1.6, 1.0, 3.5, 1.6, -Math.PI / 2, '#312e81');
+        for (const [x, c] of [
+          [-3, '#ec4899'],
+          [0, '#22d3ee'],
+          [3, '#a3e635'],
+        ] as const) {
+          const l = new THREE.PointLight(c, 6, 9, 1.4);
+          l.position.set(x, 2.6, 0.5);
+          root.add(l);
+          movers.push(l);
+        }
+        // A mirror ball.
+        const ball = new THREE.Mesh(
+          new THREE.SphereGeometry(0.28, 16, 12),
+          mat('#e5e7eb', { metal: 0.9, rough: 0.15 }),
+        );
+        ball.position.set(0, 2.7, 0.3);
+        root.add(ball);
+        decks.push(ball);
+        break;
+      }
+      case 'bar':
+      case 'lounge': {
+        add(
+          'bar-counter',
+          vx(150),
+          vz(144) + 0.6,
+          6,
+          2.2,
+          0,
+          o.kind === 'bar' ? '#5b3a22' : '#4c1d95',
+        );
+        add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
+        break;
+      }
+      case 'cinema':
+        add('screen-wall', 0, backZ(0.3), RW - 1, 0.3);
+        break;
+      case 'karaoke': {
+        add('screen-wall', 0, backZ(0.3), 7, 0.3);
+        add('mic', vx(150), vz(172) - 0.2, 0.4, 0.4);
+        add('mic', vx(206), vz(176) - 0.2, 0.4, 0.4);
+        const l = new THREE.PointLight('#f472b6', 5, 8, 1.4);
+        l.position.set(0, 2.5, -1);
         root.add(l);
         movers.push(l);
+        break;
       }
-      // A mirror ball.
-      const ball = new THREE.Mesh(
-        new THREE.SphereGeometry(0.28, 16, 12),
-        mat('#e5e7eb', { metal: 0.9, rough: 0.15 }),
-      );
-      ball.position.set(0, 2.7, 0.3);
-      root.add(ball);
-      decks.push(ball);
-      break;
-    }
-    case 'bar':
-    case 'lounge': {
-      add(
-        'bar-counter',
-        vx(150),
-        vz(144) + 0.6,
-        6,
-        2.2,
-        0,
-        o.kind === 'bar' ? '#5b3a22' : '#4c1d95',
-      );
-      add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
-      break;
-    }
-    case 'cinema':
-      add('screen-wall', 0, backZ(0.3), RW - 1, 0.3);
-      break;
-    case 'karaoke': {
-      add('screen-wall', 0, backZ(0.3), 7, 0.3);
-      add('mic', vx(150), vz(172) - 0.2, 0.4, 0.4);
-      add('mic', vx(206), vz(176) - 0.2, 0.4, 0.4);
-      const l = new THREE.PointLight('#f472b6', 5, 8, 1.4);
-      l.position.set(0, 2.5, -1);
-      root.add(l);
-      movers.push(l);
-      break;
-    }
-    case 'arcade':
-      for (const x of [52, 112, 172, 232])
-        add(
-          'arcade',
-          vx(x),
-          vz(162) - 0.9,
-          0.8,
-          0.8,
-          0,
-          ['#7c3aed', '#db2777', '#0891b2', '#ea580c'][(x / 60) | 0],
-        );
-      add('pool-table', 2.8, 1.6, 2.2, 1.2);
-      break;
-    case 'gym': {
-      for (const x of [-4.2, -2.9, -1.6]) add('treadmill', x, BACK + 1.0, 0.8, 1.8, Math.PI);
-      add('weight-rack', 1.8, BACK + 0.4, 1.8, 0.6);
-      add('bench', 3.8, -1.0, 1.4, 1.6);
-      add('art', 0, backZ(1) - 0.45, 3, 1, 0, undefined, 1, 2);
-      const mk = new Kit();
-      mk.plane(4, 1.8, '#dbeafe', 1.5, 1.7, BACK + 0.03, { metal: 0.6, rough: 0.05 });
-      root.add(mk.build());
-      break;
-    }
-    case 'cowork':
-    case 'office':
-    case 'hub': {
-      add('meeting-table', 2.5, -1.8, 3.2, 2.2, 0, '#e7e5e4');
-      add('books', -RW / 2 + 0.5, -1, 1.6, 0.5, Math.PI / 2, undefined, 2);
-      add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
-      add('plants', -RW / 2 + 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
-      const wb = new Kit();
-      wb.box(2.4, 1.3, 0.05, '#f8fafc', -2, 1.0, BACK + 0.05);
-      root.add(wb.build());
-      break;
-    }
-    case 'bank':
-      add('bank-counter', vx(180), vz(150) + 0.7, 8, 0.8, 0, '#1d4ed8');
-      add('plants', -RW / 2 + 0.5, RD / 2 - 0.7, 0.8, 0.8, 0, undefined, 3);
-      for (const x of [-1.6, 1.6]) {
-        const k = new Kit();
-        k.cyl(0.04, 0.04, 0.95, '#a8a29e', x, 0, 1.2, { metal: 0.6, rough: 0.3 });
-        k.box(0.03, 0.05, 2, '#991b1b', x, 0.85, 2.2);
-        k.cyl(0.04, 0.04, 0.95, '#a8a29e', x, 0, 3.2, { metal: 0.6, rough: 0.3 });
-        root.add(k.build());
-      }
-      break;
-    case 'investor':
-    case 'devpartner':
-      add('books', -RW / 2 + 0.4, -1.2, 2.4, 0.5, Math.PI / 2, undefined, 3);
-      add('art', 1.5, backZ(1) - 0.45, 1.2, 1, 0, undefined, 3, 11);
-      add('plants', RW / 2 - 0.6, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
-      add('office-desk', vx(250) + 0.2, vz(176) - 0.5, 1.4, 0.8, 0);
-      break;
-    case 'accelerator':
-    case 'school':
-    case 'eventhall': {
-      if (o.kind === 'eventhall') add('stage', 0, BACK + 1.2, 6, 2.2, 0, o.tint);
-      add('screen-wall', o.kind === 'eventhall' ? 0 : -2.5, backZ(0.3), 5, 0.3);
-      add('plants', RW / 2 - 0.6, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
-      break;
-    }
-    case 'showroom':
-      for (const [x, c, k] of [
-        [-3, '#dc2626', 'luxury'],
-        [2.6, '#2563eb', 'city-suv'],
-      ] as const) {
-        const m = buildModel(`car:${k}`, { w: 2, d: 4.5, tier: 1, tint: c });
-        m.group.position.set(x, 0.12, -1.0);
-        m.group.rotation.y = 0.5;
-        const k2 = new Kit();
-        k2.cyl(2.4, 2.4, 0.12, '#e5e7eb', x, 0, -1.0, { seg: 40, rough: 0.2 });
-        root.add(k2.build(), m.group);
-      }
-      add('office-desk', vx(300), vz(160) - 0.5, 1.4, 0.8, 0);
-      break;
-    case 'furniture':
-      add('bed', -3.5, BACK + 1.2, 2, 2.4, 0, undefined, 3);
-      add('wardrobe', 0, backZ(0.6), 1.8, 0.6, 0, undefined, 3);
-      add('lights', 2.2, BACK + 0.6, 0.6, 0.6, 0, undefined, 2);
-      add('dining', 3.6, -1.2, 2, 2, 0, undefined, 3);
-      add('rug', vx(130), vz(196) + 0.2, 3, 2, 0, undefined, 3);
-      break;
-    case 'appliance':
-      for (const x of [-4, -1.5, 1]) add('tv', x, backZ(0.6), 2.2, 0.6, 0, undefined, 3);
-      add('fridge', 3.5, backZ(0.7), 1, 0.7, 0, undefined, 3);
-      add('washer', 4.6, backZ(0.7), 0.7, 0.7, 0, undefined, 2);
-      add('counter', vx(290), vz(156) + 0.6, 2.2, 0.7, 0, o.tint);
-      break;
-    case 'hotel':
-    case 'apartment':
-      add('bed', -3.2, BACK + 1.25, 2.1, 2.5, 0, undefined, 3);
-      add('wardrobe', 0.2, backZ(0.6), 1.8, 0.6, 0, undefined, 3);
-      add('tv', 3, backZ(0.5), 2, 0.5, 0, undefined, 2);
-      add('lights', -1.6, BACK + 0.5, 0.6, 0.6, 0, undefined, 2);
-      add('rug', 0, 1, 3, 2, 0, undefined, 3);
-      break;
-    case 'market':
-      for (const x of [70, 190, 300])
-        add(
-          'stall',
-          vx(x),
-          vz(150) + 0.6,
-          2.6,
-          1,
-          0,
-          ['#16a34a', '#ea580c', '#2563eb'][(x / 100) | 0],
-        );
-      break;
-    case 'airport':
-      add('checkin', vx(250), vz(156) + 0.7, 4, 0.8);
-      add('screen-wall', -3, backZ(0.3), 3.4, 0.3);
-      break;
-    case 'shop':
-      add('shelves', -3.5, backZ(0.5), 3.4, 0.5);
-      add('shelves', 0, backZ(0.5), 3, 0.5);
-      add('shelves', -RW / 2 + 0.3, 0, 2.6, 0.5, Math.PI / 2);
-      counterAt(260, 156, 2.4);
-      add('display-case', -1, 1.4, 2, 0.7);
-      break;
-    case 'clinic':
-      add('reception', vx(110), vz(156) + 0.7, 2.4, 0.7, 0, '#ccfbf1');
-      add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
-      break;
-    case 'gallery':
-      for (const [x, s] of [
-        [-4, 1],
-        [-1.3, 2],
-        [1.4, 3],
-        [4.1, 4],
-      ] as const)
-        add('art', x, backZ(1) - 0.45, 1.3, 1, 0, undefined, 3, s * 5);
-      add('easel', -2, 0.6, 1.3, 0.3, 0.3, undefined, 1, 8);
-      add('easel', 2.4, 1.2, 1.3, 0.3, -0.4, undefined, 1, 9);
-      break;
-    case 'workshop':
-      add('workbench', -3, backZ(0.7), 3.2, 0.7);
-      {
-        const m = buildModel('car:hatchback', { w: 2, d: 4.5, tier: 1, tint: '#64748b' });
-        m.group.position.set(2.5, 0.5, -0.8);
-        m.group.rotation.y = Math.PI / 2;
-        const k = new Kit();
-        k.box(4.4, 0.12, 2, '#f59e0b', 2.5, 0.38, -0.8);
-        k.box(0.3, 0.4, 0.3, '#3f3f46', 1, 0, -0.8);
-        k.box(0.3, 0.4, 0.3, '#3f3f46', 4, 0, -0.8);
-        root.add(k.build(), m.group);
-      }
-      break;
-    case 'spa':
-      add('spa-pool', 2.6, BACK + 1.6, 4, 2.4);
-      add('massage-table', vx(236), vz(172) - 0.2, 0.8, 2, Math.PI / 2);
-      add('plants', -RW / 2 + 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
-      add('plants', RW / 2 - 0.5, RD / 2 - 0.6, 0.8, 0.8, 0, undefined, 2);
-      break;
-    case 'beach': {
-      const sea = new THREE.Mesh(
-        new THREE.PlaneGeometry(40, 12),
-        mat('#0ea5e9', { rough: 0.15, metal: 0.1, emissive: '#0369a1', emissiveIntensity: 0.15 }),
-      );
-      sea.rotation.x = -Math.PI / 2;
-      sea.position.set(0, 0.03, BACK - 5.5);
-      root.add(sea);
-      const surf = new THREE.Mesh(
-        new THREE.PlaneGeometry(40, 0.6),
-        mat('#f0f9ff', { opacity: 0.7 }),
-      );
-      surf.rotation.x = -Math.PI / 2;
-      surf.position.set(0, 0.04, BACK + 0.4);
-      root.add(surf);
-      add('bar-counter', vx(310) - 0.3, vz(150) + 0.4, 2.6, 1.6, -0.3, '#a16207');
-      for (const [x, z] of [
-        [-5.4, -2.5],
-        [5.6, 2.5],
-        [-5.8, 2],
-      ] as const) {
-        const k = new Kit();
-        k.cyl(0.1, 0.16, 3.4, '#8b5a2b', x, 0, z, { rz: 0.12 });
-        for (let i = 0; i < 6; i++)
-          k.box(
-            1.4,
-            0.05,
-            0.35,
-            '#15803d',
-            x + Math.cos(i) * 0.6 + 0.4,
-            3.35,
-            z + Math.sin(i) * 0.6,
-            { ry: i, rz: -0.3 },
+      case 'arcade':
+        for (const x of [52, 112, 172, 232])
+          add(
+            'arcade',
+            vx(x),
+            vz(162) - 0.9,
+            0.8,
+            0.8,
+            0,
+            ['#7c3aed', '#db2777', '#0891b2', '#ea580c'][(x / 60) | 0],
           );
-        root.add(k.build());
+        add('pool-table', 2.8, 1.6, 2.2, 1.2);
+        break;
+      case 'gym': {
+        for (const x of [-4.2, -2.9, -1.6]) add('treadmill', x, BACK + 1.0, 0.8, 1.8, Math.PI);
+        add('weight-rack', 1.8, BACK + 0.4, 1.8, 0.6);
+        add('bench', 3.8, -1.0, 1.4, 1.6);
+        add('art', 0, backZ(1) - 0.45, 3, 1, 0, undefined, 1, 2);
+        const mk = new Kit();
+        mk.plane(4, 1.8, '#dbeafe', 1.5, 1.7, BACK + 0.03, { metal: 0.6, rough: 0.05 });
+        root.add(mk.build());
+        break;
       }
-      break;
+      case 'cowork':
+      case 'office':
+      case 'hub': {
+        add('meeting-table', 2.5, -1.8, 3.2, 2.2, 0, '#e7e5e4');
+        add('books', -RW / 2 + 0.5, -1, 1.6, 0.5, Math.PI / 2, undefined, 2);
+        add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
+        add('plants', -RW / 2 + 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
+        const wb = new Kit();
+        wb.box(2.4, 1.3, 0.05, '#f8fafc', -2, 1.0, BACK + 0.05);
+        root.add(wb.build());
+        break;
+      }
+      case 'bank':
+        add('bank-counter', vx(180), vz(150) + 0.7, 8, 0.8, 0, '#1d4ed8');
+        add('plants', -RW / 2 + 0.5, RD / 2 - 0.7, 0.8, 0.8, 0, undefined, 3);
+        for (const x of [-1.6, 1.6]) {
+          const k = new Kit();
+          k.cyl(0.04, 0.04, 0.95, '#a8a29e', x, 0, 1.2, { metal: 0.6, rough: 0.3 });
+          k.box(0.03, 0.05, 2, '#991b1b', x, 0.85, 2.2);
+          k.cyl(0.04, 0.04, 0.95, '#a8a29e', x, 0, 3.2, { metal: 0.6, rough: 0.3 });
+          root.add(k.build());
+        }
+        break;
+      case 'investor':
+      case 'devpartner':
+        add('books', -RW / 2 + 0.4, -1.2, 2.4, 0.5, Math.PI / 2, undefined, 3);
+        add('art', 1.5, backZ(1) - 0.45, 1.2, 1, 0, undefined, 3, 11);
+        add('plants', RW / 2 - 0.6, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
+        add('office-desk', vx(250) + 0.2, vz(176) - 0.5, 1.4, 0.8, 0);
+        break;
+      case 'accelerator':
+      case 'school':
+      case 'eventhall': {
+        if (o.kind === 'eventhall') add('stage', 0, BACK + 1.2, 6, 2.2, 0, o.tint);
+        add('screen-wall', o.kind === 'eventhall' ? 0 : -2.5, backZ(0.3), 5, 0.3);
+        add('plants', RW / 2 - 0.6, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
+        break;
+      }
+      case 'showroom':
+        for (const [x, c, k] of [
+          [-3, '#dc2626', 'luxury'],
+          [2.6, '#2563eb', 'city-suv'],
+        ] as const) {
+          const m = buildModel(`car:${k}`, { w: 2, d: 4.5, tier: 1, tint: c });
+          m.group.position.set(x, 0.12, -1.0);
+          m.group.rotation.y = 0.5;
+          const k2 = new Kit();
+          k2.cyl(2.4, 2.4, 0.12, '#e5e7eb', x, 0, -1.0, { seg: 40, rough: 0.2 });
+          root.add(k2.build(), m.group);
+        }
+        add('office-desk', vx(300), vz(160) - 0.5, 1.4, 0.8, 0);
+        break;
+      case 'furniture':
+        add('bed', -3.5, BACK + 1.2, 2, 2.4, 0, undefined, 3);
+        add('wardrobe', 0, backZ(0.6), 1.8, 0.6, 0, undefined, 3);
+        add('lights', 2.2, BACK + 0.6, 0.6, 0.6, 0, undefined, 2);
+        add('dining', 3.6, -1.2, 2, 2, 0, undefined, 3);
+        add('rug', vx(130), vz(196) + 0.2, 3, 2, 0, undefined, 3);
+        break;
+      case 'appliance':
+        for (const x of [-4, -1.5, 1]) add('tv', x, backZ(0.6), 2.2, 0.6, 0, undefined, 3);
+        add('fridge', 3.5, backZ(0.7), 1, 0.7, 0, undefined, 3);
+        add('washer', 4.6, backZ(0.7), 0.7, 0.7, 0, undefined, 2);
+        add('counter', vx(290), vz(156) + 0.6, 2.2, 0.7, 0, o.tint);
+        break;
+      case 'hotel':
+      case 'apartment':
+        add('bed', -3.2, BACK + 1.25, 2.1, 2.5, 0, undefined, 3);
+        add('wardrobe', 0.2, backZ(0.6), 1.8, 0.6, 0, undefined, 3);
+        add('tv', 3, backZ(0.5), 2, 0.5, 0, undefined, 2);
+        add('lights', -1.6, BACK + 0.5, 0.6, 0.6, 0, undefined, 2);
+        add('rug', 0, 1, 3, 2, 0, undefined, 3);
+        break;
+      case 'market':
+        for (const x of [70, 190, 300])
+          add(
+            'stall',
+            vx(x),
+            vz(150) + 0.6,
+            2.6,
+            1,
+            0,
+            ['#16a34a', '#ea580c', '#2563eb'][(x / 100) | 0],
+          );
+        break;
+      case 'airport':
+        add('checkin', vx(250), vz(156) + 0.7, 4, 0.8);
+        add('screen-wall', -3, backZ(0.3), 3.4, 0.3);
+        break;
+      case 'shop':
+        add('shelves', -3.5, backZ(0.5), 3.4, 0.5);
+        add('shelves', 0, backZ(0.5), 3, 0.5);
+        add('shelves', -RW / 2 + 0.3, 0, 2.6, 0.5, Math.PI / 2);
+        counterAt(260, 156, 2.4);
+        add('display-case', -1, 1.4, 2, 0.7);
+        break;
+      case 'clinic':
+        add('reception', vx(110), vz(156) + 0.7, 2.4, 0.7, 0, '#ccfbf1');
+        add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
+        break;
+      case 'gallery':
+        for (const [x, s] of [
+          [-4, 1],
+          [-1.3, 2],
+          [1.4, 3],
+          [4.1, 4],
+        ] as const)
+          add('art', x, backZ(1) - 0.45, 1.3, 1, 0, undefined, 3, s * 5);
+        add('easel', -2, 0.6, 1.3, 0.3, 0.3, undefined, 1, 8);
+        add('easel', 2.4, 1.2, 1.3, 0.3, -0.4, undefined, 1, 9);
+        break;
+      case 'workshop':
+        add('workbench', -3, backZ(0.7), 3.2, 0.7);
+        {
+          const m = buildModel('car:hatchback', { w: 2, d: 4.5, tier: 1, tint: '#64748b' });
+          m.group.position.set(2.5, 0.5, -0.8);
+          m.group.rotation.y = Math.PI / 2;
+          const k = new Kit();
+          k.box(4.4, 0.12, 2, '#f59e0b', 2.5, 0.38, -0.8);
+          k.box(0.3, 0.4, 0.3, '#3f3f46', 1, 0, -0.8);
+          k.box(0.3, 0.4, 0.3, '#3f3f46', 4, 0, -0.8);
+          root.add(k.build(), m.group);
+        }
+        break;
+      case 'spa':
+        add('spa-pool', 2.6, BACK + 1.6, 4, 2.4);
+        add('massage-table', vx(236), vz(172) - 0.2, 0.8, 2, Math.PI / 2);
+        add('plants', -RW / 2 + 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 3);
+        add('plants', RW / 2 - 0.5, RD / 2 - 0.6, 0.8, 0.8, 0, undefined, 2);
+        break;
+      case 'beach': {
+        const sea = new THREE.Mesh(
+          new THREE.PlaneGeometry(40, 12),
+          mat('#0ea5e9', { rough: 0.15, metal: 0.1, emissive: '#0369a1', emissiveIntensity: 0.15 }),
+        );
+        sea.rotation.x = -Math.PI / 2;
+        sea.position.set(0, 0.03, BACK - 5.5);
+        root.add(sea);
+        const surf = new THREE.Mesh(
+          new THREE.PlaneGeometry(40, 0.6),
+          mat('#f0f9ff', { opacity: 0.7 }),
+        );
+        surf.rotation.x = -Math.PI / 2;
+        surf.position.set(0, 0.04, BACK + 0.4);
+        root.add(surf);
+        add('bar-counter', vx(310) - 0.3, vz(150) + 0.4, 2.6, 1.6, -0.3, '#a16207');
+        for (const [x, z] of [
+          [-5.4, -2.5],
+          [5.6, 2.5],
+          [-5.8, 2],
+        ] as const) {
+          const k = new Kit();
+          k.cyl(0.1, 0.16, 3.4, '#8b5a2b', x, 0, z, { rz: 0.12 });
+          for (let i = 0; i < 6; i++)
+            k.box(
+              1.4,
+              0.05,
+              0.35,
+              '#15803d',
+              x + Math.cos(i) * 0.6 + 0.4,
+              3.35,
+              z + Math.sin(i) * 0.6,
+              { ry: i, rz: -0.3 },
+            );
+          root.add(k.build());
+        }
+        break;
+      }
+      case 'pitch': {
+        const k = new Kit();
+        k.box(RW, 0.01, 0.08, '#ffffff', 0, 0.02, 0, {});
+        k.torus(1.2, 0.04, '#ffffff', 0, 0.02, 0, { rx: Math.PI / 2, seg: 32 });
+        k.box(0.08, 0.01, RD - 1, '#ffffff', 0, 0.02, 0);
+        for (const [x, z] of [
+          [-RW / 2 - 0.4, 0],
+          [RW / 2 + 0.4, 0],
+        ] as const)
+          k.box(0.1, 1.2, RD + 2, '#334155', x, 0, z, { opacity: 0.6 });
+        root.add(k.build());
+        add('goal', -RW / 2 + 0.6, 0, 3, 1.2, Math.PI / 2);
+        add('goal', RW / 2 - 0.6, 0, 3, 1.2, -Math.PI / 2);
+        break;
+      }
+      case 'salon':
+        add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
+        add('shelves', -RW / 2 + 0.3, -1, 2.4, 0.5, Math.PI / 2);
+        break;
+      default:
+        break;
     }
-    case 'pitch': {
-      const k = new Kit();
-      k.box(RW, 0.01, 0.08, '#ffffff', 0, 0.02, 0, {});
-      k.torus(1.2, 0.04, '#ffffff', 0, 0.02, 0, { rx: Math.PI / 2, seg: 32 });
-      k.box(0.08, 0.01, RD - 1, '#ffffff', 0, 0.02, 0);
-      for (const [x, z] of [
-        [-RW / 2 - 0.4, 0],
-        [RW / 2 + 0.4, 0],
-      ] as const)
-        k.box(0.1, 1.2, RD + 2, '#334155', x, 0, z, { opacity: 0.6 });
-      root.add(k.build());
-      add('goal', -RW / 2 + 0.6, 0, 3, 1.2, Math.PI / 2);
-      add('goal', RW / 2 - 0.6, 0, 3, 1.2, -Math.PI / 2);
-      break;
-    }
-    case 'salon':
-      add('plants', RW / 2 - 0.5, backZ(0.6), 0.8, 0.8, 0, undefined, 2);
-      add('shelves', -RW / 2 + 0.3, -1, 2.4, 0.5, Math.PI / 2);
-      break;
-    default:
-      break;
-  }
 
   // ---- Light: warm pendants (or the club's beams).
   if (!st.open) {
@@ -691,5 +763,6 @@ export function buildVenue(o: VenueOpts): VenueRoom {
     }
   }
 
-  return { root, sides, seats, screens, decks, movers, lamps };
+  dz.finish();
+  return { root, sides, seats, screens, decks, movers, lamps, lift: fam?.lift?.(ctx) };
 }

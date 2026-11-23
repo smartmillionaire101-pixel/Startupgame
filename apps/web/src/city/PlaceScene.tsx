@@ -812,6 +812,11 @@ function RoomScene({
     businessShape: business?.look.shape,
     capital: capitalKind,
   });
+  // Which interior of its kind (../interiors3d/dress): the business's kind, the city
+  // place's role, or what the place is (a newsstand, a fund, a hotel).
+  const roomVariant =
+    business?.kind ??
+    ((place.kind as string) === 'civic' ? (place.ref?.split(':')[1] ?? 'civic') : place.kind);
   const home = place.kind === 'home' && !abroad ? homeOf(view) : null;
   // Abroad, what your money buys at this city's prices (as paying here converts it).
   const purse = pocketOf(view, cur);
@@ -1788,6 +1793,8 @@ function RoomScene({
           <Suspense fallback={null}>
             <Venue3D
               room={room}
+              variant={roomVariant}
+              seed={place.id}
               tint={business?.look.color ?? place.color}
               sign={sign?.toUpperCase().slice(0, 32)}
               night={daylight.night}

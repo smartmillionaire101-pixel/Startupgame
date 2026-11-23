@@ -8,7 +8,7 @@
  * The 2D room (../city/PlaceScene.tsx) stays mounted underneath, invisible:
  * its captions, Skip, result card and accessible people list still work.
  */
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import * as THREE from 'three';
 import type { AvatarLook } from '../city/art';
 import { timeline } from '../city/acts/ActStage';
@@ -24,6 +24,8 @@ import type { NightStyle } from '../city/nightlife';
 import type { FoodPlace } from '../city/cuisine';
 import { buildFoodVenue } from './food3d';
 import { Stage, gestures } from './stage';
+import { loadProps, propsNow } from '../three-kit/props';
+import { humansEnabled } from '../three-kit/humans/kit';
 
 export interface VenuePerson {
   id: string;
@@ -61,6 +63,12 @@ export interface Venue3DProps {
   foodStyle?: FoodPlace | null;
   /** Its menu board's lines. */
   menu?: string[];
+  /** What the place is (a business's kind, a city place's role): its interior (./dress). */
+  variant?: string;
+  /** The place (its id): its own layout. */
+  seed?: string;
+  /** 1 basic … 3 luxury. */
+  tier?: 1 | 2 | 3;
 }
 
 const POSE: Record<Activity, PoseId> = {
@@ -107,7 +115,20 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
   const rigRef = useRef<{ rig: Rig; n: number; t0: number; ended: boolean } | null>(null);
 
   const { room, tint, sign, night, slots, people, me, act, nightStyle, foodStyle } = props;
+  const { variant, seed, tier } = props;
   const menuKey = (props.menu ?? []).join('|');
+  // The furniture models (they arrive after the first frames): the room is built again with them.
+  const [models, setModels] = useState(() => !!propsNow('furniture'));
+  useEffect(() => {
+    if (models || !humansEnabled()) return;
+    let on = true;
+    void loadProps('furniture').then((set) => {
+      if (on && set) setModels(true);
+    });
+    return () => {
+      on = false;
+    };
+  }, [models]);
 
   // ---- Stage and room.
   useEffect(() => {
@@ -198,9 +219,11 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
       ? buildNightVenue({ style: nightStyle, tint, sign, slots, night })
       : foodStyle
         ? buildFoodVenue({ style: foodStyle, sign, slots, night, menu: live.current.menu })
-        : buildVenue({ kind: room, tint, sign, slots, night });
+        : buildVenue({ kind: room, tint, sign, slots, night, variant, seed, tier });
     roomRef.current = v;
     stage.scene.add(v.root);
+    // Its shaders compiled before it's drawn (off the main thread where the GPU can).
+    void stage.warm();
     if (v.env) {
       stage.hemi.intensity = v.env.hemi;
       stage.hemi.color.set(v.env.hemiColor);
@@ -232,7 +255,7 @@ export default function Venue3D(props: Venue3DProps): ReactElement | null {
       roomRef.current = null;
     };
     // menuKey stands for `menu` (read from live).
-  }, [room, tint, sign, slots, night, nightStyle, foodStyle, menuKey]);
+  }, [room, tint, sign, slots, night, nightStyle, foodStyle, menuKey, variant, seed, tier, models]);
 
   // ---- People.
   const peopleKey = people.map((p) => `${p.id}:${p.slot}:${p.act}`).join('|');
