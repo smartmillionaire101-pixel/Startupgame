@@ -708,8 +708,12 @@ export function disposeTree(root: THREE.Object3D) {
   root.traverse((o) => {
     if (o !== root && o.userData.keep) keep.push(o);
     const m = o as THREE.Mesh;
-    // An instanced mesh's own buffers (its matrices and colours).
-    if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose();
+    // A furnished room's instanced meshes (./dress/core.ts) let go of their own
+    // buffers (matrices and colours). Only theirs: other views keep instanced
+    // meshes they draw again after this (a world's kept parts, pooled crowds),
+    // and a disposed one drawn again binds buffers that are gone.
+    if ((o as THREE.InstancedMesh).isInstancedMesh && o.userData.ownInstances)
+      (o as THREE.InstancedMesh).dispose();
     // (The CC0 models' geometry and colours are shared by everyone drawn from them.)
     if (m.geometry && !m.geometry.userData.shared) m.geometry.dispose();
     const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];

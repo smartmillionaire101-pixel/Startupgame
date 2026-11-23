@@ -357,6 +357,7 @@ export class Dresser {
         continue;
       }
       const im = new THREE.InstancedMesh(it.geo, it.mat, it.m.length);
+      im.userData.ownInstances = true;
       it.m.forEach((m, i) => im.setMatrixAt(i, m));
       im.castShadow = it.shadow;
       im.receiveShadow = true;
@@ -373,6 +374,7 @@ export class Dresser {
     ) => {
       if (!list.length) return;
       const im = new THREE.InstancedMesh(geo, material, list.length);
+      im.userData.ownInstances = true;
       list.forEach((b, i) => {
         im.setMatrixAt(i, b.m);
         im.setColorAt(i, b.c);
