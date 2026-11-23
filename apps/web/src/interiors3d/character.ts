@@ -318,7 +318,7 @@ function buildHair(look: AvatarLook): THREE.Group {
 export function makeCharacter(
   look: AvatarLook,
   id = '',
-  opts: { procedural?: boolean } = {},
+  opts: { procedural?: boolean; far?: boolean } = {},
 ): Character {
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -674,7 +674,7 @@ export function makeCharacter(
     for (const ch of o.children) tag(ch);
   };
   tag(body);
-  if (!opts.procedural) attachModel(c, (x) => pose(x, 'stand', 0));
+  if (!opts.procedural) attachModel(c, (x) => pose(x, 'stand', 0), opts.far);
   return c;
 }
 

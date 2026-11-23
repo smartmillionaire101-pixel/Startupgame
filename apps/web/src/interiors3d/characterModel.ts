@@ -98,6 +98,8 @@ interface State {
   /** Joint rest pose (character space), taken once. */
   rest: Map<JointKey, THREE.Matrix4> | null;
   offsets: Map<JointKey, THREE.Matrix4> | null;
+  /** The far copy of the kit (background people: a crowd, a cabin full). */
+  far: boolean;
 }
 
 const STATE = new WeakMap<Character, State>();
@@ -167,8 +169,9 @@ export const hasModel = (c: Character) => !!STATE.get(c)?.human;
 /**
  * Give a person the CC0 model (lazily: drawn once the kit has arrived).
  * `restPose` puts the low-poly person standing at rest (to measure it).
+ * `far`: the kit's far copy (a third of the triangles), for background people.
  */
-export function attachModel(c: Character, restPose: (c: Character) => void) {
+export function attachModel(c: Character, restPose: (c: Character) => void, far = false) {
   const st: State = {
     human: null,
     pose: 'idle',
@@ -180,6 +183,7 @@ export function attachModel(c: Character, restPose: (c: Character) => void) {
     clip: 'Idle',
     rest: null,
     offsets: null,
+    far,
   };
   STATE.set(c, st);
   const root = c.root;
@@ -243,7 +247,7 @@ function measureRest(c: Character, restPose: (c: Character) => void) {
 function build(c: Character, st: State, restPose: (c: Character) => void) {
   const outfit = outfitFor(c.look);
   // On a software GPU (a phone that has no GPU worth the name): the far copy for everyone.
-  const kit = kitNow(outfit.kit, softwareGl());
+  const kit = kitNow(outfit.kit, st.far || softwareGl());
   if (!kit) return false;
   if (!st.rest) {
     // (Measuring poses the person: keep what `pose` said this frame.)
