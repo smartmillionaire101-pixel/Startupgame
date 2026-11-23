@@ -19,6 +19,7 @@ export function TerminalScene({
   before,
   words,
   onTap,
+  paused = false,
 }: {
   opts: TerminalOpts;
   zone: Zone;
@@ -28,6 +29,8 @@ export function TerminalScene({
   /** What the 3D scene shows, in words (hidden: screen readers and tests). */
   words?: ReactNode;
   onTap?: () => void;
+  /** Covered by another view (the premium lounge): kept, but nothing drawn. */
+  paused?: boolean;
 }) {
   const three = use3d();
   const [failed, setFailed] = useState(false);
@@ -43,7 +46,13 @@ export function TerminalScene({
         onClick={onTap}
       >
         <Suspense fallback={<div className="terminal-loading" aria-hidden="true" />}>
-          <Terminal3D opts={opts} zone={zone} playing={playing} onFail={() => setFailed(true)} />
+          <Terminal3D
+            opts={opts}
+            zone={zone}
+            playing={playing}
+            paused={paused}
+            onFail={() => setFailed(true)}
+          />
         </Suspense>
         {words && <div className="sr-only">{words}</div>}
       </div>

@@ -69,6 +69,8 @@ const GLASS = -5;
 const FRONT = 9;
 const CEIL = 5.6;
 const APRON = -3.2;
+/** Your own jet's door (x, height over the apron, z): its airstairs come down from it. */
+const JET_DOOR = { x: 40.9, y: 1.25, z: GLASS - 12.75 };
 
 export interface Friend {
   id: string;
@@ -176,6 +178,8 @@ export class TerminalWorld {
   private strollers = new Map<Area, Stroller[]>();
   private crowds: Instanced[] = [];
   private me: Character;
+  private youTag!: THREE.Sprite;
+  private youRing!: THREE.Mesh;
   private party: Character[] = [];
   private tags: THREE.Sprite[] = [];
   private zone: Zone;
@@ -228,6 +232,23 @@ export class TerminalWorld {
     // You (and your friends), with your bag.
     this.me = makeCharacter(o.me, 'me');
     this.root.add(this.me.root);
+    // You stand out: "You" over your head, a soft ring at your feet.
+    this.youTag = this.nameTag('You', 'rgba(15,118,110,0.92)', '#ffffff');
+    this.youTag.scale.set(0.5, 0.16, 1);
+    this.me.root.add(this.youTag);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.34, 0.43, 40).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({
+        color: '#2dd4bf',
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false,
+      }),
+    );
+    ring.position.y = 0.014;
+    ring.renderOrder = 2;
+    this.youRing = ring;
+    this.me.root.add(ring);
     o.party.slice(0, 3).forEach((f, k) => {
       const c = makeCharacter(f.look, f.id);
       this.root.add(c.root);
@@ -480,9 +501,25 @@ export class TerminalWorld {
     if (o.mode === 'departures') {
       if (o.kind === 'bizjet') {
         const jet = makePlane3D({ kind: 'bizjet', livery: o.livery, length: 20 });
-        jet.root.position.set(38, APRON, GLASS - 14);
+        jet.root.position.set(46.9, APRON, GLASS - 14);
         jet.root.rotation.y = Math.PI;
         this.root.add(jet.root);
+        // Its airstairs down from the door, a red carpet out to them.
+        const k = new Kit();
+        const { x, y, z } = JET_DOOR;
+        const n = 8;
+        for (let i = 0; i < n; i++)
+          k.box(0.9, 0.06, 0.32, '#e5e7eb', x, APRON + (y * (n - 1 - i)) / n, z + 0.3 + i * 0.3, {
+            metal: 0.4,
+            rough: 0.4,
+          });
+        for (const sx of [-1, 1])
+          k.box(0.05, 0.05, 2.7, '#9ca3af', x + sx * 0.45, APRON + y * 0.5 + 0.8, z + 1.35, {
+            rx: Math.atan2(y, 2.5),
+            metal: 0.6,
+          });
+        k.box(1.1, 0.02, 8, '#b91c1c', x, APRON + 0.01, z + 6.6, { noShadow: true });
+        this.root.add(k.build());
       } else this.standPlane(37.2, o.livery, L, true);
     }
     const taxi = makePlane3D({ kind: 'airliner', livery: liv(3), length: 40 });
@@ -644,14 +681,14 @@ export class TerminalWorld {
   }
 
   /** A floating name over a friend's head. */
-  private nameTag(name: string) {
+  private nameTag(name: string, bg = 'rgba(15,23,42,0.86)', fg = '#facc15') {
     const t = canvasTexture(256, 80, (g) => {
-      g.fillStyle = 'rgba(15,23,42,0.86)';
+      g.fillStyle = bg;
       const r = 30;
       g.beginPath();
       g.roundRect(4, 8, 248, 64, r);
       g.fill();
-      g.fillStyle = '#facc15';
+      g.fillStyle = fg;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       fitText(g, name, 128, 42, 220, 40);
@@ -874,7 +911,7 @@ export class TerminalWorld {
         `agent:${n}`,
       ),
     );
-    this.strollersIn('desk', 3, -9, 18, [2.4, 3.4, 4.4]);
+    this.strollersIn('desk', 2, -9, 18, [1.9]);
   }
 
   private securityArea() {
@@ -944,10 +981,10 @@ export class TerminalWorld {
     g.add(this.tray);
     this.hangingSign(g, 'Security', 18, -0.4, 2.4);
     const officer = (n: number) => uniformLook(`${o.seed}:sec${n}`, 'security');
-    this.staff('security', officer(0), { x: 19.6, z: -0.5, ry: -2.2, pose: 'idle' }, 'sec:0');
+    this.staff('security', officer(0), { x: 19.9, z: -2.0, ry: -1.9, pose: 'idle' }, 'sec:0');
     this.staff('security', officer(1), { x: 17.3, z: -1.55, ry: Math.PI, pose: 'idle' }, 'sec:1');
     this.staff('security', officer(2), { x: 19.6, z: -2.4, ry: -1.6, pose: 'chat' }, 'sec:2');
-    this.strollersIn('security', 1, 12, 12, [3.6]);
+    this.strollersIn('security', 1, 12, 12, [1.0]);
   }
 
   private gateArea() {
@@ -987,8 +1024,8 @@ export class TerminalWorld {
       k.cyl(0.035, 0.035, 0.95, '#cbd5e1', x, 0, -1.6, { metal: 0.8, rough: 0.25 });
     k.box(2.4, 0.05, 0.015, '#b91c1c', 40.2, 0.86, -1.6);
     // A vending machine, a plant.
-    k.box(0.9, 1.9, 0.75, '#dc2626', 44.6, 0, -3.8, { round: 0.04 });
-    k.box(0.6, 1.0, 0.02, '#fecaca', 44.5, 0.75, -3.42, {
+    k.box(0.9, 1.9, 0.75, '#dc2626', 45.3, 0, -3.8, { round: 0.04 });
+    k.box(0.6, 1.0, 0.02, '#fecaca', 45.2, 0.75, -3.42, {
       emissive: '#fde68a',
       emissiveIntensity: 0.3,
     });
@@ -1040,7 +1077,7 @@ export class TerminalWorld {
       { x: 40.5, z: -4.55, ry: 0.5, pose: 'idle' },
       'gate:crew',
     );
-    this.strollersIn('gate', 2, 28, 18, [2.6, 3.8]);
+    this.strollersIn('gate', 2, 28, 18, [-4.55]);
   }
 
   // ------------------------------------------------------------------ arrivals
@@ -1227,7 +1264,7 @@ export class TerminalWorld {
     });
     this.belt = { im: ims, at };
     this.beltGeo = { cx, cz, half, r: R - 0.31 };
-    this.strollersIn('baggage', 2, 11, 14, [3.4, 4.4]);
+    this.strollersIn('baggage', 1, 11, 14, [-4.0]);
   }
   private beltGeo = { cx: 18, cz: -1.9, half: 2.4, r: 1 };
 
@@ -1369,7 +1406,7 @@ export class TerminalWorld {
       );
       c.root.add(this.nameTag(f.first));
     });
-    this.strollersIn('hall', 2, 28, 18, [0.4, 1.3]);
+    this.strollersIn('hall', 1, 28, 18, [-0.2]);
   }
 
   // ------------------------------------------------------------------ crowds
@@ -1447,7 +1484,7 @@ export class TerminalWorld {
     };
     if (o.mode === 'departures') {
       const [p1, b1] = queue([-2.9, -1.8, 2.3, 3.4, 4.6], 0.05);
-      const [p1b, b1b] = queue([-0.2, 1.2], 1.35);
+      const [p1b, b1b] = queue([-3.6], 1.2);
       add('desk', standG, [...p1, ...p1b], [...b1, ...b1b]);
       const [p2, b2] = queue([12.6, 13.6, 14.5], -1.0, Math.PI / 2);
       add(
@@ -1579,21 +1616,23 @@ export class TerminalWorld {
     const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
     switch (zone) {
       case 'ticket':
-        return { p: V(-1.4, 2.6, 4.8), l: V(-5.0, 1.15, -2.2) };
+        return { p: V(-3.9, 2.0, 2.7), l: V(-6.2, 1.1, -2.0) };
       case 'checkin':
-        return { p: V(3.3, 2.45, 3.9), l: V(0.5, 1.15, -2.3) };
+        return { p: V(2.7, 1.95, 2.3), l: V(0.6, 1.1, -2.2) };
       case 'security':
-        return { p: V(21.6, 2.6, 4.2), l: V(17.9, 1.0, -2.2) };
+        return { p: V(19.3, 2.0, 2.5), l: V(17.4, 1.05, -1.8) };
       case 'gate':
-        return { p: V(38.6, 2.5, 4.6), l: V(35.6, 1.25, -2.8) };
+        return { p: V(36.3, 1.9, 2.7), l: V(34.4, 0.95, -1.6) };
       case 'board':
-        return { p: V(37.4, 2.4, 3.2), l: V(41.4, 1.3, -4.4) };
+        // Your own jet: over the gate door, down through the glass to its airstairs.
+        if (this.o.kind === 'bizjet') return { p: V(43.4, 2.9, 0.6), l: V(40.8, -1.2, -11.5) };
+        return { p: V(38.8, 1.95, 1.5), l: V(41.3, 1.2, -4.2) };
       case 'passport':
-        return { p: V(2.6, 2.6, 4.2), l: V(-0.4, 1.1, -2.2) };
+        return { p: V(1.9, 1.95, 2.4), l: V(-0.2, 1.1, -2.1) };
       case 'baggage':
-        return { p: V(21.4, 3.0, 4.6), l: V(18.0, 0.55, -1.6) };
+        return { p: V(20.7, 2.4, 3.1), l: V(18.4, 0.7, -1.4) };
       case 'hall':
-        return { p: V(35.2, 2.7, 4.6), l: V(37.0, 1.3, -2.8) };
+        return { p: V(35.5, 1.95, 2.5), l: V(37.2, 1.3, -2.6) };
     }
   }
 
@@ -1714,6 +1753,25 @@ export class TerminalWorld {
       walking = k < 1;
       face = Math.PI / 2;
       if (k >= 1) s = end;
+    } else if (playK >= 0 && zone === 'board' && this.o.kind === 'bizjet') {
+      // Your own jet: out of the door, then across the apron and up its airstairs.
+      const k1 = Math.max(0, Math.min(1, (playK - 2.4) / 1.6));
+      const k2 = Math.max(0, Math.min(1, (playK - 4.0) / 3.2));
+      const { x, y, z } = JET_DOOR;
+      if (k2 <= 0) {
+        pos.set(s.x, 0, s.z - k1 * 3.0);
+        walking = k1 < 1;
+        face = Math.PI;
+      } else {
+        // The carpet to the foot of the stairs, then up them.
+        const foot = new THREE.Vector3(x, APRON, z + 2.7);
+        const start = new THREE.Vector3(x, APRON, z + 9);
+        const top = new THREE.Vector3(x, APRON + y, z + 0.25);
+        const p = k2 < 0.6 ? start.lerp(foot, k2 / 0.6) : foot.lerp(top, (k2 - 0.6) / 0.4);
+        pos.copy(p);
+        walking = k2 < 1;
+        face = Math.PI;
+      }
     } else if (playK >= 0 && zone === 'board') {
       // Up to the door and out along the bridge.
       // (A moment at the door first: you walk in, show your pass, then go.)
@@ -1727,12 +1785,18 @@ export class TerminalWorld {
     }
     if (walking) {
       this.me.root.position.copy(pos);
+      this.me.root.position.y = pos.y;
       this.me.root.rotation.y = face;
       pose(this.me, 'walk', t);
     } else {
       this.put(this.me, { ...s, x: pos.x, z: pos.z }, t);
     }
-    this.me.root.visible = !(zone === 'board' && pos.z < GLASS - 0.8);
+    this.me.root.visible =
+      !(zone === 'board' && pos.z < GLASS - 0.8 && pos.y > -0.5) &&
+      !(zone === 'board' && pos.y < -0.5 && playK > 7.1);
+    const sat = zone === 'gate' && !walking;
+    this.youTag.position.y = sat ? 1.5 : 2.02;
+    this.youRing.visible = !sat;
     // Your friends a step behind (sitting beside you at the gate).
     this.party.forEach((c, n) => {
       const off = [

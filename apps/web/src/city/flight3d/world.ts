@@ -417,7 +417,7 @@ export class SkyWorld {
         polygonOffsetUnits: -1,
       }),
     );
-    taxi.position.set(250, 0.15, 150);
+    taxi.position.set(250, 0.15, 60);
     const { term, glass } = this.terminal();
     this.termGlassMat = glass.material as THREE.MeshLambertMaterial;
     const tower = new THREE.Mesh(
@@ -591,6 +591,9 @@ export class SkyWorld {
         p.root.rotation.y = sx > 0 ? Math.PI : 0;
         term.add(p.root);
       }
+    // Nearer the start of the roll, where the take-off camera sees it go past.
+    term.position.set(-650, 0, -100);
+    glass.position.set(-650, 0, -100);
     return { term, glass };
   }
 

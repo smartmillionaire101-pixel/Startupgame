@@ -17,7 +17,7 @@ import './terminal.css';
 const Transfer3D = lazy(() => import('./Transfer3D'));
 
 /** How long the ride shows (ms): the drawn car's dash, or the 3D ride. */
-export const rideMs = (three: boolean) => (three ? 4200 : 2200);
+export const rideMs = (three: boolean) => (three ? 5200 : 2200);
 
 export function HotelRide({
   market,
@@ -56,7 +56,7 @@ export function HotelRide({
               party={party}
               night={night}
               car={abroad ? (market === 'london' ? 'Taxi' : 'SUV') : 'NormalCar1'}
-              paint={abroad ? (market === 'london' ? '#111827' : '#1f2937') : '#475569'}
+              paint={abroad ? (market === 'london' ? '#1f2937' : '#eef2f6') : '#64748b'}
               seconds={rideMs(true) / 1000}
               seed={`${market}:${view.me.id}`}
               onFail={() => setFailed(true)}

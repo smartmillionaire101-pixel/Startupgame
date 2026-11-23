@@ -64,6 +64,7 @@ import {
 } from '../ticket';
 import { FlyingWith, flightPartyTo } from '../companions';
 import { TerminalScene } from '../airport3d/TerminalScene';
+import { use3d } from '../../three-kit/quality';
 import type { TerminalOpts, Zone } from '../airport3d/terminal3d';
 import { CABIN_NAME, TicketLegs, TripPicker } from '../CabinPicker';
 import { flightsOf, loungeOf, type CabinTier, type HotelTier } from '../travel';
@@ -1090,6 +1091,14 @@ export function AirportScene({
   }, [marketId]);
   // The terminal in 3D: where your trip has got to, and what it shows.
   const held = scene?.ticket ?? null;
+  const three = use3d();
+  // Business and first wait in their lounge (its own 3D view, over the paused terminal).
+  const premiumLounge = !!(
+    scene?.ticket &&
+    scene.at === 'lounge' &&
+    lounge &&
+    isPremium(scene.ticket.cabin)
+  );
   const zone: Zone = !held
     ? 'ticket'
     : scene!.at === 'lounge'
@@ -1163,7 +1172,7 @@ export function AirportScene({
             <ArrivalScene marketId={marketId} arrival={landed} look={look} night={night} />
           ) : (
             <div className="airport-view">
-              {scene?.ticket && scene.at === 'lounge' && lounge && isPremium(scene.ticket.cabin) ? (
+              {premiumLounge && !three && scene?.ticket && lounge ? (
                 <LoungeScene
                   cabin={lounge.cabin}
                   marketId={marketId}
@@ -1183,36 +1192,61 @@ export function AirportScene({
                   }
                 />
               ) : (
-                <TerminalScene
-                  key={terminalKey}
-                  opts={terminalOpts}
-                  zone={zone}
-                  playing={!!scene?.playing && scene.playing === scene.at}
-                  before={
-                    zone === 'ticket' ? <Board marketId={marketId} day={day} start={now} /> : null
-                  }
-                  fallback={
-                    <>
-                      <Board marketId={marketId} day={day} start={now} />
-                      {scene?.ticket && scene.at !== 'ticket' ? (
-                        <TerminalView
-                          cabin={scene.ticket.cabin}
-                          step={scene.at}
-                          playing={scene.playing === scene.at}
-                          look={look}
-                          kind={jet ? 'bizjet' : 'airliner'}
-                          livery={jet ? '#1e3a8a' : liveryOf(marketId, scene.ticket.airline)}
-                          airline={jet ? t('Private jets') : (scene.ticket.airline ?? '')}
-                          gate={jet ? 'P1' : (scene.ticket.gate ?? 'A1')}
-                          toName={scene.ticket.toName}
-                          night={night}
-                        />
-                      ) : (
-                        <Apron schedule={schedule} walkers={walkers} />
-                      )}
-                    </>
-                  }
-                />
+                <>
+                  <TerminalScene
+                    key={terminalKey}
+                    opts={terminalOpts}
+                    zone={zone}
+                    paused={premiumLounge}
+                    playing={!!scene?.playing && scene.playing === scene.at}
+                    before={
+                      zone === 'ticket' ? <Board marketId={marketId} day={day} start={now} /> : null
+                    }
+                    fallback={
+                      <>
+                        <Board marketId={marketId} day={day} start={now} />
+                        {scene?.ticket && scene.at !== 'ticket' ? (
+                          <TerminalView
+                            cabin={scene.ticket.cabin}
+                            step={scene.at}
+                            playing={scene.playing === scene.at}
+                            look={look}
+                            kind={jet ? 'bizjet' : 'airliner'}
+                            livery={jet ? '#1e3a8a' : liveryOf(marketId, scene.ticket.airline)}
+                            airline={jet ? t('Private jets') : (scene.ticket.airline ?? '')}
+                            gate={jet ? 'P1' : (scene.ticket.gate ?? 'A1')}
+                            toName={scene.ticket.toName}
+                            night={night}
+                          />
+                        ) : (
+                          <Apron schedule={schedule} walkers={walkers} />
+                        )}
+                      </>
+                    }
+                  />
+                  {premiumLounge && scene?.ticket && lounge && (
+                    <div className="lounge-over">
+                      <LoungeScene
+                        cabin={lounge.cabin}
+                        marketId={marketId}
+                        night={night}
+                        livery={liveryOf(marketId, scene.ticket.airline)}
+                        me={look}
+                        crowd={crowd}
+                        spot={scene.spot}
+                        called={scene.called}
+                        boardLine={
+                          scene.called
+                            ? t('{flight} to {city} is now boarding', {
+                                flight: scene.ticket.flight ?? t('Your flight'),
+                                city: scene.ticket.toName,
+                              })
+                            : null
+                        }
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

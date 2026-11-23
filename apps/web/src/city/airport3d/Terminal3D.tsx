@@ -16,6 +16,8 @@ export interface Terminal3DProps {
   zone: Zone;
   /** The zone's moment is playing (a bag onto the belt, through the arch, up the bridge). */
   playing: boolean;
+  /** Covered by another view: draw nothing (and pick up where it was after). */
+  paused?: boolean;
   onReady?: () => void;
   /** No WebGL here: the caller draws the 2D view instead. */
   onFail?: () => void;
@@ -27,6 +29,11 @@ export default function Terminal3D(props: Terminal3DProps): ReactElement {
   useEffect(() => {
     live.current = props;
   });
+  // Uncovered again: draw (the stage sleeps while nothing moves).
+  const kick = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!props.paused) kick.current();
+  }, [props.paused]);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -91,7 +98,17 @@ export default function Terminal3D(props: Terminal3DProps): ReactElement {
       canvas.dataset.ready = 'yes';
       live.current.onReady?.();
     };
+    let wasPaused = false;
+    kick.current = () => stage.invalidate();
     const off = stage.add((t) => {
+      if (live.current.paused) {
+        wasPaused = true;
+        return false;
+      }
+      if (wasPaused) {
+        wasPaused = false;
+        stage.invalidate();
+      }
       world.setZone(live.current.zone, live.current.playing, t);
       return world.update(t);
     });

@@ -14,6 +14,26 @@
   display: block;
   touch-action: pan-y;
 }
+/* The business or first lounge over the (paused) terminal: it fades in once it has drawn. */
+.airport-scene .airport-view {
+  position: relative;
+}
+.lounge-over {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  opacity: 1;
+  transition: opacity 0.5s ease-out;
+}
+.lounge-over:has(.lounge-scene[data-lounge-ready='no']) {
+  opacity: 0;
+}
+.lounge-over > .lounge-scene {
+  flex: 1 1 auto;
+}
+
 /* Arrivals: the hall taller in 3D (people at a size you can see). */
 .arr-hall.is-3d {
   height: clamp(240px, 38vh, 360px);
