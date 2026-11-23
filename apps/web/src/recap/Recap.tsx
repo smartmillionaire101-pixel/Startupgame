@@ -23,6 +23,8 @@ import { money } from '../format';
 import { t, tx } from '../i18n';
 import { openPhone, useNav } from '../phone/bus';
 import { useView } from '../store';
+import { PersonPortrait } from '../avatar/PersonPortrait';
+import { contactsOf } from '../city/people';
 import { CountUp, Icon } from '../ui';
 import './recap.css';
 import { churnLabel } from '../screens/Sales';
@@ -332,7 +334,14 @@ function RecapBody({ recap, details }: { recap: RecapView; details: Details }) {
         {recap.people.length ? (
           <ul className="recap-list">
             {recap.people.map((p, i) => (
-              <li key={i}>{personText(p)}</li>
+              <li key={i} className="recap-person">
+                <span className="recap-faces" aria-hidden="true">
+                  {(p.kind === 'hangout' ? p.names.slice(0, 3) : [p.name]).map((n) => (
+                    <RecapFace key={n} name={n} />
+                  ))}
+                </span>
+                <span>{personText(p)}</span>
+              </li>
             ))}
           </ul>
         ) : (
@@ -676,6 +685,19 @@ function Bills({
       )}
     </div>
   );
+}
+
+/**
+ * The face of someone in the month's people, found by name among the players
+ * and your contacts (the recap only names them); a stranger gets the
+ * portrait their name would give them.
+ */
+function RecapFace({ name }: { name: string }) {
+  const { view } = useView();
+  const pl = view.players.find((x) => x.name === name);
+  if (pl) return <PersonPortrait id={pl.id} bg={pl.backgroundId} gender={pl.gender} size={32} />;
+  const c = contactsOf(view).find((x) => x.name.split(',')[0]!.trim() === name);
+  return <PersonPortrait id={c ? (c.chatId ?? c.refId) : `name:${name}`} size={32} />;
 }
 
 function personText(p: RecapPerson): string {

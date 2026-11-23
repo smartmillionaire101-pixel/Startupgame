@@ -35,7 +35,9 @@ import { use3d } from '../../three-kit/quality';
 import { SnapButton } from '../../photos/SnapButton';
 import { HudButton, HudRail } from '../../ui';
 import { resultCard } from '../../photos/snap';
-import { AvatarFigure, avatarLook, type AvatarLook } from '../art';
+import { avatarLook, type AvatarLook } from '../art';
+import { PersonSprite } from '../PersonSprite';
+import { SPRITE_K } from '../scenePose';
 import { CabinService } from '../acts/CabinService';
 import { genderOf } from '../life';
 import { CITY_GEO, CITY_NAMES, fmtFlightTime, inflightOf, localHour } from '../travel';
@@ -225,8 +227,9 @@ function SuiteDrawn({
           />
           <rect x="196" y="150" width="36" height="14" rx="6" fill="#ffffff" />
           {!away && (
-            <g transform="translate(160 158) rotate(-90) scale(0.9)">
-              <AvatarFigure look={me} />
+            <g transform={`translate(160 158) rotate(-90) scale(${0.9 * SPRITE_K})`}>
+              {/* Lying on your back under the duvet: the standing picture, laid down. */}
+              <PersonSprite look={me} shadow={false} />
             </g>
           )}
         </g>
@@ -236,8 +239,8 @@ function SuiteDrawn({
           <rect x="70" y="150" width="90" height="26" rx="8" fill={leather} />
           <rect x="74" y="176" width="80" height="12" fill={wood} />
           {!away && (
-            <g transform="translate(118 176) scale(1.05)">
-              <AvatarFigure look={me} />
+            <g transform={`translate(118 176) scale(${1.05 * SPRITE_K})`}>
+              <PersonSprite look={me} pose="sit" angle="three-quarter" />
             </g>
           )}
         </g>
@@ -267,8 +270,8 @@ function SuiteDrawn({
         </g>
       )}
       {/* The crew at your door. */}
-      <g transform="translate(330 196) scale(1.1)">
-        <AvatarFigure look={crew} />
+      <g transform={`translate(330 196) scale(${1.1 * SPRITE_K})`}>
+        <PersonSprite look={crew} pose="present" angle="three-quarter" flip />
       </g>
       {/* The doors (first): two panels that slide shut. */}
       {first && (

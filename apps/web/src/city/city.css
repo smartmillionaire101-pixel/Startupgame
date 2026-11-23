@@ -671,6 +671,14 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.event-host {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.event-host > .portrait {
+  flex: none;
+}
 .event-main {
   flex: 1;
   min-width: 0;

@@ -14,7 +14,7 @@
  */
 import { useState } from 'react';
 import type { Command } from '@runway/engine';
-import { Portrait } from '../avatar/Portrait';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import { amountInput, money, parseAmount, pct } from '../format';
 import { useLang, t, tx } from '../i18n';
 import { useView } from '../store';
@@ -401,11 +401,11 @@ function Scene({ p, m }: { p: PitchV; m: MeetingV }) {
       </span>
       <div className="pm-people" aria-hidden="true">
         <figure>
-          <Portrait id={p.founderId} size={84} />
+          <PersonPortrait id={p.founderId} size={84} />
           <figcaption>{you}</figcaption>
         </figure>
         <figure>
-          <Portrait id={m.investor.portraitId} bg="b-finance" size={84} />
+          <PersonPortrait id={m.investor.portraitId} bg="b-finance" size={84} />
           <figcaption>{m.investor.name}</figcaption>
         </figure>
       </div>
@@ -690,7 +690,7 @@ function Side({ p, m, cur, founder }: { p: PitchV; m: MeetingV; cur: string; fou
         }
       >
         <div className="convo-person">
-          <Portrait id={inv.portraitId} bg="b-finance" size={60} />
+          <PersonPortrait id={inv.portraitId} bg="b-finance" size={60} />
           <div>
             <strong>{inv.firm ? t('{name}, partner', { name: inv.name }) : inv.name}</strong>
             {inv.backed > 0 && (

@@ -185,3 +185,17 @@
 .team-skill.flat {
   color: var(--muted);
 }
+
+/* The month's people: their faces, then what happened. */
+.recap-list li.recap-person {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.recap-faces {
+  display: flex;
+  flex: none;
+}
+.recap-faces > .portrait + .portrait {
+  margin-left: -10px;
+}

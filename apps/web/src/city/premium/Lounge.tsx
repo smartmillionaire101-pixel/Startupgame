@@ -21,7 +21,9 @@ import { useView } from '../../store';
 import { use3d } from '../../three-kit/quality';
 import { SnapButton } from '../../photos/SnapButton';
 import { resultCard } from '../../photos/snap';
-import { AvatarFigure, type AvatarLook } from '../art';
+import type { AvatarLook } from '../art';
+import { PersonSprite } from '../PersonSprite';
+import { SPRITE_K } from '../scenePose';
 import { PlaneSide } from '../airport/planes';
 import { CITY_NAMES, type LoungeInfo } from '../travel';
 import type { LoungeSpot } from './lounge3d';
@@ -66,8 +68,8 @@ function Person({
   flip?: boolean;
 }) {
   return (
-    <g transform={`translate(${x} ${y}) scale(${flip ? -s : s} ${s})`}>
-      <AvatarFigure look={look} />
+    <g transform={`translate(${x} ${y}) scale(${s * SPRITE_K})`}>
+      <PersonSprite look={look} pose="idle" angle="three-quarter" flip={flip} />
     </g>
   );
 }
@@ -243,11 +245,8 @@ function LoungeDrawn({
         style={{ transform: `translate(${you.x}px, ${you.y}px)` }}
         data-lounge-you={spot}
       >
-        <g
-          transform={`scale(${you.flip ? -1.05 : 1.05} 1.05)`}
-          opacity={spot === 'shower' ? 0.55 : 1}
-        >
-          <AvatarFigure look={me} />
+        <g transform={`scale(${1.05 * SPRITE_K})`} opacity={spot === 'shower' ? 0.55 : 1}>
+          <PersonSprite look={me} angle="three-quarter" flip={you.flip} />
         </g>
         <text y="-44" textAnchor="middle" fontSize="7" fontWeight="800" fill="#fef3c7">
           {t('You')}

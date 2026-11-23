@@ -1,4 +1,5 @@
 import { openLiving } from '../experiences/living-bus';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import { useDaylight } from '../city/useDaylight';
 import { openPlay } from '../experiences/play-bus';
 /**
@@ -3559,6 +3560,7 @@ function PartyList({
   onInvite: (ids: string[]) => void;
   onContacts: () => void;
 }) {
+  const players = useView().view.players;
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const toggle = (id: string) =>
     setPicked((s) => {
@@ -3584,7 +3586,15 @@ function PartyList({
               aria-pressed={picked.has(p.id)}
               onClick={() => toggle(p.id)}
             >
-              <span aria-hidden="true">{picked.has(p.id) ? '✅' : '🧑'}</span>
+              <span className="home-row-face" aria-hidden="true">
+                <PersonPortrait
+                  id={p.id}
+                  bg={players.find((x) => x.id === p.id)?.backgroundId}
+                  gender={players.find((x) => x.id === p.id)?.gender}
+                  size={36}
+                />
+                {picked.has(p.id) && <b className="home-row-tick">✓</b>}
+              </span>
               <span>
                 <b>{p.name}</b>
                 <small>{t('Player in town')}</small>
@@ -3650,7 +3660,13 @@ function InviteList({
               disabled={busy || done}
               onClick={() => onInvite(p.personId, p.name)}
             >
-              <span aria-hidden="true">{p.contact ? '👤' : '💼'}</span>
+              <span className="home-row-face" aria-hidden="true">
+                <PersonPortrait
+                  id={p.personId}
+                  bg={p.contact ? undefined : 'b-finance'}
+                  size={36}
+                />
+              </span>
               <span>
                 <b>{p.name}</b>
                 <small>{p.sub || (p.contact ? t('Contact') : t('In town'))}</small>

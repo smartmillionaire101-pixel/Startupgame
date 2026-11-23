@@ -6,6 +6,9 @@ import { placingHere, vansOf } from '../shop/vans';
 import { useUnpack } from '../shop/useUnpack';
 import { visitPlace } from '../city/goto';
 import { useView } from '../store';
+import { avatarLook } from '../city/art';
+import { genderOf } from '../city/life';
+import { PersonSprite } from '../city/PersonSprite';
 import { openPhone } from '../phone/bus';
 import { closeLiving, livingPlace, onLiving } from './living-bus';
 import { openPlay } from './play-bus';
@@ -60,6 +63,12 @@ function LivingRoom({ host }: { host: string }) {
     (d) => d.status !== 'ended' && now - d.createdAt < 3_600_000,
   );
   const date = dates[dates.length - 1];
+  /** A player in the date as the map draws them. */
+  const lookOf = (id: string) => {
+    if (id === view.me.id) return avatarLook(view.me.background?.id, id, genderOf(view.me));
+    const x = view.players.find((q) => q.id === id);
+    return avatarLook(x?.backgroundId, id, x?.gender);
+  };
   const rooms = view.playRooms.filter((r) => r.status === 'waiting' || r.status === 'playing');
   const vans = vansOf(view.living.deliveries, host);
   const unpack = useUnpack();
@@ -284,9 +293,22 @@ function LivingRoom({ host }: { host: string }) {
                   className={`living-couple ${date.holdingHands ? 'holding' : ''}`}
                   aria-label={date.holdingHands ? 'Holding hands' : 'Together'}
                 >
-                  <span>🧑</span>
+                  <PersonSprite
+                    html
+                    height={96}
+                    look={lookOf(date.host)}
+                    pose={date.holdingHands ? 'stand' : 'wave'}
+                    angle="three-quarter"
+                  />
                   <b>{date.holdingHands ? '♥' : '✦'}</b>
-                  <span>🧑</span>
+                  <PersonSprite
+                    html
+                    height={96}
+                    look={lookOf(date.guest)}
+                    pose={date.holdingHands ? 'stand' : 'chat'}
+                    angle="three-quarter"
+                    flip
+                  />
                 </div>
                 {date.location !== 'home' && (
                   <button

@@ -12,7 +12,7 @@
  * (`company.interview`), so closing the sheet and coming back picks it up.
  */
 import { useState } from 'react';
-import { Portrait } from '../avatar/Portrait';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import { money, pct } from '../format';
 import { t, tx, useLang } from '../i18n';
 import { useView, type Company } from '../store';
@@ -109,7 +109,13 @@ function MarketScene({ caption }: { caption: string }) {
 function PersonCard({ p, ln }: { p: Person | Active['person']; ln: (l: Line) => string }) {
   return (
     <div className="convo-person">
-      <Portrait id={p.portraitId} bg="b-commercial" gender={p.gender} size={76} label={p.name} />
+      <PersonPortrait
+        id={p.portraitId}
+        bg="b-commercial"
+        gender={p.gender}
+        size={76}
+        label={p.name}
+      />
       <div>
         <h3>{p.name}</h3>
         <div className="small">{ln(p.job)}</div>
@@ -340,7 +346,7 @@ function Rounds({
       <div className="convo-main">
         <Card>
           <div className="convo-head">
-            <Portrait
+            <PersonPortrait
               id={a.person.portraitId}
               bg="b-commercial"
               gender={a.person.gender}

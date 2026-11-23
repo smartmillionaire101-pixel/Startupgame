@@ -10,6 +10,7 @@ import type { Command } from '@runway/engine';
 import { amountInput, money, parseAmount } from '../format';
 import { t, tx } from '../i18n';
 import { useView } from '../store';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import { Button, Card, Confirm, Empty, Field, Pill, Segmented } from '../ui';
 import { activeCompany } from './contract';
 import {
@@ -85,8 +86,9 @@ const venueLabel = (v: Venue) =>
 const cmd = (c: Command) => c;
 
 function EventRow({ e, hours }: { e: CityEventView; hours: number | null }) {
-  const { send, cur } = useView();
+  const { send, cur, view } = useView();
   const full = e.capacity > 0 && e.going >= e.capacity;
+  const host = view.players.find((x) => x.id === e.host.id);
   return (
     <li className="event-row">
       <div className="event-date" aria-hidden="true">
@@ -99,7 +101,13 @@ function EventRow({ e, hours }: { e: CityEventView; hours: number | null }) {
           {e.youGoing && !e.youHost && <Pill tone="good">{t('Going')}</Pill>}
         </div>
         <div className="item-title">{e.title}</div>
-        <div className="small muted">
+        <div className="small muted event-host">
+          <PersonPortrait
+            id={e.youHost ? view.me.id : e.host.id}
+            bg={e.youHost ? view.me.background?.id : host?.backgroundId}
+            gender={e.youHost ? view.me.gender : host?.gender}
+            size={28}
+          />
           {t('Hosted by {name} · {venue} · {date}', {
             name: e.host.name,
             venue: e.venue === 'office' ? t('their office') : venueLabel(e.venue),

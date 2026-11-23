@@ -25,7 +25,8 @@ import { ApiError, api } from '../api';
 import { LANGS, setLang, t, tx, useLang } from '../i18n';
 import { useGame } from '../store';
 import { Button, Sheet } from '../ui';
-import { AvatarFigure, avatarLook, lookFromAppearance, type AvatarLook } from '../city/art';
+import { avatarLook, lookFromAppearance, type AvatarLook } from '../city/art';
+import { PersonSprite } from '../city/PersonSprite';
 import {
   Creator,
   HAIR_COLOUR_NAME,
@@ -33,7 +34,7 @@ import {
   TOP_NAME,
   randomAppearance,
 } from '../avatar/Creator';
-import { PortraitOf } from '../avatar/Portrait';
+import { PersonPortraitOf } from '../avatar/PersonPortrait';
 import { markJoinedHere } from '../phone/settings';
 import { preloadCityMap } from '../city/CityMap';
 import { markNewPlayer } from '../tutorial/state';
@@ -743,7 +744,7 @@ function Stage({
         data-hair={look.hairStyle}
         data-skin={look.skin}
       >
-        <AvatarFigure look={look} />
+        <PersonSprite look={look} />
       </svg>
       {children}
     </div>
@@ -827,7 +828,7 @@ function RoleCards({
             <span className={`su-role-art su-role-${r}`} aria-hidden="true">
               <span className="su-role-floor" />
               <svg viewBox="-16 -48 32 52" className="su-role-fig">
-                <AvatarFigure look={lookFromAppearance(a, gender, bottom)} />
+                <PersonSprite look={lookFromAppearance(a, gender, bottom)} angle="three-quarter" />
               </svg>
             </span>
             <span className="su-role-body">
@@ -938,7 +939,7 @@ function LookControls({
               onPick={() => edit({ hairStyle: h })}
               className="su-thumb"
             >
-              <PortraitOf
+              <PersonPortraitOf
                 look={lookFromAppearance({ ...look, hairStyle: h }, gender, bottom)}
                 size={48}
               />

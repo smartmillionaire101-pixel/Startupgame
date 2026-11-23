@@ -43,6 +43,7 @@
   background: #2563eb;
   color: #fff;
   font-weight: 800;
+  overflow: hidden;
 }
 .online-name {
   display: grid;

@@ -14,6 +14,7 @@ import { flightsOf } from '../city/travel';
 import { BankPicker } from './common';
 import { WealthCard } from './Capital';
 import { MyLook } from '../avatar/EditLook';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import { PurchasesButton } from '../avatar/Wardrobe';
 import { AccountStatus, SignOutButton, UnsavedBanner } from './Account';
 import { ProfileDetails } from './ProfileDetails';
@@ -256,6 +257,7 @@ function Profile() {
           <ol className="board">
             {view.leaderboards.highestStars.slice(0, 5).map((r) => (
               <li key={r.id}>
+                <BoardFace id={r.id} />
                 <span className="board-name">
                   {r.name}
                   {r.ai ? '' : ` ${t('(player)')}`}
@@ -280,6 +282,22 @@ function Profile() {
         </Card>
       </div>
     </div>
+  );
+}
+
+/** A leaderboard player's face, drawn as the map draws them. */
+function BoardFace({ id }: { id: string }) {
+  const { view } = useView();
+  const me = id === view.me.id;
+  const p = me ? null : view.players.find((x) => x.id === id);
+  return (
+    <PersonPortrait
+      id={id}
+      bg={me ? view.me.background?.id : p?.backgroundId}
+      gender={me ? view.me.gender : p?.gender}
+      size={32}
+      className="board-face"
+    />
   );
 }
 
