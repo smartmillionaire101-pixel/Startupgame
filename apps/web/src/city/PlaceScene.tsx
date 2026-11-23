@@ -37,7 +37,9 @@ import { Card, Empty, Pill } from '../ui';
 import { PitchSheet } from '../screens/Money';
 import { InterviewSheet } from '../screens/Interview';
 import { SalesTalkSheet } from '../screens/SalesTalk';
-import { AvatarFigure, appearanceOfLook, avatarLook, type AvatarLook } from './art';
+import { PersonSprite } from './PersonSprite';
+import { SPRITE_K, activityAngle, activityPose } from './scenePose';
+import { appearanceOfLook, avatarLook, type AvatarLook } from './art';
 import { api } from '../api';
 import {
   activeCompany,
@@ -1833,7 +1835,15 @@ function RoomScene({
           {placed
             .filter((x) => x.slot.sit)
             .map((x) => (
-              <Person key={x.o.id} o={x.o} slot={x.slot} onTap={onPerson} vis={vis} dress={dress} />
+              <Person
+                key={x.o.id}
+                o={x.o}
+                slot={x.slot}
+                onTap={onPerson}
+                vis={vis}
+                dress={dress}
+                lift={room === 'salon' ? 9 : 0}
+              />
             ))}
           {nightStyle ? (
             <NightFront s={nightStyle} />
@@ -1882,7 +1892,7 @@ function RoomScene({
                 className="scene-you"
                 transform={`translate(${ENTRANCE.x} ${ENTRANCE.y}) scale(-1.9 1.9)`}
               >
-                <AvatarFigure look={meLook} />
+                <PersonSprite look={meLook} angle="three-quarter" />
               </g>
             </>
           )}
@@ -2043,14 +2053,17 @@ function Person({
   onTap,
   vis = [0, 360],
   dress,
+  lift = 0,
 }: {
   o: Occupant;
-  slot: { x: number; y: number; act: Activity; flip?: boolean };
+  slot: { x: number; y: number; act: Activity; flip?: boolean; sit?: boolean };
   onTap: (p: PersonRef) => void;
   /** The visible x range of the room, to keep the name tag inside it. */
   vis?: [number, number];
   /** Tonight's outfit (a nightlife style's dress code). */
   dress?: (o: Occupant, look: AvatarLook) => AvatarLook;
+  /** Seated: raised this much (sprite units) to show over a tall seat back (the barber's chair). */
+  lift?: number;
 }) {
   const look = useMemo(
     () => (dress ?? ((_o: Occupant, l: AvatarLook) => l))(o, avatarLook(o.bg, o.id, o.gender)),
@@ -2058,6 +2071,7 @@ function Person({
   );
   const s = 1.3 + ((slot.y - 140) / 100) * 0.65;
   const act = o.act ?? slot.act;
+  const turn = activityAngle(act, !!slot.sit);
   const tap = () => o.person && onTap(o.person);
   return (
     <g
@@ -2079,7 +2093,21 @@ function Person({
       <g transform={`scale(${slot.flip ? -s : s} ${s})`}>
         <rect x="-10" y="-44" width="20" height="46" fill="transparent" />
         <g className="scene-fig">
-          <AvatarFigure look={look} />
+          {/* The real proportions read small beside the rooms' furniture: a little bigger.
+              Seated people sit behind the furniture (raised over a tall chair back). */}
+          <g
+            transform={
+              slot.sit && lift ? `scale(${SPRITE_K}) translate(0 ${-lift})` : `scale(${SPRITE_K})`
+            }
+          >
+            <PersonSprite
+              look={look}
+              pose={activityPose(act, !!slot.sit, o.id)}
+              angle={turn.angle}
+              flip={turn.flip}
+              shadow={!slot.sit}
+            />
+          </g>
         </g>
       </g>
       {o.tag && (
