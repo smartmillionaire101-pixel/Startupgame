@@ -30,13 +30,18 @@ import {
 } from './traffic';
 import { softwareGl } from '../../three-kit/quality';
 import { propsNow } from '../../three-kit/props';
+import { SeatedPerson, seatHeight, type Seat } from '../../three-kit/seated';
 import {
   CAR_FOR_MODEL,
   ModelFleet,
   TRAFFIC_MODELS,
   busModel,
   carModel,
+  codeFleetMesh,
   carsNow,
+  disposeRide,
+  rideModel,
+  SEATS,
   spinWheels,
   type CarModel,
   type FleetModel,
@@ -58,6 +63,19 @@ const FLEET: Record<string, { taxi: string; bus: string; double?: boolean }> = {
   cairo: { taxi: '#f5f5f4', bus: '#e9e4d8' },
   dubai: { taxi: '#d9c3a0', bus: '#e9e4d8' },
 };
+/** Cities whose buses are mostly minibuses (danfo, matatu, trotro, poda-poda, kombi, microbus). */
+const MINIBUS = new Set(['lagos', 'nairobi', 'accra', 'freetown', 'johannesburg', 'cairo']);
+/** An okada rider's shirt (the instance colour dresses the baked rider). */
+const SHIRTS = [
+  '#1d4ed8',
+  '#b91c1c',
+  '#15803d',
+  '#f5f5f4',
+  '#f59e0b',
+  '#7c3aed',
+  '#0f766e',
+  '#334155',
+];
 const CARS = [
   '#f4f4f2',
   '#c9cdd1',
@@ -146,7 +164,58 @@ const toM = (p: Pt): P2 => {
 };
 const toTile = (p: P2): Pt => geoTile(p.x, p.y);
 
+/** What you ride: each has its own model and seats. */
+export type RideKind = 'bike' | 'moto' | 'okada' | 'keke' | 'danfo' | 'bus' | 'taxi' | 'car';
+
+/** The city's minibuses (danfo, matatu, trotro, poda-poda, kombi, microbus) by their ids. */
+const MINIBUS_IDS = /^(danfo|matatu|trotro|podapoda|minibus|microbus)/;
+
+/** Which vehicle a ride's spec is. */
+export function rideKindOf(spec: VehicleSpec): RideKind {
+  if (spec.extra === 'rider') {
+    if (spec.id === 'my-bike' || /bike|bicycle|cycle/.test(spec.id)) return 'bike';
+    return spec.id.startsWith('my-car-') ? 'moto' : 'okada';
+  }
+  if (/^(keke|tuk|bajaj)/.test(spec.id)) return 'keke';
+  if (spec.len >= 0.8) return MINIBUS_IDS.test(spec.id) ? 'danfo' : 'bus';
+  return spec.id.startsWith('my-car-') ? 'car' : 'taxi';
+}
+
+/** Passers-by and passengers: who they are (looks by background). */
+const PAX_BG = [
+  'f-engineer',
+  'b-commercial',
+  'f-dropout',
+  'i-operator',
+  'f-corporate',
+  'b-fintech',
+];
+
+/** A model's windows made see-through (the people inside show): its own copy of the glass. */
+function clearGlass(model: THREE.Object3D) {
+  const glass = new THREE.MeshStandardMaterial({
+    color: '#22303a',
+    roughness: 0.05,
+    metalness: 0.5,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+  });
+  model.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const name = (m.material as THREE.Material).name;
+    if (name === 'Windows' || name === 'Glass') {
+      m.material = glass;
+      m.castShadow = false;
+      m.renderOrder = 2;
+    }
+  });
+}
+
 export class Actors {
+  private look: AvatarLook;
+  private marketId: string;
   private avatar: Character;
   private avatarGroup = new THREE.Group();
   private ride: THREE.Group | null = null;
@@ -196,6 +265,8 @@ export class Actors {
   private focus = { x: 0, y: 0, r: 400 };
   private focusSet = false;
   private doubleDecker = false;
+  /** Each street bus's half length (a minibus is shorter): where its lights go. */
+  private busHalf: number[] = [];
 
   constructor(
     private scene: THREE.Scene,
@@ -209,6 +280,8 @@ export class Actors {
   ) {
     void reduced;
     this.glowMat = glow;
+    this.look = look;
+    this.marketId = layout.marketId;
     this.leftHand = LEFT_HAND.has(layout.marketId);
     this.avatar = makeCharacter(look, { ring: '#f59e0b' });
     this.avatarGroup.add(this.avatar.root);
@@ -349,7 +422,6 @@ export class Actors {
       roughness: 0.2,
       metalness: 0.7,
     });
-    const cloth = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
     const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, k: VehicleKind) => {
       const m = new THREE.InstancedMesh(geo, mat, count(k));
       m.frustumCulled = false;
@@ -376,54 +448,55 @@ export class Actors {
     scene.add(localFleet.group);
     const localFleetOf = (
       k: VehicleKind,
-      model: FleetModel,
+      modelOf: (j: number) => FleetModel,
       boxes: THREE.InstancedMesh[],
-      o: { length: number; dims?: [number, number, number] },
+      o: {
+        length: number;
+        dims?: [number, number, number];
+        sizes?: Partial<Record<FleetModel, { length: number; dims?: [number, number, number] }>>;
+      },
     ) => {
-      const f = new ModelFleet(kinds.filter((x) => x === k).length, boxes, () => model, {
+      const f = new ModelFleet(kinds.filter((x) => x === k).length, boxes, modelOf, {
         ...o,
         castShadow: tier === 'high' && !soft,
       });
       scene.add(f.group);
       return f;
     };
+    // Minibus cities (danfo, matatu, trotro…): most of their buses are minibuses.
+    const mini = MINIBUS.has(marketId);
+    const busModelOf = (j: number): FleetModel => (mini && j % 3 !== 2 ? 'Danfo' : 'Bus');
+    // Okadas: some carry a passenger (most in Lagos and Kigali).
+    const paxShare = marketId === 'lagos' || marketId === 'kigali' ? 0.45 : 0.2;
+    const motoModelOf = (j: number): FleetModel =>
+      h3(seed, j, 31) < paxShare ? 'MotoPax' : 'Moto';
+    const code = (name: 'Moto' | 'Keke', k: VehicleKind) => {
+      const m = codeFleetMesh(name, kinds.filter((x) => x === k).length);
+      m.frustumCulled = false;
+      m.castShadow = tier === 'high' && !soft;
+      return m;
+    };
+    this.busHalf = [];
+    for (let j = 0; j < count('bus'); j++) this.busHalf.push(busModelOf(j) === 'Danfo' ? 2.3 : 5);
     this.localMeshes = {
       car: [localFleet],
-      // The bus from the Public Transport pack (stretched to a city bus); a motorbike and
-      // its rider and a keke built in code, each one draw call (./three-kit/vehicles.ts).
+      // The bus from the Public Transport pack (stretched to a city bus) or a danfo-style
+      // minibus; an okada (with its rider, or a passenger too) and a keke (its driver and a
+      // passenger) built in code, the CC0 people seated on them: each one draw call
+      // (../../three-kit/vehicles.ts).
       bus: [
         localFleetOf(
           'bus',
-          'Bus',
+          busModelOf,
           [
             mk(new THREE.BoxGeometry(10, 2.4, 2.4).translate(0, 1.5, 0), paint.clone(), 'bus'),
             mk(new THREE.BoxGeometry(9.4, 0.75, 2.44).translate(0, 2.0, 0), dark, 'bus'),
           ],
-          { length: 10, dims: [2.4, 2.7, 10] },
+          { length: 10, dims: [2.4, 2.7, 10], sizes: { Danfo: { length: 4.7 } } },
         ),
       ],
-      moto: [
-        localFleetOf(
-          'moto',
-          'Moto',
-          [
-            mk(new THREE.BoxGeometry(1.9, 0.6, 0.45).translate(0, 0.55, 0), cloth, 'moto'),
-            mk(new THREE.BoxGeometry(0.55, 0.85, 0.55).translate(-0.1, 1.3, 0), dark, 'moto'),
-          ],
-          { length: 2 },
-        ),
-      ],
-      keke: [
-        localFleetOf(
-          'keke',
-          'Keke',
-          [
-            mk(new THREE.BoxGeometry(2.6, 1.1, 1.4).translate(0, 0.85, 0), paint.clone(), 'keke'),
-            mk(new THREE.BoxGeometry(2.4, 0.12, 1.5).translate(-0.1, 1.95, 0), dark, 'keke'),
-          ],
-          { length: 2.7 },
-        ),
-      ],
+      moto: [localFleetOf('moto', motoModelOf, [code('Moto', 'moto')], { length: 2 })],
+      keke: [localFleetOf('keke', () => 'Keke', [code('Keke', 'keke')], { length: 2.7 })],
     };
     const col = new THREE.Color();
     const idx: Record<VehicleKind, number> = { car: 0, bus: 0, moto: 0, keke: 0 };
@@ -437,7 +510,7 @@ export class Actors {
         );
       else if (k === 'bus') col.set(fleet.bus[j % fleet.bus.length]!);
       else if (k === 'keke') col.set(fleet.keke);
-      else col.set(CARS[Math.floor(h3(seed, i, 9) * CARS.length)]!);
+      else col.set(SHIRTS[Math.floor(h3(seed, i, 9) * SHIRTS.length)]!);
       // Motorbikes: the rider's shirt carries the colour.
       this.localMeshes![k][0]!.setColorAt(j, col);
     });
@@ -483,7 +556,10 @@ export class Actors {
       meshes[k][0]!.getMatrixAt(idx[k]++, _m);
       // A hidden vehicle (scaled to nothing) keeps its lights out of sight too.
       const hidden = Math.abs(_m.elements[0]!) + Math.abs(_m.elements[2]!) < 1e-6;
-      const L = LIGHT_AT[k];
+      const L =
+        k === 'bus' && this.busHalf[idx.bus - 1] !== undefined
+          ? { ...LIGHT_AT.bus, half: this.busHalf[idx.bus - 1]! }
+          : LIGHT_AT[k];
       for (const [f, sg] of [
         [1, 1],
         [1, -1],
@@ -551,9 +627,17 @@ export class Actors {
     const n = Math.min(100, Math.ceil(dt / (this.lane ? 0.15 : 0.25)));
     for (let i = 0; i < n; i++) sim.step(dt / n, f, { x: this.pos.x, y: this.pos.y });
     const idx: Record<VehicleKind, number> = { car: 0, bus: 0, moto: 0, keke: 0 };
+    // Riding or driving with the camera behind you: anything queued close behind
+    // in your lane would stand between it and you (it's left out of the picture).
+    const behind = this.lane ? Math.min(60, this.dist * 0.95) : 0;
     for (const v of sim.vehicles) {
       const j = idx[v.kind]++;
-      if (v.e < 0) _s.set(0, 0, 0);
+      const rx = v.x - this.pos.x;
+      const ry = v.y - this.pos.y;
+      const along = rx * hx + ry * hy;
+      const blocks =
+        behind > 0 && along < 0 && along > -behind && Math.abs(rx * hy - ry * hx) < 2.6;
+      if (v.e < 0 || blocks) _s.set(0, 0, 0);
       else if (v.kind === 'bus' && this.doubleDecker) _s.set(vs, vs * 1.6, vs);
       else _s.set(vs, vs, vs);
       _q.setFromAxisAngle(_up, -Math.atan2(v.dy, v.dx));
@@ -745,10 +829,14 @@ export class Actors {
   }
 
   setLook(look: AvatarLook) {
+    if (look === this.look) return;
+    this.look = look;
     const parent = this.avatar.root.parent;
     this.avatar.dispose();
     this.avatar = makeCharacter(look, { ring: '#f59e0b' });
     parent?.add(this.avatar.root);
+    // Riding: you, in your seat, in the new look.
+    if (this.rideSpec) this.setRide(this.rideSpec);
   }
 
   /** Where the avatar stands (tile point), and which way it moves. */
@@ -827,18 +915,146 @@ export class Actors {
     return this.walking;
   }
 
-  /** Ride in (or on) a vehicle; null to step out. */
+  /**
+   * Ride in (or on) a vehicle; null to step out. The vehicle it is (a taxi,
+   * the city's bus or danfo, a keke, an okada, your bike or your own car)
+   * comes with its people: a driver at the wheel, passengers at the windows,
+   * you in your seat (the CC0 people, seated).
+   */
   setRide(spec: VehicleSpec | null) {
-    if (this.ride) {
-      this.ride.removeFromParent();
-      this.ride = null;
-    }
+    this.clearRide();
     this.rideSpec = spec;
-    this.rideModel = null;
     this.avatar.root.visible = true;
+    this.avatar.root.position.set(0, 0, 0);
     this.rideLen = 4.4;
+    this.rideKind = null;
     if (!spec) return;
+    const kind = rideKindOf(spec);
+    this.rideKind = kind;
     const g = new THREE.Group();
+    this.ride = g;
+    this.avatarGroup.add(g);
+    this.avatar.root.visible = false;
+    const lhd = !this.leftHand;
+    // The driver's side: on the left where they drive on the right (+X is the vehicle's left).
+    const dside = lhd ? 1 : -1;
+    const you = this.look;
+    const seat = (look: AvatarLook, s: Seat, x: number, y: number, z: number, scale = 1) => {
+      const p = new SeatedPerson(look, s);
+      p.root.position.set(x, y - seatHeight(s) * scale, z);
+      p.root.scale.setScalar(scale);
+      g.add(p.root);
+      this.crew.push(p);
+      return p;
+    };
+    const fromSeat = (look: AvatarLook, k: keyof typeof SEATS, dx = 0) => {
+      const s = SEATS[k];
+      return seat(look, s.seat, s.at[0] + dx, s.at[1], s.at[2]);
+    };
+    const driverLook = avatarLook('b-commercial', `${this.marketId}:driver:${spec.id}`);
+    if (kind === 'bike' || kind === 'moto' || kind === 'okada' || kind === 'keke') {
+      const m = rideModel(
+        kind === 'bike' ? 'bike' : kind === 'keke' ? 'keke' : 'moto',
+        spec.body,
+        spec.accent,
+      );
+      g.add(m);
+      this.rideModel = m;
+      this.rideOwn = true;
+      this.rideLen = kind === 'keke' ? 2.7 : 2;
+      if (kind === 'bike') this.pedaller = fromSeat(you, 'bike');
+      else if (kind === 'moto') fromSeat(you, 'moto');
+      else if (kind === 'okada') {
+        fromSeat(driverLook, 'moto');
+        fromSeat(you, 'pillion');
+      } else {
+        fromSeat(driverLook, 'keke');
+        fromSeat(you, 'kekeBack', lhd ? -0.3 : 0.3);
+      }
+      return;
+    }
+    if (kind === 'danfo') {
+      const m = rideModel('danfo', spec.body, spec.accent);
+      g.add(m);
+      this.rideModel = m;
+      this.rideOwn = true;
+      this.rideLen = 4.7;
+      // The driver up front, the benches behind full, you at a window on the kerb side.
+      seat(driverLook, 'drive', dside * 0.45, 0.98, 1.45);
+      const rows = [0.62, -0.28, -1.18];
+      rows.forEach((z, r) =>
+        [-0.55, 0, 0.55].forEach((x, c) => {
+          const n = r * 3 + c;
+          if (n === 4 || n === 7) return;
+          const look =
+            r === 1 && c === (lhd ? 0 : 2)
+              ? you
+              : avatarLook(PAX_BG[n % PAX_BG.length]!, `${this.marketId}:pax${n}`);
+          seat(look, 'sit', x, 0.98, z);
+        }),
+      );
+      // The conductor, hanging on at the open door.
+      const cond = makeCharacter(avatarLook('b-commercial', `${this.marketId}:conductor`));
+      cond.root.position.set(-dside * 1.02, 0.42, 0.6);
+      cond.root.rotation.y = -dside * 0.9;
+      g.add(cond.root);
+      this.standing.push(cond);
+      return;
+    }
+    if (kind === 'bus') {
+      const double = spec.extra === 'double';
+      const h = double ? 4.2 : 3.0;
+      // The Public Transport pack's bus, once it has arrived.
+      const bm = busModel(spec.body, 2.5, h, 11);
+      this.rideLen = 11;
+      if (!bm) {
+        this.rideBoxes(g, spec, 'bus');
+        return;
+      }
+      clearGlass(bm);
+      g.add(bm);
+      this.rideModel = bm;
+      seat(driverLook, 'drive', dside * 0.6, 1.25, 4.4);
+      const decks = double ? [1.2, 2.75] : [1.2];
+      let n = 0;
+      for (const y of decks)
+        for (const z of [3.0, 1.6, 0.2, -1.2, -2.6, -4.0])
+          for (const x of [-0.72, 0.72]) {
+            n++;
+            if ((n * 7) % 5 === 0) continue;
+            const look =
+              n === 4 ? you : avatarLook(PAX_BG[n % PAX_BG.length]!, `${this.marketId}:bus${n}`);
+            seat(look, 'sit', x, y, z);
+          }
+      return;
+    }
+    // A car: a taxi (its driver, you in the back) or your own (you at the wheel).
+    const model = spec.id.startsWith('my-car-') ? spec.id.slice(7) : '';
+    const L =
+      model === 'luxury' ? 5.1 : model === 'hatchback' ? 3.9 : model === 'city-suv' ? 4.6 : 4.4;
+    this.rideLen = L;
+    const cc = carModel(
+      CAR_FOR_MODEL[model] ?? (kind === 'taxi' ? 'Taxi' : 'NormalCar1'),
+      spec.body,
+      L,
+    );
+    if (!cc) {
+      this.rideBoxes(g, spec, 'car');
+      return;
+    }
+    clearGlass(cc);
+    g.add(cc);
+    this.rideModel = cc;
+    // Seats as the CC0 cars have them (they're small: their people too).
+    const k = L / 4.4;
+    if (kind === 'taxi') {
+      seat(driverLook, 'drive', dside * 0.36 * k, 0.62, 0.1 * k, 0.86);
+      this.passenger = seat(you, 'sit', -dside * 0.36 * k, 0.6, -0.85 * k, 0.86);
+    } else seat(you, 'drive', dside * 0.36 * k, 0.62, 0.1 * k, 0.86);
+  }
+
+  /** The low-poly vehicle (before the models arrive, or if they never do). */
+  private rideBoxes(g: THREE.Group, spec: VehicleSpec, kind: 'bus' | 'car') {
     const mat = (c: string, r = 0.4, m = 0.4) =>
       new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
     const box = (w: number, h: number, d: number, y: number, c: THREE.Material, z = 0) => {
@@ -846,94 +1062,112 @@ export class Actors {
       o.castShadow = true;
       g.add(o);
     };
-    if (spec.extra === 'rider') {
-      box(0.5, 0.6, 1.8, 0.3, mat(spec.body));
-      box(0.1, 0.6, 0.1, 0.9, mat('#222'), 0.7);
-      this.avatar.root.position.y = 0.45;
-    } else if (spec.len >= 0.8) {
+    if (kind === 'bus') {
       const double = spec.extra === 'double';
-      // The Public Transport pack's bus, once it has arrived.
-      const bm = busModel(spec.body, 2.5, double ? 4.2 : 3.0, 11);
-      if (bm) {
-        g.add(bm);
-        this.rideModel = bm;
-        this.rideLen = 11;
-        this.avatar.root.visible = false;
-        this.ride = g;
-        this.avatarGroup.add(g);
-        return;
-      }
       box(2.5, double ? 4.2 : 2.8, 11, 0.3, mat(spec.body, 0.4, 0.3));
-      this.rideLen = 11;
       box(2.54, 0.8, 10.4, 1.7, mat('#1c242c', 0.15, 0.8));
       if (double) box(2.54, 0.8, 10.4, 3.2, mat('#1c242c', 0.15, 0.8));
-      this.avatar.root.visible = false;
-    } else {
-      // A car (your own by its model: the SUV tall, the luxury one long and low).
-      const model = spec.id.startsWith('my-car-') ? spec.id.slice(7) : '';
-      const L =
-        model === 'luxury' ? 5.1 : model === 'hatchback' ? 3.9 : model === 'city-suv' ? 4.6 : 4.4;
-      const W = model === 'city-suv' ? 1.95 : 1.85;
-      this.rideLen = L;
-      // The CC0 car (your own by its model, a taxi as the Taxi), once the cars have arrived.
-      const cc = carModel(
-        CAR_FOR_MODEL[model] ?? (spec.extra === 'sign' ? 'Taxi' : 'NormalCar1'),
-        spec.body,
-        L,
-      );
-      if (cc) {
-        g.add(cc);
-        this.rideModel = cc;
-        this.avatar.root.visible = false;
-        this.ride = g;
-        this.avatarGroup.add(g);
-        return;
-      }
-      const bodyH = model === 'city-suv' ? 1.15 : model === 'luxury' ? 0.8 : 0.95;
-      const cabH = model === 'city-suv' ? 0.75 : model === 'luxury' ? 0.52 : 0.6;
-      const cabL = model === 'hatchback' ? L * 0.62 : L * 0.5;
-      const glass = mat('#1c242c', 0.15, 0.8);
-      box(W, bodyH, L, 0.35, mat(spec.body, 0.3, 0.6));
-      box(W * 0.88, cabH, cabL, 0.35 + bodyH, glass, model === 'hatchback' ? -0.35 : -0.2);
-      if (spec.extra === 'sign') box(0.6, 0.25, 0.3, 0.35 + bodyH + cabH, mat(spec.accent, 0.5, 0));
-      if (model === 'luxury' || model === 'electric')
-        box(W * 0.9, 0.08, 0.2, 0.35 + bodyH * 0.6, mat(spec.accent, 0.4, 0.8), L / 2);
-      const tyre = mat('#111214', 0.9, 0);
-      for (const sx of [-1, 1])
-        for (const sz of [-1, 1]) {
-          const w = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.36, 0.36, 0.28, 12).rotateZ(Math.PI / 2),
-            tyre,
-          );
-          w.position.set(sx * (W / 2 - 0.08), 0.36, sz * (L / 2 - 0.75));
-          g.add(w);
-        }
-      const head = new THREE.MeshStandardMaterial({
-        color: '#fff6dd',
-        emissive: '#fff1c8',
-        emissiveIntensity: 1.2,
-      });
-      const tail = new THREE.MeshStandardMaterial({
-        color: '#7f1d1d',
-        emissive: '#ff2a1a',
-        emissiveIntensity: 1.2,
-      });
-      for (const sx of [-1, 1]) {
-        box(0.42, 0.18, 0.06, 0.35 + bodyH * 0.6, head, L / 2 + 0.01);
-        g.children.at(-1)!.position.x = sx * (W / 2 - 0.35);
-        box(0.42, 0.16, 0.06, 0.35 + bodyH * 0.65, tail, -L / 2 - 0.01);
-        g.children.at(-1)!.position.x = sx * (W / 2 - 0.35);
-      }
-      this.avatar.root.visible = false;
+      return;
     }
-    this.ride = g;
-    this.avatarGroup.add(g);
+    const L = this.rideLen;
+    box(1.85, 0.95, L, 0.35, mat(spec.body, 0.3, 0.6));
+    box(1.63, 0.6, L * 0.5, 1.3, mat('#1c242c', 0.15, 0.8), -0.2);
+    if (spec.extra === 'sign') box(0.6, 0.25, 0.3, 1.9, mat(spec.accent, 0.5, 0));
+  }
+
+  /** Step out: the vehicle and its people go (their own geometries and materials too). */
+  private clearRide() {
+    for (const p of this.crew) p.dispose();
+    for (const c of this.standing) c.dispose();
+    this.crew = [];
+    this.standing = [];
+    this.pedaller = null;
+    this.passenger = null;
+    const g = this.ride;
+    if (g) {
+      if (this.rideOwn && this.rideModel) disposeRide(this.rideModel);
+      g.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        if (!m.geometry.userData.shared) m.geometry.dispose();
+        const mt = m.material as THREE.Material;
+        if (!mt.userData.shared) mt.dispose();
+      });
+      g.removeFromParent();
+    }
+    this.ride = null;
+    this.rideModel = null;
+    this.rideOwn = false;
+  }
+
+  /**
+   * A taxi on its way to you (0 … 1, null once you're in): it drives up
+   * from behind while you wait on the kerb, then you get in the back.
+   */
+  setPickup(k: number | null) {
+    this.pickup = k;
+  }
+
+  /** What you're riding, for tests: the vehicle and how many people are seated in it. */
+  rideInfo() {
+    return {
+      kind: this.rideKind,
+      model: this.rideModel ? (this.rideOwn ? 'code' : 'cc0') : this.ride ? 'boxes' : null,
+      seated: this.crew.filter((p) => p.drawn).length,
+      crew: this.crew.length,
+      walking: this.walking && !this.ride,
+    };
   }
 
   private rideSpec: VehicleSpec | null = null;
-  /** The CC0 car you're in (its wheels turn as you go). */
+  private rideKind: RideKind | null = null;
+  /** The vehicle you're in (its wheels turn as you go); code-built ones are yours to dispose. */
   private rideModel: THREE.Group | null = null;
+  private rideOwn = false;
   private rideAt = { x: 0, y: 0 };
+  /** The people seated in it (you among them), and anyone standing (a danfo's conductor). */
+  private crew: SeatedPerson[] = [];
+  private standing: Character[] = [];
+  /** You on your bike (your legs turn the pedals). */
+  private pedaller: SeatedPerson | null = null;
+  /** You in a taxi's back seat (you get in once it has picked you up). */
+  private passenger: SeatedPerson | null = null;
+  private pickup: number | null = null;
+  private pedalPhase = 0;
+  private bump = 0;
+
+  /** The people riding with you: posed for the frame (pedalling, a taxi pulling up). */
+  private updateCrew(dt: number, metres: number) {
+    const g = this.ride;
+    if (!g) return;
+    // A bump now and then (the road isn't smooth).
+    this.bump += dt;
+    const sway = metres > 0.01 ? Math.sin(this.bump * 9) * 0.015 : 0;
+    if (this.pedaller) {
+      this.pedalPhase += metres / 0.34 / 2.4;
+      const crank = (this.rideModel?.userData.crank as THREE.Object3D | undefined) ?? null;
+      if (crank) crank.rotation.x = this.pedalPhase;
+    }
+    // The taxi pulling up: it comes from behind, you wait beside the road, then get in.
+    const k = this.pickup;
+    if (k !== null) {
+      const e = 1 - Math.pow(1 - Math.min(1, k), 3);
+      g.position.z = -(1 - e) * 26;
+      const side = this.leftHand ? 1 : -1;
+      this.avatar.root.visible = true;
+      this.avatar.root.position.set(side * 2.2, 0, -0.6);
+      this.avatar.root.rotation.y = side * Math.PI * 0.5 * (k > 0.85 ? 1 : 0.3);
+      if (this.passenger) this.passenger.root.visible = false;
+    } else if (g.position.z !== 0 || (this.passenger && !this.passenger.root.visible)) {
+      g.position.z = 0;
+      this.avatar.root.visible = false;
+      this.avatar.root.position.set(0, 0, 0);
+      this.avatar.root.rotation.y = 0;
+      if (this.passenger) this.passenger.root.visible = true;
+    }
+    for (const p of this.crew) p.update(dt, p === this.pedaller ? this.pedalPhase : 0, sway);
+    for (const c of this.standing) c.pose(0, this.bump);
+  }
 
   /** Advance everyone. Returns whether the avatar moved. */
   update(tMs: number, reduced: boolean, dist = this.dist) {
@@ -943,8 +1177,7 @@ export class Actors {
     if (
       rs &&
       !this.rideModel &&
-      rs.extra !== 'rider' &&
-      (rs.len < 0.8 ? carsNow() : propsNow('transport'))
+      (this.rideKind === 'taxi' || this.rideKind === 'car' ? carsNow() : propsNow('transport'))
     )
       this.setRide(rs);
     const dt = this.lastT ? Math.min(0.1, (tMs - this.lastT) / 1000) : 0;
@@ -962,20 +1195,26 @@ export class Actors {
       this.pos.y = this.centre.y;
     }
     const ag = this.avatarGroup;
-    if (this.rideModel) {
-      const moved = Math.hypot(this.pos.x - this.rideAt.x, this.pos.y - this.rideAt.y);
-      if (moved < 50) spinWheels(this.rideModel, moved / Math.max(1e-3, ag.scale.x || 1));
-    }
+    const moved = Math.hypot(this.pos.x - this.rideAt.x, this.pos.y - this.rideAt.y);
+    if (this.rideModel && moved < 50)
+      spinWheels(this.rideModel, moved / Math.max(1e-3, ag.scale.x || 1));
     this.rideAt.x = this.pos.x;
     this.rideAt.y = this.pos.y;
+    this.updateCrew(dt, moved < 50 ? moved / Math.max(1e-3, ag.scale.x || 1) : 0);
     ag.position.set(this.pos.x, this.pos.h, this.pos.y);
     ag.rotation.y = this.pos.heading;
     const k = this.ride ? vs : grow;
+    // (While a taxi pulls up you stand beside it, at the taxi's scale.)
     ag.scale.setScalar(k);
     // Your ring keeps its size from the air (you find yourself by it).
     this.avatar.root.getObjectByName('ring')?.scale.setScalar(ringScale(dist) / k);
-    if (this.walking && !this.ride) this.walkPhase += dt * 9;
-    this.avatar.pose(this.walking && !this.ride ? 1 : 0, this.walkPhase);
+    // On foot: the stride keeps up with the pace (a fast trip strides longer, up to a run's).
+    const onFoot = this.walking && (!this.ride || this.pickup !== null);
+    if (this.walking && !this.ride && dt > 0) {
+      const speed = moved / Math.max(1e-3, ag.scale.x || 1) / dt;
+      this.walkPhase += dt * Math.min(16, Math.max(9, speed * 4.5));
+    }
+    this.avatar.pose(onFoot && !this.ride ? 1 : 0, this.walkPhase);
     // Passers-by.
     const now = Date.now();
     for (const { w, c, route } of this.people) {
@@ -1110,6 +1349,7 @@ export class Actors {
   }
 
   dispose() {
+    this.clearRide();
     this.avatar.dispose();
     for (const p of this.people) p.c.dispose();
   }
