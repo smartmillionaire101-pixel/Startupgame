@@ -67,21 +67,6 @@ async function table(p: Page) {
 }
 
 type Box = { l: number; r: number; b: number; t: number };
-type Pt = { x: number; y: number };
-type Pool3d = {
-  player: Box | null;
-  feet: Pt | null;
-  weight: Pt | null;
-  head: Pt | null;
-  hands: Pt[];
-  felt: Box | null;
-  table: Box | null;
-};
-/** Round 7e: the player at the pool table (./game-avatar3d.ts), −1 … 1 on its layer. */
-const poolView = (p: Page) =>
-  p.evaluate(
-    () => (window as unknown as { __pool3d?: { onScreen(): Pool3d } }).__pool3d?.onScreen() ?? null,
-  );
 /** Round 7e: the kicker on the pitch, the ball and the goal line (−1 … 1 on the pitch). */
 const pitchKicker = (p: Page) =>
   p.evaluate(
@@ -101,87 +86,14 @@ const pitchKicker = (p: Page) =>
   );
 const inFrame = (b: Box | null | undefined) =>
   !!b && b.l > -1 && b.r < 1 && b.b > -1 && b.t < 1 && b.r - b.l > 0.05;
-/** A box on a layer (−1 … 1) in page px. */
-async function onPage(p: Page, sel: string, b: Box) {
-  const c = (await p.locator(sel).boundingBox())!;
-  return {
-    x: c.x + ((b.l + 1) / 2) * c.width,
-    y: c.y + ((1 - b.t) / 2) * c.height,
-    width: ((b.r - b.l) / 2) * c.width,
-    height: ((b.t - b.b) / 2) * c.height,
-  };
-}
-const overlaps = (
-  a: { x: number; y: number; width: number; height: number },
-  b: { x: number; y: number; width: number; height: number },
-) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 
-const inside = (q: Pt | null | undefined) => !!q && Math.abs(q.x) < 1 && Math.abs(q.y) < 1;
-/** How much of a box is inside the layer (0 … 1 of its area). */
-const shownOf = (b: Box) => {
-  const w = Math.max(0, Math.min(1, b.r) - Math.max(-1, b.l)),
-    h = Math.max(0, Math.min(1, b.t) - Math.max(-1, b.b));
-  return (w * h) / Math.max(1e-9, (b.r - b.l) * (b.t - b.b));
-};
-/** Enough of the player in the picture to read: head and hands, or half of them at least. */
-const readable = (v: Pool3d | null) =>
-  !!v?.player &&
-  v.player.r - v.player.l > 0.05 &&
-  ((inside(v.head) && v.hands.length === 2 && v.hands.every(inside)) || shownOf(v.player) >= 0.5);
-const outsideBox = (q: Pt, b: Box) => q.x < b.l || q.x > b.r || q.y < b.b || q.y > b.t;
-
-/**
- * The player at the table, on the table's layer, over none of the controls:
- * standing outside the table (feet and weight behind the rail's outer edge),
- * enough of them in the picture to read (like a camera framing the shot,
- * the layer's edge may cut off their legs), the layer itself inside the
- * stage (whatever it cuts off spills over nothing).
- */
-async function expectPoolPlayer(p: Page, what: string) {
-  await expect
-    .poll(async () => readable(await poolView(p)), {
-      timeout: 15000,
-      message: `${what}: the player at the table, their head and hands (or half of them) in the picture`,
-    })
-    .toBe(true);
-  const v = (await poolView(p))!;
-  // What is drawn of them (the layer clips the rest), and the layer itself, clear of the controls.
-  const b = v.player!;
-  const drawn = {
-    l: Math.max(-1, b.l),
-    r: Math.min(1, b.r),
-    b: Math.max(-1, b.b),
-    t: Math.min(1, b.t),
-  };
-  const box = await onPage(p, '.pool-player-3d', drawn);
-  const layer = (await p.locator('.pool-player-3d').boundingBox())!;
-  const stage = (await p.locator('.pool-stage').boundingBox())!;
+/** No one at the pool table: no 3D layer over it, just the cue. */
+async function expectNoPoolPlayer(p: Page, what: string) {
+  await expect(p.locator('.pool-player-3d'), `${what}: no one drawn at the table`).toHaveCount(0);
   expect(
-    layer.x >= stage.x - 1 &&
-      layer.x + layer.width <= stage.x + stage.width + 1 &&
-      layer.y >= stage.y - 1 &&
-      layer.y + layer.height <= stage.y + stage.height + 1,
-    `${what}: the player's layer inside the stage (layer ${JSON.stringify(layer)}, stage ${JSON.stringify(stage)})`,
-  ).toBe(true);
-  for (const sel of ['.pool-controls', '.pool-hint', '.pool-power', '.pool-hud']) {
-    const el = p.locator(sel).first();
-    if (!(await el.count()) || !(await el.isVisible())) continue;
-    const at = (await el.boundingBox())!;
-    expect(overlaps(box, at), `${what}: the player over ${sel}`).toBe(false);
-    expect(overlaps(layer, at), `${what}: the player's layer over ${sel}`).toBe(false);
-  }
-  // Standing at the table, not on it: feet and weight outside the rail's outer edge.
-  expect(v.feet && v.weight && v.table, `${what}: where the player stands`).toBeTruthy();
-  const { feet, weight, table } = v as { feet: Pt; weight: Pt; table: Box };
-  expect(
-    outsideBox(feet, table),
-    `${what}: the player's feet on the table (feet ${JSON.stringify(feet)}, table ${JSON.stringify(table)})`,
-  ).toBe(true);
-  expect(
-    outsideBox(weight, table),
-    `${what}: the player's weight over the table (${JSON.stringify(weight)}, table ${JSON.stringify(table)})`,
-  ).toBe(true);
-  return v;
+    await p.evaluate(() => '__pool3d' in window),
+    `${what}: no player layer over the table`,
+  ).toBe(false);
 }
 
 /** The kicker on the pitch, whole, beside the ball (the swipe starts there) and below the goal. */
@@ -251,12 +163,8 @@ test('8-ball pool against the AI on a phone: a full frame to the pot', async ({ 
   await expect(dialog.locator('.pool-table canvas')).toBeVisible({ timeout: 15000 });
   await expect(dialog.getByText(/Ball in hand: drag the cue ball behind the line/)).toBeVisible();
   await page.waitForTimeout(400);
-  // Round 7e: you, leaning over the table for the break.
-  await expectPoolPlayer(page, 'the break');
-  await expect(dialog.locator('.pool-player-3d')).toHaveAttribute(
-    'data-player',
-    (await state(page)).me.id,
-  );
+  // No one is drawn at the table, in 3D too: just the cue.
+  await expectNoPoolPlayer(page, 'the break');
   await snap(page, 'pool-break', info);
   let byHand = 0;
   let shots = 0;
@@ -307,11 +215,11 @@ test('8-ball pool against the AI on a phone: a full frame to the pot', async ({ 
       await snap(page, 'pool-aim', info);
     }
     if (shots === 2) {
-      // Lined up away from the break end too: still off the table, readable, clear of the controls.
+      // While a shot plays out, still no one on (or at) the table.
       await expect(page.locator('.pool-table canvas')).toHaveAttribute('data-rolling', '1', {
         timeout: 15000,
       });
-      await expectPoolPlayer(page, 'watching the shot');
+      await expectNoPoolPlayer(page, 'watching the shot');
     }
   }
   const room = (await roomOf(page, 'snooker'))!;
@@ -516,9 +424,9 @@ test('two players at the pool table: one breaks, the other sees it and plays', a
 });
 
 /**
- * Round 7e: on an upright tablet and a laptop too, the player leaning over
- * the pool table for the break and the kicker behind the ball (then running
- * up and striking it) are all in the picture, clear of the controls.
+ * Round 7e: on an upright tablet and a laptop too, the pool table with no
+ * one drawn on it, and the kicker behind the ball (then running up and
+ * striking it) all in the picture, clear of the controls.
  */
 /** A new founder at this screen size, at the table games in 3D. */
 async function atSize(browser: Browser, url: string | undefined, w: number, h: number) {
@@ -543,63 +451,19 @@ for (const [w, h] of [
   [1440, 900],
   [390, 844],
 ] as const) {
-  test(`the pool player leaning over the table, in the picture at ${w}×${h}`, async ({
-    browser,
-  }, info) => {
+  test(`the pool table in 3D with no one on it, at ${w}×${h}`, async ({ browser }, info) => {
     test.setTimeout(240_000);
     const { context, page, errors, dialog } = await atSize(browser, info.project.use.baseURL, w, h);
     await dialog.getByRole('button', { name: /8-ball pool/ }).click();
     await dialog.getByRole('button', { name: 'Play vs AI' }).click();
     await expect(dialog.locator('.pool-table canvas')).toBeVisible({ timeout: 15000 });
-    await expectPoolPlayer(page, `the break at ${w}×${h}`);
+    await expectNoPoolPlayer(page, `the break at ${w}×${h}`);
     await dialog.locator('.pool-stage').scrollIntoViewIfNeeded();
-    await snap(page, `pool-player-${w}x${h}`, info);
+    await snap(page, `pool-table-${w}x${h}`, info);
     expect(errors).toEqual([]);
     await context.close();
   });
 }
-
-test('the pool player against a side rail on a phone: outside the table, cut off at the edge', async ({
-  browser,
-}, info) => {
-  test.setTimeout(240_000);
-  const { context, page, errors, dialog } = await atSize(
-    browser,
-    info.project.use.baseURL,
-    390,
-    844,
-  );
-  await dialog.getByRole('button', { name: /8-ball pool/ }).click();
-  await dialog.getByRole('button', { name: 'Play vs AI' }).click();
-  await expect(dialog.locator('.pool-table canvas')).toBeVisible({ timeout: 15000 });
-  await expect(dialog.getByText(/Ball in hand: drag the cue ball behind the line/)).toBeVisible();
-  await expect(page.locator('.pool-table canvas')).toHaveAttribute('data-mine', '1', {
-    timeout: 15000,
-  });
-  // Ball in hand: the cue ball against the left rail, behind the line…
-  let t = await table(page);
-  await page.mouse.move(t.cue.x, t.cue.y);
-  await page.mouse.down();
-  const left = t.box.x + (13 + 2) * t.scale;
-  await page.mouse.move(left, t.cue.y, { steps: 6 });
-  await page.mouse.up();
-  await page.waitForTimeout(250);
-  t = await table(page);
-  expect(t.cue.x - t.box.x, 'the cue ball against the left rail').toBeLessThan((13 + 12) * t.scale);
-  // … and the shot straight across the table: the player behind the left rail.
-  await page.mouse.click(t.box.x + t.box.width - 30, t.cue.y);
-  await page.waitForTimeout(250);
-  const v = await expectPoolPlayer(page, 'the cue ball against a side rail');
-  expect(
-    v.feet!.x,
-    `the player stands beyond the left rail (feet ${JSON.stringify(v.feet)}, table ${JSON.stringify(v.table)})`,
-  ).toBeLessThan(v.table!.l);
-  expect(v.weight!.x, 'their weight behind the left rail').toBeLessThan(v.table!.l);
-  await dialog.locator('.pool-stage').scrollIntoViewIfNeeded();
-  await snap(page, 'pool-player-side-rail-390x844', info);
-  expect(errors).toEqual([]);
-  await context.close();
-});
 
 for (const [w, h] of [
   [768, 1024],
