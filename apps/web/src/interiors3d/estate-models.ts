@@ -9,7 +9,10 @@
  */
 import * as THREE from 'three';
 import { Kit, contactShadow, tone } from './kit';
-import { buildModel, chairAt, type Model, type ModelOpts } from './furniture';
+import { buildModel, chairAt, withGlb, type Model, type ModelOpts } from './furniture';
+import { refinish } from './dividers';
+import { swapLater } from './furnitureModels';
+import { CAR_FOR_MODEL, carModel } from '../three-kit/vehicles';
 import { HOTEL_BUILDERS } from './hotel-models';
 
 /** Car paint by model (the reference's black SUVs, a blue supercar, a silver saloon). */
@@ -42,6 +45,17 @@ function wheel(k: Kit, x: number, z: number, r: number, wdt: number, rim = CHROM
 /** A car about 4.5 m long along z, nose at +z. */
 function car(kind: string, paint: string): Builder {
   return (k, _o, m) => {
+    // The CC0 car for this model (../three-kit/vehicles.ts), when the cars have arrived.
+    const model = CAR_FOR_MODEL[kind];
+    const cc = model
+      ? carModel(model, paint, kind === 'luxury' ? 4.8 : kind === 'hatchback' ? 3.9 : 4.5)
+      : null;
+    if (cc) {
+      cc.userData.cc0 = true;
+      k.extras.push(cc);
+      m.seats.push(new THREE.Vector3(-0.38, 0.5, -0.1));
+      return;
+    }
     const p = { rough: 0.18, metal: 0.55 };
     if (kind === 'motorbike') {
       wheel(k, 0, 0.7, 0.32, 0.12);
@@ -721,7 +735,13 @@ export function buildEstateModel(id: string, o: ModelOpts): Model {
   const k = new Kit();
   const m: Model = { group: new THREE.Group(), parts: {}, lamps: [], screens: [], seats: [] };
   b(k, o, m);
+  const glb = carKind ? false : withGlb(k, id, o);
   m.group = k.build();
+  const rebuild = (i: string, x: ModelOpts) => buildEstateModel(i, x).group;
+  if (!glb && !carKind) swapLater(m.group, id, o, refinish, rebuild, k.chairs);
+  // A car drawn low-poly (the cars still on their way): the CC0 one when they arrive.
+  if (carKind && carKind !== 'motorbike' && !m.group.children.some((c) => c.userData.cc0))
+    swapLater(m.group, id, o, refinish, rebuild, false, true);
   if (
     ![
       'sconce',

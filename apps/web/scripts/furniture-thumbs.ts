@@ -13,7 +13,7 @@
  */
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
-import { mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FLOOR_FINISHES, FURNITURE } from '@runway/engine';
@@ -24,7 +24,7 @@ const out = join(web, 'public', 'thumbs');
 const SWATCH = 96;
 
 const entry = `
-import { renderThumb } from './src/shop/thumbs3d';
+import { renderThumb, thumbsReady } from './src/shop/thumbs3d';
 import { floorTexture } from './src/interiors3d/kit';
 window.shot = (slot, tier) =>
   renderThumb({ kind: 'furniture', id: slot, tier }, 'image/webp', 0.86);
@@ -35,7 +35,7 @@ window.floor = (kind, size) => {
   c.getContext('2d').drawImage(img, 0, 0, size, size);
   return c.toDataURL('image/webp', 0.8);
 };
-window.ready = true;
+thumbsReady().then(() => (window.ready = true));
 `;
 
 async function main() {
@@ -53,7 +53,20 @@ async function main() {
   try {
     const page = await browser.newPage();
     page.on('pageerror', (e) => console.error(e.message));
-    await page.setContent('<!doctype html><body style="margin:0"></body>');
+    // The CC0 models (public/models/) come from this checkout, through a page with an origin.
+    await page.route('http://thumbs.local/**', (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.startsWith('/models/'))
+        return route.fulfill({
+          body: readFileSync(join(web, 'public', path)),
+          contentType: 'model/gltf-binary',
+        });
+      return route.fulfill({
+        body: '<!doctype html><body style="margin:0"></body>',
+        contentType: 'text/html',
+      });
+    });
+    await page.goto('http://thumbs.local/');
     await page.addScriptTag({ content: bundle.outputFiles[0]!.text });
     await page.waitForFunction(() => (window as unknown as { ready?: boolean }).ready);
     const save = (path: string, url: string | null) => {

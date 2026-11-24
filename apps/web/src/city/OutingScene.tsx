@@ -24,6 +24,7 @@ import { useView } from '../store';
 import { reduceMotion } from '../ui';
 import { use3d } from '../three-kit/quality';
 import { avatarLook, type AvatarLook } from './art';
+import { PersonSprite, type SpriteAngle, type SpritePose } from './PersonSprite';
 import { ActCard, type ActResult } from './acts/ActHud';
 import { genderOf, looseCmd, metOf, type Met } from './life';
 import { CompetitionScene } from './CompetitionScene';
@@ -247,7 +248,13 @@ function OutingScene({ req, onClose }: { req: OutingRequest; onClose: () => void
             />
           </Suspense>
         )}
-        <OutingArt kind={which.kind} variant={which.variant} phase={phase} />
+        <OutingArt
+          kind={which.kind}
+          variant={which.variant}
+          phase={phase}
+          me={me}
+          extras={extras}
+        />
         {phase !== 'pick' && (
           <div className="act-hud" data-act-hud="">
             <p className="act-caption" aria-live="polite">
@@ -329,8 +336,46 @@ function OutingScene({ req, onClose }: { req: OutingRequest; onClose: () => void
 
 // ---------------------------------------------------------------- Lite: the drawings
 
-function OutingArt({ kind, variant, phase }: { kind: OutingKind; variant: string; phase: Phase }) {
+/** Someone in an outing's drawing: feet at (x, y), `s` times a room person's size. */
+function Who({
+  look,
+  x,
+  y,
+  s,
+  pose = 'idle',
+  angle = 'front',
+  flip,
+}: {
+  look: AvatarLook;
+  x: number;
+  y: number;
+  s: number;
+  pose?: SpritePose;
+  angle?: SpriteAngle;
+  flip?: boolean;
+}) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${s})`}>
+      <PersonSprite look={look} pose={pose} angle={angle} flip={flip} />
+    </g>
+  );
+}
+
+function OutingArt({
+  kind,
+  variant,
+  phase,
+  me,
+  extras,
+}: {
+  kind: OutingKind;
+  variant: string;
+  phase: Phase;
+  me: AvatarLook;
+  extras: AvatarLook[];
+}) {
   const live = phase === 'play' ? ' is-live' : '';
+  const x = (i: number) => extras[i % extras.length]!;
   switch (kind) {
     case 'yacht': {
       const sunset = variant === 'sunset';
@@ -369,8 +414,8 @@ function OutingArt({ kind, variant, phase }: { kind: OutingKind; variant: string
             <rect x="170" y="148" width="70" height="22" rx="4" fill="#e2e8f0" />
             <rect x="176" y="152" width="58" height="9" rx="2" fill="#0f172a" />
             <line x1="205" y1="148" x2="205" y2="100" stroke="#e5e7eb" strokeWidth="2" />
-            <circle cx="262" cy="160" r="6" fill="#fbbf24" />
-            <rect x="258" y="166" width="8" height="5" fill="#2563eb" />
+            <Who look={x(0)} x={150} y={171} s={0.95} pose="chat" angle="three-quarter" flip />
+            <Who look={me} x={262} y={171} s={0.95} pose="chat" angle="three-quarter" />
           </g>
           <path
             className="oa-wave"
@@ -413,7 +458,15 @@ function OutingArt({ kind, variant, phase }: { kind: OutingKind; variant: string
                     height="14"
                     fill={['#7c2d12', '#292524', '#a16207'][i]}
                   />
-                  <circle cx="0" cy="-22" r="6" fill="#f8fafc" />
+                  <g transform="translate(-2 -5) scale(0.85)">
+                    <PersonSprite
+                      look={i === 1 ? me : x(i)}
+                      pose="sit"
+                      angle="side"
+                      flip
+                      shadow={false}
+                    />
+                  </g>
                 </g>
               ))}
             </g>
@@ -421,6 +474,8 @@ function OutingArt({ kind, variant, phase }: { kind: OutingKind; variant: string
             <>
               <line x1="250" y1="150" x2="250" y2="104" stroke="#f8fafc" strokeWidth="2" />
               <path d="M250 104 L272 111 L250 118 Z" fill="#ef4444" />
+              <Who look={x(1)} x={150} y={196} s={1.2} pose="clap" angle="three-quarter" />
+              <Who look={me} x={98} y={206} s={1.4} />
               <circle className="oa-ball" cx="80" cy="200" r="4" fill="#fff" />
             </>
           )}
@@ -452,10 +507,10 @@ function OutingArt({ kind, variant, phase }: { kind: OutingKind; variant: string
             </g>
           ))}
           <g className="oa-dancers">
-            <circle cx="170" cy="150" r="8" fill="#f8fafc" />
-            <path d="M160 160 L180 160 L186 200 L154 200 Z" fill="#111827" />
-            <circle cx="192" cy="150" r="8" fill="#f8fafc" />
-            <path d="M184 160 L200 160 L210 202 L174 202 Z" fill="#be185d" />
+            <Who look={x(2)} x={110} y={196} s={1.15} pose="chat" angle="three-quarter" flip />
+            <Who look={x(3)} x={136} y={196} s={1.15} pose="chat" angle="three-quarter" />
+            <Who look={me} x={170} y={204} s={1.3} pose="dance" angle="three-quarter" flip />
+            <Who look={x(0)} x={198} y={204} s={1.3} pose="dance" angle="three-quarter" />
           </g>
         </svg>
       );
@@ -493,7 +548,9 @@ function OutingArt({ kind, variant, phase }: { kind: OutingKind; variant: string
           ))}
           <rect y="170" width="360" height="70" fill="#1e3a8a" />
           <rect x="110" y="150" width="70" height="60" rx="12" fill="#e7d8b8" />
+          <Who look={me} x={150} y={214} s={1.5} pose="sit" angle="three-quarter" flip />
           <rect x="200" y="176" width="60" height="6" fill="#7c4a2a" />
+          <rect x="226" y="182" width="8" height="32" fill="#5b3a22" />
         </svg>
       );
     default:
@@ -540,18 +597,16 @@ function OutingArt({ kind, variant, phase }: { kind: OutingKind; variant: string
           ))}
           <rect y="190" width="360" height="50" fill="#3f3f46" />
           <g className="oa-dancers">
-            {[120, 160, 200, 240].map((x, i) => (
-              <g key={x}>
-                <circle cx={x} cy="168" r="7" fill="#fcd34d" />
-                <rect
-                  x={x - 7}
-                  y="176"
-                  width="14"
-                  height="22"
-                  rx="4"
-                  fill={['#a855f7', '#ec4899', '#22d3ee', '#f97316'][i]}
-                />
-              </g>
+            {[120, 160, 200, 240].map((at, i) => (
+              <Who
+                key={at}
+                look={i === 1 ? me : x(i)}
+                x={at}
+                y={i === 1 ? 206 : 200}
+                s={i === 1 ? 1.25 : 1.1}
+                pose={i === 3 ? 'chat' : 'dance'}
+                angle={i === 3 ? 'three-quarter' : 'front'}
+              />
             ))}
           </g>
         </svg>

@@ -16,11 +16,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDaylight } from '../useDaylight';
 import { t } from '../../i18n';
-import { AvatarFigure, avatarLook, shade, type AvatarLook } from '../art';
+import { avatarLook, shade, type AvatarLook } from '../art';
+import { PersonSprite } from '../PersonSprite';
 import { fliesPrivate } from '../airport/planes';
 import { fmtFlightTime } from '../travel';
 import './acts.css';
-import { SeatedFigure } from './figure';
 import { layoutTags } from '../flight3d/tags';
 import { ease, fade, lerp, put, seg, text } from './types';
 import { CabinService } from './CabinService';
@@ -232,7 +232,7 @@ function Seat({
         <g
           transform={`translate(${p.x.toFixed(1)} ${(VP.y + (FLOOR - 14) * s).toFixed(1)}) scale(${fig.toFixed(3)})`}
         >
-          <SeatedFigure look={who} />
+          <PersonSprite look={who} pose="sit" />
         </g>
       )}
       {children}
@@ -800,7 +800,7 @@ export function Cabin({
         )}
         {/* The trolley and the crew member pushing it. */}
         <g data-n={'crew'} opacity="0">
-          <AvatarFigure look={crew} />
+          <PersonSprite look={crew} />
         </g>
         <g data-n={'trolley'} opacity="0" data-trolley="">
           <rect x="-34" y="-96" width="68" height="92" rx="5" fill="#cbd5e1" />
@@ -829,7 +829,7 @@ export function Cabin({
         <g
           transform={`translate(${P(-18, FLOOR, FAR - 0.15).x} ${P(0, FLOOR, FAR - 0.15).y}) scale(${(3.4 * sAt(FAR - 0.15)).toFixed(3)})`}
         >
-          <AvatarFigure look={crew2} />
+          <PersonSprite look={crew2} angle="three-quarter" />
         </g>
         <rect
           x="-400"

@@ -62,7 +62,10 @@ import {
   useTicket,
   type Ticket,
 } from '../ticket';
-import { FlyingWith } from '../companions';
+import { FlyingWith, flightPartyTo } from '../companions';
+import { TerminalScene } from '../airport3d/TerminalScene';
+import { use3d } from '../../three-kit/quality';
+import type { TerminalOpts, Zone } from '../airport3d/terminal3d';
 import { CABIN_NAME, TicketLegs, TripPicker } from '../CabinPicker';
 import { flightsOf, loungeOf, type CabinTier, type HotelTier } from '../travel';
 import { LoungePanel, LoungeScene } from '../premium/Lounge';
@@ -1086,6 +1089,53 @@ export function AirportScene({
       bag: bags[n % bags.length]!,
     }));
   }, [marketId]);
+  // The terminal in 3D: where your trip has got to, and what it shows.
+  const held = scene?.ticket ?? null;
+  const three = use3d();
+  // Business and first wait in their lounge (its own 3D view, over the paused terminal).
+  const premiumLounge = !!(
+    scene?.ticket &&
+    scene.at === 'lounge' &&
+    lounge &&
+    isPremium(scene.ticket.cabin)
+  );
+  const zone: Zone = !held
+    ? 'ticket'
+    : scene!.at === 'lounge'
+      ? 'gate'
+      : scene!.at === 'board'
+        ? 'board'
+        : scene!.at;
+  const terminalKey = `${held?.to ?? ''}:${held?.flight ?? ''}:${jet ? 'jet' : ''}`;
+  const terminalOpts = useMemo<TerminalOpts>(() => {
+    const party = held ? flightPartyTo(view, held.to) : null;
+    const liveries = [...new Set(schedule.map((f) => f.livery))];
+    return {
+      mode: 'departures',
+      night,
+      seed: `${marketId}:${day}`,
+      city: marketId,
+      me: look,
+      party: (party?.with ?? []).map((f) => ({ id: f.id, first: f.first, look: f.look })),
+      livery: jet
+        ? '#1e3a8a'
+        : held
+          ? liveryOf(marketId, held.airline)
+          : (liveries[0] ?? '#0f766e'),
+      liveries,
+      airline: jet ? t('Private jets') : (held?.airline ?? schedule[0]?.airline ?? ''),
+      toName: held?.toName ?? '',
+      gate: jet ? 'P1' : (held?.gate ?? 'A1'),
+      time: held?.time,
+      flight: held?.flight,
+      kind: jet ? 'bizjet' : 'airliner',
+      fids: boardRows(schedule, now)
+        .filter((f) => !f.arrival)
+        .map((f) => [f.time, f.flight, f.cityName, f.gate, STATUS_LABEL(f.status)]),
+    };
+    // Built once per ticket (the scene is keyed on it).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminalKey, night, marketId, day]);
 
   return (
     <div
@@ -1122,7 +1172,7 @@ export function AirportScene({
             <ArrivalScene marketId={marketId} arrival={landed} look={look} night={night} />
           ) : (
             <div className="airport-view">
-              {scene?.ticket && scene.at === 'lounge' && lounge && isPremium(scene.ticket.cabin) ? (
+              {premiumLounge && !three && scene?.ticket && lounge ? (
                 <LoungeScene
                   cabin={lounge.cabin}
                   marketId={marketId}
@@ -1142,26 +1192,61 @@ export function AirportScene({
                   }
                 />
               ) : (
-                <Board marketId={marketId} day={day} start={now} />
-              )}
-              {scene?.ticket &&
-              scene.at === 'lounge' &&
-              lounge &&
-              isPremium(scene.ticket.cabin) ? null : scene?.ticket && scene.at !== 'ticket' ? (
-                <TerminalView
-                  cabin={scene.ticket.cabin}
-                  step={scene.at}
-                  playing={scene.playing === scene.at}
-                  look={look}
-                  kind={jet ? 'bizjet' : 'airliner'}
-                  livery={jet ? '#1e3a8a' : liveryOf(marketId, scene.ticket.airline)}
-                  airline={jet ? t('Private jets') : (scene.ticket.airline ?? '')}
-                  gate={jet ? 'P1' : (scene.ticket.gate ?? 'A1')}
-                  toName={scene.ticket.toName}
-                  night={night}
-                />
-              ) : (
-                <Apron schedule={schedule} walkers={walkers} />
+                <>
+                  <TerminalScene
+                    key={terminalKey}
+                    opts={terminalOpts}
+                    zone={zone}
+                    paused={premiumLounge}
+                    playing={!!scene?.playing && scene.playing === scene.at}
+                    before={
+                      zone === 'ticket' ? <Board marketId={marketId} day={day} start={now} /> : null
+                    }
+                    fallback={
+                      <>
+                        <Board marketId={marketId} day={day} start={now} />
+                        {scene?.ticket && scene.at !== 'ticket' ? (
+                          <TerminalView
+                            cabin={scene.ticket.cabin}
+                            step={scene.at}
+                            playing={scene.playing === scene.at}
+                            look={look}
+                            kind={jet ? 'bizjet' : 'airliner'}
+                            livery={jet ? '#1e3a8a' : liveryOf(marketId, scene.ticket.airline)}
+                            airline={jet ? t('Private jets') : (scene.ticket.airline ?? '')}
+                            gate={jet ? 'P1' : (scene.ticket.gate ?? 'A1')}
+                            toName={scene.ticket.toName}
+                            night={night}
+                          />
+                        ) : (
+                          <Apron schedule={schedule} walkers={walkers} />
+                        )}
+                      </>
+                    }
+                  />
+                  {premiumLounge && scene?.ticket && lounge && (
+                    <div className="lounge-over">
+                      <LoungeScene
+                        cabin={lounge.cabin}
+                        marketId={marketId}
+                        night={night}
+                        livery={liveryOf(marketId, scene.ticket.airline)}
+                        me={look}
+                        crowd={crowd}
+                        spot={scene.spot}
+                        called={scene.called}
+                        boardLine={
+                          scene.called
+                            ? t('{flight} to {city} is now boarding', {
+                                flight: scene.ticket.flight ?? t('Your flight'),
+                                city: scene.ticket.toName,
+                              })
+                            : null
+                        }
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

@@ -16,7 +16,8 @@
 import { defaultAppearance, type MarketId, type PlayerView } from '@runway/engine';
 import { t } from '../i18n';
 import { useView } from '../store';
-import { AvatarFigure, avatarLook, lookFromAppearance, type AvatarLook } from './art';
+import { avatarLook, lookFromAppearance, type AvatarLook } from './art';
+import { PersonSprite } from './PersonSprite';
 import { hash } from './contract';
 import { holidaysOf, type Companion, type HolidayView } from '../phone/apps/Holiday';
 
@@ -83,7 +84,7 @@ export function arrivalParty(
 }
 
 /** Everyone sharing your hotel transfer: the companions in the city with you. */
-function rideParty(view: PlayerView, market: string): Traveller[] {
+export function rideParty(view: PlayerView, market: string): Traveller[] {
   const h = holidayIn(view, market);
   if (!h) return [];
   return h.companions.filter((c) => c.sameFlight || c.here).map(traveller);
@@ -173,7 +174,7 @@ export function VenueParty({ party, x, y }: { party: Traveller[]; x: number; y: 
         return (
           <g key={f.id} data-venue-friend={f.id}>
             <g className="scene-friend" transform={`translate(${fx} ${fy}) scale(-1.8 1.8)`}>
-              <AvatarFigure look={f.look} />
+              <PersonSprite look={f.look} angle="three-quarter" />
             </g>
             <g transform={`translate(${fx} ${fy - 96})`}>
               <rect x={-w / 2} y="-11" width={w} height="14" rx="7" fill="#5eead4" />

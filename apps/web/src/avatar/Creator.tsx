@@ -19,10 +19,13 @@ import {
   fitAppearance,
   type Appearance,
 } from '@runway/engine';
-import { AvatarFigure, lookFromAppearance } from '../city/art';
+import { lookFromAppearance } from '../city/art';
+import { PersonSprite } from '../city/PersonSprite';
 import { t } from '../i18n';
 import { Button } from '../ui';
 import { PortraitOf } from './Portrait';
+import { PersonPortraitOf } from './PersonPortrait';
+import { Look3D } from './Look3D';
 import './avatar.css';
 
 type Gender = 'female' | 'male';
@@ -176,6 +179,7 @@ function Thumbs<K extends keyof Appearance>({
   /** Not yours yet (a top you'd buy at the mall): shown, but not picked here. */
   locked?: (v: Appearance[K]) => boolean;
 }) {
+  const Thumb = part === 'face' ? PortraitOf : PersonPortraitOf;
   return (
     <div className="creator-row" role="group" aria-label={label}>
       <span className="field-label">{label}</span>
@@ -194,10 +198,8 @@ function Thumbs<K extends keyof Appearance>({
               disabled={shut}
               onClick={() => onPick(v)}
             >
-              <PortraitOf
-                look={lookFromAppearance({ ...a, [part]: v }, gender, bottom)}
-                size={56}
-              />
+              {/* Face shape is the one part the 3D person can't show: those thumbs stay drawn. */}
+              <Thumb look={lookFromAppearance({ ...a, [part]: v }, gender, bottom)} size={56} />
               <span className="creator-thumb-name">{names[String(v)]!()}</span>
               {shut && <span className="creator-thumb-note">{t('At the mall')}</span>}
             </button>
@@ -247,16 +249,19 @@ export function Creator({
   return (
     <div className="creator" data-creator="">
       <div className="creator-preview" data-preview="">
+        {/* Drawn on purpose: the big face is the one picture that shows your face shape. */}
         <PortraitOf look={look} size={148} className="creator-portrait" label={t('Your look')} />
-        <svg
-          className="creator-figure"
-          viewBox="-16 -48 32 52"
-          width="58"
-          height="94"
-          aria-hidden="true"
-        >
-          <AvatarFigure look={look} />
-        </svg>
+        <Look3D look={look} width={84} height={150}>
+          <svg
+            className="creator-figure"
+            viewBox="-16 -48 32 52"
+            width="58"
+            height="94"
+            aria-hidden="true"
+          >
+            <PersonSprite look={look} />
+          </svg>
+        </Look3D>
       </div>
       <div className="segmented creator-tabs" role="tablist" aria-label={t('Parts of your look')}>
         {TABS.map((x) => (

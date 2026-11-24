@@ -6,6 +6,8 @@
  * while something moves, and never while the tab is hidden.
  */
 import * as THREE from 'three';
+import { compileScene } from '../three-kit/compile';
+import { onKitReady } from '../three-kit/humans/kit';
 import { cpuGl, softwareGl } from '../three-kit/quality';
 
 export interface StageOpts {
@@ -82,6 +84,8 @@ export class Stage {
     return this.eye ?? this.camera;
   }
   frames = 0;
+  /** The last drawn frame's draw calls and triangles (tests and the asset report read them). */
+  readonly stats = { draws: 0, tris: 0 };
   readonly soft: boolean;
   maxFps: number;
 
@@ -130,7 +134,14 @@ export class Stage {
     this.scene.add(this.sun, this.sun.target);
     this.setup(o);
     document.addEventListener('visibilitychange', this.onVis);
+    // For tests, as the city's __city3d is: the stage drawing now.
+    (window as unknown as { __stage3d?: Stage }).__stage3d = this;
+    // The CC0 people arrive after the first frames: draw again when they do.
+    this.offKit = onKitReady(() => this.invalidate());
+    // The furniture models, fetched as soon as there's a room to draw.
+    void import('../three-kit/props').then((p) => p.propsNow('furniture'));
   }
+  private offKit: () => void;
 
   /** The view's own settings: the camera, the light, the sky (a new stage, or one taken from `parkStage`). */
   private setup(o: StageOpts) {
@@ -347,6 +358,7 @@ export class Stage {
     if (busy || this.dirty) {
       this.dirty = false;
       this.renderer.render(this.scene, this.lens);
+      this.counted();
       this.frames++;
       this.onFrame?.();
     }
@@ -368,7 +380,8 @@ export class Stage {
   /**
    * Compile the scene's shaders without blocking where the GPU allows it
    * (KHR_parallel_shader_compile); nothing is drawn until they're ready
-   * (2.5 s at most).
+   * (2.5 s at most). The view may close meanwhile (parked, its things
+   * disposed of): the wait just ends.
    */
   async warm(): Promise<void> {
     if (this.disposed) return;
@@ -376,10 +389,10 @@ export class Stage {
     // (Parked and taken again meanwhile: the new view's holds start afresh.)
     const view = this.view;
     try {
-      await Promise.race([
-        this.renderer.compileAsync(this.scene, this.lens),
-        new Promise((r) => setTimeout(r, 2500)),
-      ]);
+      await compileScene(this.renderer, this.scene, this.lens, {
+        timeout: 2500,
+        cancelled: () => this.disposed || this.parked || view !== this.view,
+      });
     } catch {
       /* drawn the ordinary way */
     } finally {
@@ -388,9 +401,16 @@ export class Stage {
     }
   }
 
+  private counted() {
+    const r = this.renderer.info.render;
+    this.stats.draws = r.calls;
+    this.stats.tris = r.triangles;
+  }
+
   /** Draw now (the first frame). */
   renderNow() {
     this.renderer.render(this.scene, this.lens);
+    this.counted();
     this.frames++;
     this.onFrame?.();
   }
@@ -467,6 +487,7 @@ export class Stage {
   /** Taken again (`unparkStage`) for a view with these settings. */
   unpark(o: StageOpts) {
     this.parked = false;
+    (window as unknown as { __stage3d?: Stage }).__stage3d = this;
     this.view++;
     this.eye = null;
     this.zoom = 1;
@@ -487,6 +508,7 @@ export class Stage {
 
   dispose() {
     this.disposed = true;
+    this.offKit();
     cancelAnimationFrame(this.raf);
     document.removeEventListener('visibilitychange', this.onVis);
     this.animators.clear();
@@ -494,7 +516,7 @@ export class Stage {
     // (Parts kept for the next open give up their GPU copies too: the context goes.)
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
-      m.geometry?.dispose();
+      if (!m.geometry?.userData.shared) m.geometry?.dispose();
     });
     this.renderer.dispose();
     this.renderer.forceContextLoss();

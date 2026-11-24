@@ -22,9 +22,9 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { t } from '../i18n';
+import { WalkSprite } from './WalkSprite';
 import {
   ArtDefs,
-  AvatarFigure,
   depthBand,
   MAP_FIGURE_SCALE,
   MAP_RIDE_SCALE,
@@ -2050,7 +2050,7 @@ function CityMap2D({
                   className="city-avatar-fig"
                   transform={`scale(${MAP_FIGURE_SCALE},${MAP_FIGURE_SCALE})`}
                 >
-                  <AvatarFigure look={look} />
+                  <WalkSprite look={look} rest />
                 </g>
                 {vehicle && (
                   <g ref={rideRef} className="city-ride" data-axis="x" data-ride={vehicle.id}>

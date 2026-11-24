@@ -16,6 +16,8 @@
 import * as THREE from 'three';
 import { shade, type AvatarLook } from '../city/art';
 import { mat, contactShadow } from './kit';
+import { attachModel, posedModel, refreshModel } from './characterModel';
+import { afroGeometry, twistsGeometry } from './characterHead';
 import { facialHairColour } from '../avatar/tone';
 import {
   BAG_COLOUR,
@@ -133,6 +135,8 @@ function buildHair(look: AvatarLook): THREE.Group {
     o.position.set(x, y, z);
     o.scale.set(sx, sy, sz);
     o.castShadow = true;
+    // The low-poly person's: the CC0 model wears its own, fitted (./characterHead.ts).
+    o.userData.procBody = true;
     g.add(o);
     return o;
   };
@@ -145,16 +149,8 @@ function buildHair(look: AvatarLook): THREE.Group {
   if (!covered)
     switch (look.hairStyle) {
       case 'afro':
-        if (!hatted)
-          add(
-            geo('afro', () => new THREE.SphereGeometry(0.2, 12, 10)),
-            0,
-            0.1,
-            -0.07,
-            1,
-            0.9,
-            1,
-          );
+        // A full, softly lumpy afro, open at the face (it sits on the CC0 heads too).
+        if (!hatted) add(geo('afro2', afroGeometry), 0, 0.09, -0.05, 1.04, 0.94, 1);
         break;
       case 'bun':
         add(CAP(), 0, 0.005, 0, 1.02, 1.02, 1.05);
@@ -188,12 +184,8 @@ function buildHair(look: AvatarLook): THREE.Group {
       }
       case 'twists':
         add(CAP(), 0, 0.005, 0, 1.03, 1.03, 1.05);
-        if (!hatted)
-          for (let i = 0; i < 8; i++) {
-            const a = (i / 8) * Math.PI * 2;
-            const t = add(strand(0.12), Math.cos(a) * 0.08, 0.15, Math.sin(a) * 0.08 - 0.02);
-            t.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
-          }
+        // Short twists all over the crown, each standing out along the head (one merged mesh).
+        if (!hatted) add(geo('twists2', twistsGeometry), 0, 0, 0);
         break;
       case 'curly':
         add(CAP(), 0, 0.01, -0.005, 1.04, 1.06, 1.06);
@@ -318,11 +310,16 @@ function buildHair(look: AvatarLook): THREE.Group {
       );
   }
   g.userData.style = look.hairStyle;
+  g.userData.acc = true;
   return g;
 }
 
 /** A person with this look. */
-export function makeCharacter(look: AvatarLook, id = ''): Character {
+export function makeCharacter(
+  look: AvatarLook,
+  id = '',
+  opts: { procedural?: boolean; far?: boolean } = {},
+): Character {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -420,6 +417,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
         mat(band, { rough: 0.35 }),
       );
       w.position.y = -FORE + 0.05;
+      w.userData.acc = true;
       fore.add(w);
     }
     a.rotation.z = side * 0.08;
@@ -471,6 +469,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
               glasses === 'shades' ? gm : mat('#e2e8f0', { rough: 0.2, opacity: 0.35 }),
             );
       r.position.set(sx * 0.052, 0.215, 0.14);
+      r.userData.procBody = true;
       head.add(r);
     }
     const b = new THREE.Mesh(
@@ -478,6 +477,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       gm,
     );
     b.position.set(0, 0.22, 0.145);
+    b.userData.procBody = true;
     head.add(b);
   }
   // A cap (Phase 6a headwear, or an outfit's).
@@ -488,15 +488,22 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       cm,
     );
     c.position.y = 0.23;
+    c.userData.procBody = true;
     head.add(c);
     const brim = new THREE.Mesh(
       geo('brim', () => new THREE.BoxGeometry(0.2, 0.015, 0.14)),
       cm,
     );
     brim.position.set(0, 0.24, 0.17);
+    brim.userData.procBody = true;
     head.add(brim);
-    hair.visible =
+    // (Only the low-poly hair: the model's own is fitted under its cap, ./characterHead.ts.)
+    const hangs =
       look.hairStyle === 'long' || look.hairStyle === 'braids' || look.hairStyle === 'locs';
+    for (const o of hair.children) {
+      o.visible = hangs;
+      o.userData.capped = !hangs;
+    }
   }
   // Long tops: a kaftan to the knee, a dress that flares. A man's kaftan is a
   // straight tunic to mid-thigh over his trousers, so it never reads as a dress.
@@ -514,6 +521,21 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     skirt.position.y = dress ? -0.2 : tunic ? -0.07 : -0.16;
     skirt.castShadow = true;
     hips.add(skirt);
+    // Over the CC0 model's T-shirt, a man's tunic from the waist to mid-thigh (a kaftan,
+    // not a tee): drawn only with the model (the low-poly body has its own above).
+    if (tunic) {
+      const t = new THREE.Mesh(
+        geo('tunic-cc0', () => new THREE.CylinderGeometry(0.16, 0.25, 0.56, 16, 1, true)),
+        mat(top, { rough: 0.85, side: THREE.DoubleSide }),
+      );
+      t.scale.z = 0.9;
+      t.position.set(0, -0.06, 0.05);
+      t.castShadow = true;
+      t.visible = false;
+      t.userData.acc = true;
+      t.userData.modelOnly = true;
+      hips.add(t);
+    }
   }
   // From the wardrobe: a necklace, a silk scarf, a belt, earrings and a bag.
   if (look.necklace && look.necklace !== 'none') {
@@ -523,6 +545,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     );
     n.rotation.x = Math.PI / 2 - 0.5;
     n.position.set(0, 0.44, 0.03);
+    n.userData.acc = true;
     torso.add(n);
   }
   if (look.scarf === 'silk') {
@@ -532,6 +555,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     );
     s.rotation.x = Math.PI / 2;
     s.position.y = 0.47;
+    s.userData.acc = true;
     torso.add(s);
   }
   if (look.belt === 'leather') {
@@ -548,6 +572,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       const e = new THREE.Mesh(SKIN_GEO, mat(SILVER, { rough: 0.2 }));
       e.scale.setScalar(0.014);
       e.position.set(sx * 0.14, 0.16, 0.0);
+      e.userData.procBody = true;
       head.add(e);
     }
   // A bag on the shoulder (a briefcase is carried and a folio held: ./dressBody).
@@ -564,6 +589,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     // Hung from the right shoulder, at the hip.
     bag.position.set(-0.27, look.bag === 'gymbag' ? -0.02 : 0.02, 0);
     bag.castShadow = true;
+    bag.userData.acc = true;
     torso.add(bag);
     const strap = new THREE.Mesh(
       geo('strap', () => new THREE.BoxGeometry(0.02, 0.48, 0.02)),
@@ -571,6 +597,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
     );
     strap.position.set(-0.2, 0.3, 0);
     strap.rotation.z = -0.3;
+    strap.userData.acc = true;
     torso.add(strap);
   }
   // Outfit accessories.
@@ -589,6 +616,7 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       const s = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.035, 6, 14), mat('#e11d48'));
       s.rotation.x = Math.PI / 2;
       s.position.y = 0.47;
+      s.userData.acc = true;
       torso.add(s);
       break;
     }
@@ -599,9 +627,11 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
       );
       l.rotation.z = Math.PI;
       l.position.set(0, 0.44, 0.105);
+      l.userData.acc = true;
       torso.add(l);
       const card = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.01), mat('#f8fafc'));
       card.position.set(0, 0.28, 0.12);
+      card.userData.acc = true;
       torso.add(card);
       break;
     }
@@ -636,6 +666,15 @@ export function makeCharacter(look: AvatarLook, id = ''): Character {
   };
   root.userData.character = id;
   root.traverse((o) => (o.userData.character = id));
+  // The low-poly body (hidden under the CC0 model): every mesh but the hair
+  // and what's worn on it (`acc`: glasses, a cap, a bag…).
+  const tag = (o: THREE.Object3D) => {
+    if (o.userData.acc) return;
+    if ((o as THREE.Mesh).isMesh) o.userData.procBody = true;
+    for (const ch of o.children) tag(ch);
+  };
+  tag(body);
+  if (!opts.procedural) attachModel(c, (x) => pose(x, 'stand', 0), opts.far);
   return c;
 }
 
@@ -825,6 +864,63 @@ function pocketSquare(b: Body, colour: string) {
   b.torso.add(sq);
 }
 
+/**
+ * The CC0 woman's top is a tee: a hoodie's hood bunched on her shoulders, its
+ * drawstrings and its pocket are worn over it (drawn only with the model).
+ */
+function modelHoodie(b: Body, top: string) {
+  const hm = mat(top, { rough: 0.95 });
+  const parts: THREE.Mesh[] = [];
+  const ring = new THREE.Mesh(
+    geo('m-hood-ring', () => new THREE.TorusGeometry(0.075, 0.03, 8, 20)),
+    hm,
+  );
+  ring.rotation.x = Math.PI / 2 - 0.3;
+  ring.position.set(0, HOOD.ringY, HOOD.ringZ);
+  parts.push(ring);
+  const hood = new THREE.Mesh(
+    geo('m-hood', () => new THREE.SphereGeometry(0.1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2)),
+    hm,
+  );
+  hood.scale.set(1.05, 0.75, 0.5);
+  hood.rotation.x = HOOD.hoodRot;
+  hood.position.set(0, HOOD.hoodY, HOOD.hoodZ);
+  parts.push(hood);
+  const sm = mat('#f1f5f9', { rough: 0.7 });
+  for (const sx of [-1, 1]) {
+    const d = new THREE.Mesh(
+      geo('m-string', () => new THREE.CylinderGeometry(0.005, 0.005, 0.12, 5)),
+      sm,
+    );
+    d.position.set(sx * 0.028, HOOD.stringY, HOOD.stringZ);
+    d.rotation.x = -0.25;
+    parts.push(d);
+    const tip = new THREE.Mesh(
+      geo('m-string-tip', () => new THREE.SphereGeometry(0.009, 6, 4)),
+      sm,
+    );
+    tip.position.set(sx * 0.028, HOOD.stringY - 0.062, HOOD.stringZ + 0.016);
+    parts.push(tip);
+  }
+  for (const p of parts) {
+    p.castShadow = true;
+    p.visible = false;
+    p.userData.acc = true;
+    p.userData.modelOnly = true;
+    b.torso.add(p);
+  }
+}
+/** Where the hood sits on the CC0 woman (torso space: her neck is at y 0.46, z 0.07). */
+const HOOD = {
+  ringY: 0.45,
+  ringZ: 0.065,
+  hoodY: 0.43,
+  hoodZ: -0.0,
+  hoodRot: -1.25,
+  stringY: 0.375,
+  stringZ: 0.155,
+};
+
 /** The top's layers by style, the tie, and a bag carried in the hand or under the arm. */
 function dressBody(look: AvatarLook, b: Body) {
   const top = look.top;
@@ -934,6 +1030,7 @@ function dressBody(look: AvatarLook, b: Body) {
       hem.position.y = -0.03;
       b.torso.add(hem);
       sleeves(b, top, rib);
+      if (b.female) modelHoodie(b, top);
       break;
     }
     case 'shirt': {
@@ -985,6 +1082,7 @@ function dressBody(look: AvatarLook, b: Body) {
     );
     bc.position.set(0, -0.18, 0);
     bc.castShadow = true;
+    bc.userData.acc = true;
     b.handR.add(bc);
     const handle = new THREE.Mesh(
       geo('briefcase-handle', () => new THREE.TorusGeometry(0.04, 0.008, 6, 12, Math.PI)),
@@ -992,12 +1090,14 @@ function dressBody(look: AvatarLook, b: Body) {
     );
     handle.rotation.y = Math.PI / 2;
     handle.position.set(0, -0.04, 0);
+    handle.userData.acc = true;
     b.handR.add(handle);
     const clasp = new THREE.Mesh(
       geo('clasp', () => new THREE.BoxGeometry(0.085, 0.02, 0.03)),
       mat('#c8a25a', { metal: 0.8, rough: 0.3 }),
     );
     clasp.position.set(0, -0.08, 0);
+    clasp.userData.acc = true;
     b.handR.add(clasp);
   } else if (look.bag === 'folio') {
     const f = new THREE.Mesh(
@@ -1006,6 +1106,7 @@ function dressBody(look: AvatarLook, b: Body) {
     );
     f.position.set(0.06, -0.12, 0.04);
     f.castShadow = true;
+    f.userData.acc = true;
     b.foreL.add(f);
   }
 }
@@ -1022,6 +1123,7 @@ export function setHair(c: Character, look: AvatarLook) {
   c.hair.traverse((o) => (o.userData.character = c.id));
   parent.add(c.hair);
   c.look = { ...c.look, ...look };
+  refreshModel(c);
 }
 
 const S = Math.sin;
@@ -1235,4 +1337,5 @@ export function pose(
       c.armL.rotation.x = S(tt * 1.1) * 0.03;
       c.armR.rotation.x = -S(tt * 1.1) * 0.03;
   }
+  posedModel(c, p, o.phase ?? 0);
 }

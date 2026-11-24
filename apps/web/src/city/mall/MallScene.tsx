@@ -30,7 +30,8 @@ import { money } from '../../format';
 import { pocketOf, pocketText } from '../pocket';
 import { t, tx } from '../../i18n';
 import { useView } from '../../store';
-import { AvatarFigure, avatarLook, drawnGender } from '../art';
+import { avatarLook, drawnGender } from '../art';
+import { PersonSprite } from '../PersonSprite';
 import { genderOf, looseCmd } from '../life';
 import { mallOf, type MallItemView } from '../leisure';
 import type { SceneProps } from '../PlaceScene';
@@ -290,7 +291,7 @@ export function MallScene(props: SceneProps) {
             <>
               <span className="mall-trip-who">
                 <svg viewBox="-24 -48 48 52" width="26" height="28" aria-hidden="true">
-                  {friendLook && <AvatarFigure look={friendLook} />}
+                  {friendLook && <PersonSprite look={friendLook} pose="wave" />}
                 </svg>
                 <span>
                   <b>{t('Shopping with {name}', { name: friendName })}</b>
@@ -423,7 +424,7 @@ export function MallScene(props: SceneProps) {
           <div className="mall-bought" role="status" data-mall-bought={bought.item.id}>
             <div className="mall-bought-fig" aria-hidden="true">
               <svg viewBox="-24 -48 48 52" width="64" height="70">
-                <AvatarFigure look={bought.for && friendLook ? friendLook : me} />
+                <PersonSprite look={bought.for && friendLook ? friendLook : me} pose="wave" />
               </svg>
             </div>
             <div className="mall-bought-text">

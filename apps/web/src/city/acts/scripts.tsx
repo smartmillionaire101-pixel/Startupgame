@@ -8,9 +8,11 @@
  * bigger than the people who use it.
  */
 import type { ReactNode } from 'react';
-import { AvatarFigure, shade } from '../art';
+import { shade } from '../art';
+import { PersonSprite, type SpritePose } from '../PersonSprite';
 import type { RoomKind } from '../rooms';
-import { SeatedFigure, roomScale } from './figure';
+import { roomScale } from './figure';
+import { SPRITE_K } from '../scenePose';
 import {
   ease,
   fade,
@@ -54,16 +56,46 @@ function Extra({
   children?: ReactNode;
 }) {
   const s = roomScale(y);
+  const pose = extraPose(name, cls);
+  const turned = pose === 'chat' || pose === 'present';
   return (
     <g
       data-n={name}
       className={`act-extra city-avatar ${cls}`}
       transform={`translate(${x} ${y}) scale(${flip ? -s : s} ${s})`}
     >
-      <AvatarFigure look={c.extra(seed, bg)} />
+      <g transform={`scale(${SPRITE_K})`}>
+        <PersonSprite
+          look={c.extra(seed, bg)}
+          pose={pose}
+          angle={turned ? 'three-quarter' : 'front'}
+          flip={turned}
+        />
+      </g>
       {children}
     </g>
   );
+}
+
+/** What someone serving or watching you is doing, by their part (`name`) or arm class. */
+const EXTRA_POSE: Record<string, SpritePose> = {
+  barber: 'cut',
+  waiter: 'present',
+  bartender: 'stir',
+  dj: 'stir',
+  coach: 'clap',
+  therapist: 'stir',
+  curator: 'present',
+  singer: 'sing',
+  sales: 'present',
+  clerk: 'chat',
+};
+function extraPose(name: string, cls: string): SpritePose {
+  if (cls.includes('act-pose-dance')) return 'dance';
+  if (cls.includes('act-pose-cheer')) return 'cheer';
+  if (cls.includes('act-pose-sing')) return 'sing';
+  if (cls.includes('act-pose-chat')) return 'chat';
+  return EXTRA_POSE[name] ?? 'idle';
 }
 
 /** Someone sitting (a friend at your table, a neighbour in the cinema). */
@@ -87,7 +119,9 @@ function Sitter({
   const s = roomScale(y);
   return (
     <g data-n={name} transform={`translate(${x} ${y}) scale(${flip ? -s : s} ${s})`}>
-      <SeatedFigure look={c.extra(seed, bg)} />
+      <g transform={`scale(${SPRITE_K})`}>
+        <PersonSprite look={c.extra(seed, bg)} pose="sit" angle="three-quarter" flip />
+      </g>
     </g>
   );
 }

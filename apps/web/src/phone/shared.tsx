@@ -10,7 +10,7 @@ import { useView } from '../store';
 import { Button } from '../ui';
 import { looseCmd } from '../city/life';
 import type { PhoneApp } from './bus';
-import { Portrait } from '../avatar/Portrait';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import { Icon, type IconName } from './icons';
 
 export type View = PlayerView;
@@ -131,7 +131,7 @@ function PortraitAvatar({
   const p = view.players.find((x) => x.id === id);
   return (
     <span className={`phone-avatar has-portrait${ai ? ' ai' : ''}`} aria-hidden="true">
-      <Portrait id={id} bg={bg ?? p?.backgroundId} gender={gender ?? p?.gender} size="100%" />
+      <PersonPortrait id={id} bg={bg ?? p?.backgroundId} gender={gender ?? p?.gender} size="100%" />
     </span>
   );
 }

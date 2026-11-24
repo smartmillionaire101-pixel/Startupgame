@@ -188,3 +188,22 @@ html[data-simple] .life-choice-label {
 html[data-simple] .life-card-story {
   font-size: 1.15rem;
 }
+
+/* A life event about a person: their portrait, the emoji as a badge. */
+.life-card-pic.has-person {
+  position: relative;
+  background: none;
+}
+.life-card-badge {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface, #fff);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
+  font-size: 1.3rem;
+}

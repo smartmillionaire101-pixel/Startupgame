@@ -15,7 +15,15 @@
  * which draws the helicopter, its cabin, the jump plane and you); without
  * WebGL a map from above shows the same flight.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import * as THREE from 'three';
 import { useView } from '../../store';
 import { t } from '../../i18n';
@@ -275,10 +283,11 @@ export default function AirFlight({
   const [landed, setLanded] = useState<{ jump: Jump; result: LandResult | null } | null>(null);
   const [home, setHome] = useState<Heli | null>(null);
   const [say, setSay] = useState<{ name: string; side: string; detail?: string } | null>(null);
-  const sayRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    sayRef.current = say ? `${say.name}:${say.side}` : undefined;
-  }, [say]);
+  // The names' layout (set by the flight's loop), run again after every render: a new
+  // line of commentary (or a panel shown or grown) moves the names off it before the
+  // browser paints or anything reads the page, not a frame later.
+  const layoutRef = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => layoutRef.current?.());
 
   useEffect(() => {
     if (!skydive || chosenCam.current) return;
@@ -415,9 +424,6 @@ export default function AirFlight({
     let hudAt = 0;
     const out = { x: 0, y: 0, z: 0 };
     let first = false;
-    let measured = -1e9;
-    let measuredSay: string | undefined;
-    let blocks: Box[] = [];
     const groundAt = (x: number, z: number) => {
       const s = sceneRef.current;
       return s ? s.groundAt(x, z) + s.terrainAt(x, z) : 0;
@@ -458,6 +464,75 @@ export default function AirFlight({
       }
       return r ?? groundAt(x, z);
     };
+    // The landmarks' names over the city: laid out every frame, and again as soon as
+    // React commits (the commentary appearing or changing: `layoutRef`, below) or
+    // anything they must keep off changes size (a font arriving), so no name is ever
+    // left over a panel until the next frame (a software renderer draws two a second).
+    const watched = new WeakSet<Element>();
+    const resized =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => layoutLabels());
+    const layoutLabels = () => {
+      const scene = sceneRef.current;
+      const host = labelsRef.current;
+      const cam = camRef.current;
+      if (!scene || !host || !cam) return;
+      const { w: W, h: H } = scene.viewSize;
+      // The title, buttons and panels, measured afresh each time (the commentary's
+      // height changes with its text): a name never sits on them, nor within a few pixels.
+      const at = host.getBoundingClientRect();
+      const root = host.closest('.air');
+      const pad = 6;
+      const blocks: Box[] = [];
+      for (const e of root ? root.querySelectorAll<HTMLElement>(LABEL_BLOCKERS) : []) {
+        if (resized && !watched.has(e)) {
+          watched.add(e);
+          resized.observe(e);
+        }
+        const r = e.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0)
+          blocks.push({
+            l: r.left - at.left - pad,
+            r: r.right - at.left + pad,
+            t: r.top - at.top - pad,
+            b: r.bottom - at.top + pad,
+          });
+      }
+      // Two landmarks close together: the nearer one's name goes where it is, the
+      // farther one's stacks above it on a longer stem, or hides (./labels.ts). A hidden
+      // name is still laid out (air.css), so its size is its real one.
+      const nodes = [...host.querySelectorAll<HTMLElement>('[data-air-label]')];
+      const pos: { x: number; y: number }[] = [];
+      const wants = nodes.map((node) => {
+        const l = where.marks[Number(node.dataset.i)];
+        if (!l) {
+          pos.push({ x: 0, y: 0 });
+          return { x: 0, y: 0, inFront: false, d: Infinity, w: 0, h: 0 };
+        }
+        scene.project(l.x, groundAt(l.x, l.z) + l.h + 10, l.z, out);
+        pos.push({ x: out.x, y: out.y });
+        return {
+          x: out.x,
+          y: out.y,
+          inFront: out.z < 1,
+          d: Math.hypot(l.x - cam.pos.x, l.z - cam.pos.z),
+          w: node.offsetWidth || 200,
+          h: node.offsetHeight || 24,
+        };
+      });
+      const stems = placeLabels(wants, blocks, W, H);
+      const layer = labelLayer(wants);
+      nodes.forEach((node, i) => {
+        const stem = stems[i];
+        const vis = stem !== null && stem !== undefined;
+        if (vis) {
+          node.style.transform = `translate(${Math.round(pos[i]!.x)}px,${Math.round(pos[i]!.y)}px)`;
+          node.style.setProperty('--stem', `${stem}px`);
+          node.style.zIndex = String(layer[i]);
+        }
+        if (node.hidden === vis) node.hidden = !vis;
+      });
+    };
+    layoutRef.current = layoutLabels;
     // The air's gusts: seeded by the booking (the same jump draws the same sky).
     const air = createRng(hashString(booking.bookingId));
     const frame = () => {
@@ -544,70 +619,15 @@ export default function AirFlight({
         setDrawnOnce(true);
       }
       // The landmarks' names over the city.
-      const scene = sceneRef.current;
-      const host = labelsRef.current;
-      if (scene && host && cam) {
-        const { w: W, h: H } = scene.viewSize;
-        // The title, buttons and panels, measured a few times a second and as soon as the
-        // commentary changes (measured every 20 frames, a slow phone left a name over the
-        // new line for seconds): a name never sits on them, nor within a few pixels.
-        const sayNow = sayRef.current;
-        if (now - measured > 300 || sayNow !== measuredSay) {
-          measured = now;
-          measuredSay = sayNow;
-          const at = host.getBoundingClientRect();
-          const root = host.closest('.air');
-          const pad = 6;
-          blocks = root
-            ? [...root.querySelectorAll<HTMLElement>(LABEL_BLOCKERS)]
-                .map((e) => e.getBoundingClientRect())
-                .filter((r) => r.width > 0 && r.height > 0)
-                .map((r) => ({
-                  l: r.left - at.left - pad,
-                  r: r.right - at.left + pad,
-                  t: r.top - at.top - pad,
-                  b: r.bottom - at.top + pad,
-                }))
-            : [];
-        }
-        // Two landmarks close together: the nearer one's name goes where it is, the
-        // farther one's stacks above it on a longer stem, or hides (./labels.ts).
-        const nodes = [...host.querySelectorAll<HTMLElement>('[data-air-label]')];
-        const at: { x: number; y: number }[] = [];
-        const wants = nodes.map((node) => {
-          const l = where.marks[Number(node.dataset.i)];
-          if (!l) {
-            at.push({ x: 0, y: 0 });
-            return { x: 0, y: 0, inFront: false, d: Infinity, w: 0, h: 0 };
-          }
-          scene.project(l.x, groundAt(l.x, l.z) + l.h + 10, l.z, out);
-          at.push({ x: out.x, y: out.y });
-          return {
-            x: out.x,
-            y: out.y,
-            inFront: out.z < 1,
-            d: Math.hypot(l.x - cam.pos.x, l.z - cam.pos.z),
-            w: node.offsetWidth || 140,
-            h: node.offsetHeight || 20,
-          };
-        });
-        const stems = placeLabels(wants, blocks, W, H);
-        const layer = labelLayer(wants);
-        nodes.forEach((node, i) => {
-          const stem = stems[i];
-          const vis = stem !== null && stem !== undefined;
-          if (vis) {
-            node.style.transform = `translate(${Math.round(at[i]!.x)}px,${Math.round(at[i]!.y)}px)`;
-            node.style.setProperty('--stem', `${stem}px`);
-            node.style.zIndex = String(layer[i]);
-          }
-          if (node.hidden === vis) node.hidden = !vis;
-        });
-      }
+      layoutLabels();
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      resized?.disconnect();
+      if (layoutRef.current === layoutLabels) layoutRef.current = null;
+    };
     // The handlers read refs; the loop runs once per flight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [where, ready, route, skydive]);

@@ -6,7 +6,7 @@ import { streetLamps, towerCrowns } from '../src/city/three/lights';
 import type { RoadIndex } from '../src/city/three/roads';
 import { cityLook } from '../src/city/three/cities';
 import { NIGHT_LOOKS, nightExposure, nightFactor, nightLook } from '../src/city/three/night';
-import { skyAt } from '../src/city/three/sky';
+import { hazeToward, skyAt } from '../src/city/three/sky';
 import { citySun } from '../src/city/solar';
 
 const DEG = Math.PI / 180;
@@ -42,44 +42,160 @@ describe('nightFactor', () => {
 describe('the night sky', () => {
   it('turns the exposure down at night, not up', () => {
     expect(nightExposure(0)).toBe(1);
-    expect(nightExposure(1)).toBeLessThan(0.8);
-    // …but not so far that the city goes black (player feedback).
-    expect(nightExposure(1)).toBeGreaterThan(0.7);
+    expect(nightExposure(1)).toBeLessThan(0.65);
+    expect(nightExposure(1)).toBeGreaterThan(0.5);
     expect(skyAt(23, 6.5, 0.7).exposure).toBeLessThan(skyAt(12, 6.5, 0.7).exposure);
   });
 
-  it('is a city night: a dark blue sky, blue moonlight, the outline still readable', () => {
+  it('is a dark city night: a near-black sky, faint blue moonlight, little ambient', () => {
+    // Players preferred this to a navy sky lighting the city a flat grey-blue.
     const s = skyAt(23.5, 51.5, 0.65);
     const day = skyAt(12.5, 51.5, 0.65);
     expect(s.night).toBe(1);
     const hsl = (c: typeof s.zenith) => c.getHSL({ h: 0, s: 0, l: 0 });
-    // Dark and blue overhead, not black; lighter towards the horizon (linear
-    // colour: the old near-black sky was under 0.005).
-    expect(hsl(s.zenith).l).toBeLessThan(0.06);
-    expect(hsl(s.zenith).l).toBeGreaterThan(0.012);
+    // Near black overhead with a hint of navy (linear colour), lighter towards
+    // the horizon where the city glows.
+    expect(hsl(s.zenith).l).toBeLessThan(0.008);
     expect(s.zenith.b).toBeGreaterThan(s.zenith.r * 2);
     expect(hsl(s.horizon).l).toBeGreaterThan(hsl(s.zenith).l);
-    expect(hsl(s.horizon).l).toBeLessThan(0.25);
-    // Moonlight: cool, a fraction of the sun, enough to model the buildings.
+    expect(hsl(s.horizon).l).toBeLessThan(0.05);
+    // Moonlight: cool and faint; the sky's fill dim and blue, never off.
     expect(s.sunColor.b).toBeGreaterThan(s.sunColor.r);
-    expect(s.sunIntensity).toBeGreaterThan(0.5);
-    expect(s.sunIntensity).toBeLessThan(day.sunIntensity * 0.3);
-    // The sky's fill: dimmer and bluer than by day, never off.
-    expect(s.hemiIntensity).toBeGreaterThan(0.35);
+    expect(s.sunIntensity).toBeLessThan(0.4);
+    expect(s.sunIntensity).toBeGreaterThan(0.1);
+    expect(s.hemiIntensity).toBeLessThan(0.3);
+    expect(s.hemiIntensity).toBeGreaterThan(0.1);
     expect(s.hemiIntensity).toBeLessThan(day.hemiIntensity);
-    expect(hsl(s.hemiSky).l).toBeGreaterThan(0.1);
     expect(s.hemiSky.b).toBeGreaterThan(s.hemiSky.r);
   });
 
-  it('dims the light smoothly through dusk (no jump when the moon takes over)', () => {
-    let prev = Infinity;
-    let jump = 0;
-    for (let h = 17; h <= 21; h += 0.05) {
-      const s = skyAt(h, 6.5, 0.7);
-      if (prev !== Infinity) jump = Math.max(jump, Math.abs(s.sunIntensity - prev));
-      prev = s.sunIntensity;
+  it('is a dusk, not a grey haze: a deep blue zenith over a warm horizon', () => {
+    // Lagos, 20 October, about 18:00: the sun just down, half dark.
+    const at = Date.UTC(2026, 9, 20, 17, 32);
+    const s = skyAt(18.5, 6.5, 0.7, citySun('lagos', at));
+    expect(s.night).toBeGreaterThan(0.2);
+    expect(s.night).toBeLessThan(0.8);
+    // The horizon warm (red over blue), the zenith a saturated deep blue.
+    expect(s.horizon.r).toBeGreaterThan(s.horizon.b);
+    const z = s.zenith.getHSL({ h: 0, s: 0, l: 0 });
+    expect(z.s).toBeGreaterThan(0.4);
+    expect(s.zenith.b).toBeGreaterThan(s.zenith.r * 2);
+    // The city's ambient already dimmer and bluer than by day.
+    const day = skyAt(12.5, 6.5, 0.7);
+    expect(s.hemiIntensity).toBeLessThan(day.hemiIntensity * 0.8);
+  });
+
+  it('changes the light smoothly, minute by minute, through golden hour and dusk', () => {
+    // The low sun now brightens towards the horizon before it sets, so the light
+    // no longer only fades: what is bounded is how far anything moves in a minute.
+    // San Francisco (a slow, slanting sunset) and Lagos (a fast one near the
+    // equator), from 90 minutes before sunset to an hour after, and the dawn mirror.
+    const cases = [
+      { city: 'san-francisco', at: Date.UTC(2026, 10, 24, 0, 55) },
+      { city: 'san-francisco', at: Date.UTC(2026, 10, 23, 14, 58) },
+      { city: 'lagos', at: Date.UTC(2026, 9, 20, 17, 40) },
+    ];
+    for (const { city, at } of cases) {
+      const look = cityLook(city);
+      const read = (m: number) => {
+        const s = skyAt(12, look.lat, look.haze, citySun(city, at + m * 60_000));
+        // The key light as it lands (colour × intensity): when the moon takes over
+        // the colour switches, but the light is out by then.
+        const key = s.sunColor.clone().multiplyScalar(s.sunIntensity);
+        return {
+          light: [s.sunIntensity, key.r, key.g, key.b],
+          fill: [s.hemiIntensity, s.hemiSky.r, s.hemiSky.g, s.hemiSky.b, s.exposure],
+          sky: [
+            s.night,
+            s.gold,
+            s.zenith.r,
+            s.zenith.g,
+            s.zenith.b,
+            s.horizon.r,
+            s.horizon.g,
+          ].concat([s.horizon.b, s.glow.r, s.glow.g, s.glow.b, s.band.r, s.band.g, s.band.b]),
+        };
+      };
+      const most = { light: 0, fill: 0, sky: 0 };
+      let prev = read(-90);
+      for (let m = -89; m <= 60; m++) {
+        const cur = read(m);
+        for (const k of ['light', 'fill', 'sky'] as const)
+          cur[k].forEach((v, i) => (most[k] = Math.max(most[k], Math.abs(v - prev[k][i]!))));
+        prev = cur;
+      }
+      expect(most.light).toBeLessThan(0.55);
+      expect(most.fill).toBeLessThan(0.06);
+      expect(most.sky).toBeLessThan(0.08);
     }
-    expect(jump).toBeLessThan(0.3);
+    // Without a sun (the hour alone), in steps of a minute.
+    let prev = skyAt(17, 6.5, 0.7).sunIntensity;
+    for (let h = 17 + 1 / 60; h <= 21; h += 1 / 60) {
+      const s = skyAt(h, 6.5, 0.7).sunIntensity;
+      expect(Math.abs(s - prev)).toBeLessThan(0.55);
+      prev = s;
+    }
+  });
+
+  it('is a golden hour: a strong orange sun, a blazing sky towards it, blue shade', () => {
+    // San Francisco, 23 November: 20 minutes before sunset (16:54), the sun ~2.6° up in the WSW.
+    const look = cityLook('san-francisco');
+    const sun = citySun('san-francisco', Date.UTC(2026, 10, 24, 0, 35));
+    const s = skyAt(16.6, look.lat, look.haze, sun, look.hazeTint, look.night.skyGlow);
+    const noon = skyAt(12.5, look.lat, look.haze);
+    const hsl = (c: THREE.Color) => c.getHSL({ h: 0, s: 0, l: 0 });
+    // The key light: stronger than at noon, and orange (hue 15°–40°), not white.
+    expect(s.sunIntensity).toBeGreaterThan(noon.sunIntensity);
+    expect(s.sunColor.r).toBeGreaterThan(s.sunColor.b * 4);
+    expect(hsl(s.sunColor).h * 360).toBeGreaterThan(10);
+    expect(hsl(s.sunColor).h * 360).toBeLessThan(40);
+    // The sky burns towards the sun: a bright, saturated orange glow at full strength.
+    expect(s.gold).toBeGreaterThan(0.9);
+    expect(hsl(s.glow).s).toBeGreaterThan(0.8);
+    expect(s.glow.r).toBeGreaterThan(0.9);
+    expect(s.glow.r).toBeGreaterThan(s.glow.b * 10);
+    // Looking towards the sun the haze is orange and brighter than looking away.
+    const toward = hazeToward(s, s.skyDir.x, s.skyDir.z, new THREE.Color());
+    const away = hazeToward(s, -s.skyDir.x, -s.skyDir.z, new THREE.Color());
+    expect(toward.r).toBeGreaterThan(toward.b * 3);
+    expect(toward.r + toward.g).toBeGreaterThan(away.r + away.g);
+    expect(away.b / away.r).toBeGreaterThan(toward.b / toward.r);
+    // Overhead a deep blue; the shade's light blue too (warm walls, cool shadows).
+    expect(s.zenith.b).toBeGreaterThan(s.zenith.r * 2);
+    expect(s.hemiSky.b).toBeGreaterThan(s.hemiSky.r);
+    expect(s.hemiIntensity).toBeLessThan(noon.hemiIntensity);
+    // The key light never comes from below the ground, even with the sun just set.
+    const set = skyAt(
+      17,
+      look.lat,
+      look.haze,
+      citySun('san-francisco', Date.UTC(2026, 10, 24, 0, 58)),
+    );
+    expect(set.skyDir.y).toBeLessThan(0);
+    expect(set.sunDir.y).toBeGreaterThan(0);
+    // No golden hour at noon or at midnight.
+    expect(noon.gold).toBe(0);
+    expect(skyAt(23.5, look.lat, look.haze).gold).toBe(0);
+    expect(hazeToward(noon, 1, 0, new THREE.Color()).equals(noon.horizon)).toBe(true);
+  });
+
+  it('stays finite and non-negative through a whole dusk (nothing to blank the scene)', () => {
+    // San Francisco, 23 November: from before sunset (16:54) into full night, a minute at a time.
+    const look = cityLook('san-francisco');
+    const from = Date.UTC(2026, 10, 24, 0, 30);
+    for (let m = 0; m <= 120; m++) {
+      const at = from + m * 60_000;
+      const s = skyAt(16.5 + m / 60, look.lat, look.haze, citySun('san-francisco', at));
+      const nums = [s.night, s.exposure, s.sunIntensity, s.hemiIntensity];
+      nums.push(s.gold);
+      for (const c of [s.zenith, s.horizon, s.sunColor, s.hemiSky, s.hemiGround, s.glow, s.band])
+        nums.push(c.r, c.g, c.b);
+      for (const n of nums) {
+        expect(Number.isFinite(n)).toBe(true);
+        expect(n).toBeGreaterThanOrEqual(0);
+      }
+      expect(s.exposure).toBeGreaterThan(0.5);
+    }
   });
 
   it('leaves the day as it was', () => {

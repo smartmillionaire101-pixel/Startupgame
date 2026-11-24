@@ -11,6 +11,7 @@ import { openPhone } from '../phone/bus';
 import { useView } from '../store';
 import { Button, Sheet } from '../ui';
 import { PersonCard, roleName } from './PersonCard';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import type { PresenceView } from './people';
 import './online-now.css';
 
@@ -91,7 +92,9 @@ function OnlineRow({
   onView: (p: OnlinePlayer) => void;
   onLeave?: () => void;
 }) {
-  const { toast } = useView();
+  const { toast, view } = useView();
+  // Their face once the view describes them (a player in your market); their initial otherwise.
+  const known = view?.players?.find((x) => x.id === p.id);
   const [inviting, setInviting] = useState(false);
   const [sending, setSending] = useState(false);
   const where = [p.city, ...(p.placeName ? [tx(p.placeName)] : [])].join(' · ');
@@ -114,7 +117,11 @@ function OnlineRow({
     <li className="online-row" data-online-player={p.id}>
       <div className="online-id">
         <span className="online-avatar" aria-hidden="true">
-          {(p.name.trim()[0] ?? '?').toUpperCase()}
+          {known ? (
+            <PersonPortrait id={p.id} bg={p.backgroundId} gender={known.gender} size="100%" />
+          ) : (
+            (p.name.trim()[0] ?? '?').toUpperCase()
+          )}
         </span>
         <span className="online-name">
           <span className="item-title">{p.name}</span>

@@ -441,6 +441,7 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
   await book.locator('[data-air-item="heli-tour"] [data-action="air-book"]').click();
   const air = page.locator('[data-air="heli"]');
   await expect(air).toBeVisible({ timeout: STEP_3D });
+  await watchLabels(page);
   await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 3));
   await expect(air.locator('[data-air-say]')).toBeVisible({ timeout: 120_000 });
   await expect(air.locator('[data-air-say]')).toContainText(/On your (left|right):/);
@@ -456,6 +457,7 @@ test('a helicopter tour past the landmarks: the commentary, the controls, back o
     expect(overlapping(await labelBoxes(page)), 'two landmark names on each other').toEqual([]);
     await page.waitForTimeout(700);
   }
+  expect(await labelsWatched(page), 'a landmark name over the HUD, on any frame').toEqual([]);
   await snap(page, 'heli-tour', info);
   // Inside: the cabin, the pilot and the panel; the choice is remembered.
   await camera(page, 'inside', 'cockpit');
@@ -524,6 +526,7 @@ test.describe('on a laptop', () => {
     await book.locator('[data-air-item="heli-tour"] [data-action="air-book"]').click();
     const air = page.locator('[data-air="heli"]');
     await expect(air).toBeVisible({ timeout: STEP_3D });
+    await watchLabels(page);
     await page.evaluate(() => ((window as unknown as { __airSpeed: number }).__airSpeed = 3));
     await expect(air.locator('[data-air-say]')).toBeVisible({ timeout: 120_000 });
     await expect.poll(() => shown(page), { timeout: STEP_3D }).toBe('heli');
@@ -537,6 +540,9 @@ test.describe('on a laptop', () => {
       if (i === 3) await snap(page, 'heli-tour-laptop', info);
       await page.waitForTimeout(700);
     }
+    // Nor for a moment in between: not on any frame, nor as the commentary appears or
+    // changes (CI caught "Palace of Westminster" under a line that had just appeared).
+    expect(await labelsWatched(page), 'a landmark name over the HUD, on any frame').toEqual([]);
     expect(errors).toEqual([]);
   });
 });
@@ -578,6 +584,46 @@ const labelsOverHud = (p: Page) =>
       })
       .map((n) => n.dataset.airLabel);
   });
+
+/**
+ * From now on, look for a landmark name over the HUD on every frame and on every
+ * change to the flight's page (the commentary appearing or changing, a name shown),
+ * not only when the test looks: `labelsWatched` lists what was seen.
+ */
+const watchLabels = (p: Page) =>
+  p.evaluate(() => {
+    const w = window as unknown as { __labelsSeen: string[] };
+    w.__labelsSeen = [];
+    const hudSel =
+      '.air-head h2, .air-head small, .panorama-actions, .air-cam, .air-hud, .air-say, .air-controls, .air-result';
+    const check = () => {
+      const hud = [...document.querySelectorAll<HTMLElement>(hudSel)]
+        .map((e) => e.getBoundingClientRect())
+        .filter((k) => k.width > 0);
+      for (const n of document.querySelectorAll<HTMLElement>('.sky-label:not([hidden])')) {
+        const r = n.getBoundingClientRect();
+        const on = hud.some(
+          (k) => r.left < k.right && r.right > k.left && r.top < k.bottom && r.bottom > k.top,
+        );
+        const say = document.querySelector('.air-say')?.textContent ?? '';
+        const seen = `${n.dataset.airLabel} (commentary: ${say})`;
+        if (on && !w.__labelsSeen.includes(seen)) w.__labelsSeen.push(seen);
+      }
+    };
+    const frame = () => {
+      check();
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    new MutationObserver(check).observe(document.querySelector('[data-air]')!, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributeFilter: ['hidden'],
+    });
+  });
+const labelsWatched = (p: Page) =>
+  p.evaluate(() => (window as unknown as { __labelsSeen: string[] }).__labelsSeen);
 
 /**
  * The pad stands on open ground (player feedback: back on the pad the

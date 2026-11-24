@@ -11,7 +11,7 @@
  * in, a case to watch, a tax clinic, SME and export leads, investors to
  * meet…), and the Stock Exchange's live price board.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import './civic.css';
 import { CONSULTATIONS, type Command, type PlayerView } from '@runway/engine';
 import { money } from '../format';
@@ -19,6 +19,8 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { Button, Card, Pill } from '../ui';
 import { CIVIC_ICON } from './mapIcons';
+import { avatarLook } from './art';
+import { PersonSprite, type SpriteAngle, type SpritePose } from './PersonSprite';
 import { BankInterviewCard } from '../screens/BankLicence';
 import type { Place } from './layout';
 import { useNav } from '../phone/bus';
@@ -327,11 +329,84 @@ function Appointment({ e }: { e: CivicView }) {
   );
 }
 
+/** Who stands at a place's door: x, background, pose, angle, flipped (facing left). */
+type DoorPerson = [number, string, SpritePose, SpriteAngle, boolean?];
+const GUARD: DoorPerson = [118, 'b-commercial', 'stand', 'front'];
+const DOOR_PEOPLE: Record<string, DoorPerson[]> = {
+  // A queue with their papers, and a clerk at the door.
+  'tax-office': [
+    GUARD,
+    [178, 'f-consultant', 'browse', 'front'],
+    [204, 'b-fintech', 'stand', 'three-quarter'],
+    [230, 'i-operator', 'idle', 'three-quarter'],
+  ],
+  // Lawyers in conversation on the steps, a visitor waiting.
+  'high-court': [
+    GUARD,
+    [60, 'f-corporate', 'chat', 'three-quarter', true],
+    [84, 'i-exited', 'chat', 'three-quarter'],
+    [222, 'f-consultant', 'stand', 'front'],
+  ],
+  // Traders on their phones and talking.
+  'stock-exchange': [
+    GUARD,
+    [52, 'b-fintech', 'browse', 'front'],
+    [196, 'i-operator', 'chat', 'three-quarter', true],
+    [222, 'f-corporate', 'chat', 'three-quarter'],
+  ],
+  // Guards on the door, an official with a visitor.
+  'central-bank': [
+    GUARD,
+    [182, 'b-commercial', 'stand', 'front'],
+    [60, 'i-exited', 'present', 'three-quarter', true],
+    [86, 'f-consultant', 'idle', 'three-quarter'],
+  ],
+};
+const DOOR_DEFAULT: DoorPerson[] = [GUARD, [196, 'f-consultant', 'idle', 'three-quarter']];
+
+/** The front of the place: its steps and door, with the people there. */
+function DoorScene({ e }: { e: CivicView }) {
+  const people = DOOR_PEOPLE[e.role] ?? DOOR_DEFAULT;
+  const looks = useMemo(
+    () => people.map(([, bg], i) => avatarLook(bg, `${e.id}:door:${i}`)),
+    [people, e.id],
+  );
+  return (
+    <svg
+      className="civic-door-scene"
+      viewBox="0 0 300 112"
+      preserveAspectRatio="xMidYMax slice"
+      aria-hidden="true"
+      data-door-people={people.length}
+    >
+      <rect width="300" height="112" fill="#e7e2d6" />
+      {/* The façade: a pediment over columns, the door in the middle. */}
+      <rect x="20" y="10" width="260" height="70" fill="#d6cfbf" />
+      <path d="M14 14 L150 0 L286 14 Z" fill="#cbc3b1" />
+      {[40, 80, 220, 260].map((x) => (
+        <rect key={x} x={x - 6} y="16" width="12" height="64" fill="#efeadf" />
+      ))}
+      <rect x="126" y="24" width="48" height="56" rx="2" fill="#5b4636" />
+      <rect x="149" y="24" width="2" height="56" fill="#3f2f24" />
+      <rect x="0" y="80" width="300" height="32" fill="#bdb5a4" />
+      <rect x="0" y="80" width="300" height="3" fill="#a59d8c" />
+      {people
+        .map((p, i) => ({ p, look: looks[i]! }))
+        .map(({ p: [x, , pose, angle, left], look }, i) => (
+          <g key={i} transform={`translate(${x} 104) scale(1.4)`}>
+            <PersonSprite look={look} pose={pose} angle={angle} flip={angle !== 'front' && !left} />
+          </g>
+        ))}
+    </svg>
+  );
+}
+
 /** At the door of a place you can't go into (yet): why, and what opens it. */
 export function CivicDoor({ e, onClose }: { e: CivicView; onClose: () => void }) {
   const { why, unlock } = closedText(e);
   return (
     <div className="civic civic-door" data-civic={e.role} data-civic-closed={e.why ?? ''}>
+      <DoorScene e={e} />
       <PlaceHead e={e} />
       <Card tone="warn" title={t('You can’t go in')}>
         <p data-civic-why="">{why}</p>

@@ -141,6 +141,8 @@ const isWoody = (c: THREE.Color) => {
  */
 export function refinish(group: THREE.Object3D, swatch: string) {
   const target = new THREE.Color(swatch);
+  // (Kept, so a CC0 model that arrives later takes the same finish.)
+  group.userData.finish = swatch;
   const meshes: THREE.Mesh[] = [];
   group.traverse((o) => {
     const m = o as THREE.Mesh;

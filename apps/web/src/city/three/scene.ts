@@ -9,6 +9,7 @@ import { citySun } from '../solar';
  * at all with reduced motion when nothing changes or while the tab is hidden.
  */
 import * as THREE from 'three';
+import { onKitReady } from '../../three-kit/humans/kit';
 import { fromLatLon } from '../geo';
 import { geoMetres, HELIPAD_CLEAR, type GeoWorld } from '../geoLayout';
 import type { CityLayout, Place, Pt } from '../layout';
@@ -37,7 +38,15 @@ import { homeModel, lifestyleHome, PLOT, setHomesNight } from './homes3d';
 import { ROAD_HALF, COVER } from './mask';
 import { hoodAt, type OwnedProperty } from '../properties';
 import { covered } from '../../three-kit/cover';
-import { applySky, skyAt, skyDome, skyEnvironment, skyUniforms, type SkyState } from './sky';
+import {
+  applySky,
+  hazeToward,
+  skyAt,
+  skyDome,
+  skyEnvironment,
+  skyUniforms,
+  type SkyState,
+} from './sky';
 import { canopyMeshes, forestSpots, treeMeshes, treeSpots, type TreeSpot } from './trees';
 import { buildLandmarks, EXTRA_3D, landmarkLights, type LandmarkPlan } from './landmarks';
 import {
@@ -144,6 +153,11 @@ function landmarkRadius(kind: string) {
 const PITCH_MAX = 1.42;
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+/** Golden hour on the map: teal shade and an amber key (see applySky). */
+const MAP_SHADE = new THREE.Color('#26aae2');
+const MAP_HAZE = new THREE.Color('#4f86b0');
+const MAP_BOUNCE = new THREE.Color('#5c6a78');
+const MAP_KEY = new THREE.Color('#ffb84c');
 const _ray = new THREE.Ray();
 const _ndc = new THREE.Vector2();
 const _rc = new THREE.Raycaster();
@@ -174,6 +188,7 @@ export class CityScene {
   following = true;
   /** Driving: the camera rides behind the car, looking down the road. */
   private chaseOn = false;
+  private chaseView = { dist: 48, pitch: 0.42, ahead: 12 };
   private savedRig: { dist: number; pitch: number; yaw: number } | null = null;
   /** Stop drawing on its own (screenshots and tests draw with renderNow). */
   paused = false;
@@ -194,6 +209,9 @@ export class CityScene {
   private sun = new THREE.DirectionalLight(0xffffff, 3);
   private hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 1);
   private fog: THREE.FogExp2;
+  private tmpDir = new THREE.Vector3();
+  /** How far golden hour retints the map (0 in a sky view; see applySky). */
+  private mapGold = 0;
   private dome: THREE.Mesh;
   private skyState: SkyState;
   private env: THREE.WebGLRenderTarget | null = null;
@@ -281,6 +299,8 @@ export class CityScene {
   ) {
     const t0 = performance.now();
     if (!layout.geo) throw new Error('A 3D city needs a real map');
+    // The CC0 people and cars arrive after the first frames: draw again when they do.
+    this.offKit = onKitReady(() => this.invalidate());
     this.layout = layout;
     this.geo = layout.geo;
     this.look = cityLook(layout.marketId);
@@ -1152,6 +1172,23 @@ export class CityScene {
 
   private applySky() {
     applySky(this.skyState, this.sky, this.sun, this.hemi, this.fog);
+    // The map looks down on roofs and streets, which a deep orange key and a
+    // blue sky light mix to mauve: while the low sun is up, its shade goes teal
+    // and its key amber, so the walls stay orange against clean cool shade.
+    // (A sky view looks across at walls and the sky itself: left as it is.)
+    const mapGold = (this.mapGold = this.opts.sky
+      ? 0
+      : // Only while the sun lights the city (after night 0.5 the key is the moon).
+        this.skyState.gold *
+        Math.min(1, (this.skyState.night < 0.5 ? this.skyState.sunIntensity : 0) / 2));
+    if (mapGold > 0) {
+      // Brighter too, and with a cooler bounce from below: the shade reads
+      // blue instead of falling into a red-brown murk.
+      this.hemi.color.lerp(MAP_SHADE, 0.9 * mapGold);
+      this.hemi.groundColor.lerp(MAP_BOUNCE, 0.7 * mapGold);
+      this.hemi.intensity *= 1 + 0.9 * mapGold;
+      this.sun.color.lerp(MAP_KEY, 0.6 * mapGold);
+    }
     this.shared.uNight.value = this.skyState.night;
     this.shared.uHour.value = this.hour;
     this.glow.uNight.value = this.skyState.night;
@@ -1165,7 +1202,10 @@ export class CityScene {
     this.env?.dispose();
     this.env = skyEnvironment(this.renderer, this.sky);
     this.scene.environment = this.env.texture;
-    this.scene.environmentIntensity = 0.55 - this.skyState.night * 0.3;
+    // Golden hour: less of the (blue) sky's reflection, so the low sun's warm
+    // light carries the city instead of a lilac wash.
+    this.scene.environmentIntensity =
+      (0.55 - this.skyState.night * 0.4) * (1 - 0.45 * this.skyState.gold) * (1 - 0.7 * mapGold);
   }
 
   // ---------------------------------------------------------------------------
@@ -1224,10 +1264,17 @@ export class CityScene {
     }
     const r = this.rig;
     r.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, r.pitch));
-    r.dist = Math.max(35, Math.min(this.maxDist(), r.dist));
+    // A ride on the map follows you closer (on foot, a bike) than you can zoom in.
+    r.dist = Math.max(
+      this.chaseOn ? Math.min(35, this.chaseView.dist) : 35,
+      Math.min(this.maxDist(), r.dist),
+    );
+    // Kept over the city; a ride followed to its edge (a road out of the map's
+    // area) keeps the camera on you.
     const [bx0, by0, bx1, by1] = this.geo.data.bounds;
-    r.x = Math.max(bx0, Math.min(bx1, r.x));
-    r.y = Math.max(by0, Math.min(by1, r.y));
+    const m = this.chaseOn ? 1500 : 0;
+    r.x = Math.max(bx0 - m, Math.min(bx1 + m, r.x));
+    r.y = Math.max(by0 - m, Math.min(by1 + m, r.y));
     const fx = Math.sin(r.yaw);
     const fz = -Math.cos(r.yaw);
     // Pulled right back, the view lowers towards the horizon (an aerial photo's angle).
@@ -1246,11 +1293,15 @@ export class CityScene {
     this.dome.position.copy(this.camera.position);
     this.dome.scale.setScalar(this.camera.far * 0.9);
     // Haze: thicker the further you see, by the city's air.
-    this.fog.density = (0.55 + this.look.haze * 0.9) / (4.2 * r.dist + 1800);
+    this.fog.density = (this.hazeK() * (0.55 + this.look.haze * 0.9)) / (4.2 * r.dist + 1800);
+    // Golden hour: orange haze looking towards the sun, cooler looking away.
+    hazeToward(this.skyState, fx, fz, this.fog.color, MAP_HAZE, 0.75 * this.mapGold);
     // Shadows: fitted around what is in view, off when the whole city shows.
     const S = Math.max(90, Math.min(1600, r.dist * 1.15));
     const sd = this.skyState.sunDir;
-    this.sun.castShadow = !this.degraded && r.dist < 4500 && sd.y > 0.05;
+    // Down to a sun on the horizon (the key light never dips below 0.012): the
+    // long shadows of golden hour.
+    this.sun.castShadow = !this.degraded && r.dist < 4500 && sd.y > 0.01;
     const cam = this.sun.shadow.camera;
     cam.left = -S;
     cam.right = S;
@@ -1284,8 +1335,19 @@ export class CityScene {
       (this.size.h * this.dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
     this.dome.position.copy(cam.position);
     this.dome.scale.setScalar(cam.far * 0.9);
-    this.fog.density = (0.55 + this.look.haze * 0.9) / (5.5 * o.reach + 2400);
+    this.fog.density = (this.hazeK() * (0.55 + this.look.haze * 0.9)) / (5.5 * o.reach + 2400);
+    cam.getWorldDirection(this.tmpDir);
+    hazeToward(this.skyState, this.tmpDir.x, this.tmpDir.z, this.fog.color);
     this.sun.castShadow = false;
+  }
+
+  /**
+   * The haze's share by the light: all of it by day, thinning from the first
+   * of twilight to 55% at night, so the far lights carry to the horizon
+   * instead of fading into a grey murk.
+   */
+  private hazeK() {
+    return 1 - 0.45 * Math.sqrt(this.skyState.night);
   }
 
   groundAt(x: number, y: number) {
@@ -1412,10 +1474,16 @@ export class CityScene {
     this.touch(1200);
   }
 
-  /** Driving your own car: a chase camera until endChase(). */
-  startChase() {
+  /**
+   * Driving your own car (or riding on the map): a chase camera until
+   * endChase(). `view`: how far behind (m), how steeply down (radians) and
+   * how far ahead of you it looks (m); a car's by default, closer for a bike
+   * or on foot, further back for a bus.
+   */
+  startChase(view: { dist?: number; pitch?: number; ahead?: number } = {}) {
     if (!this.chaseOn)
       this.savedRig = { dist: this.rig.dist, pitch: this.rig.pitch, yaw: this.rig.yaw };
+    this.chaseView = { dist: view.dist ?? 48, pitch: view.pitch ?? 0.42, ahead: view.ahead ?? 12 };
     this.chaseOn = true;
     this.following = true;
     this.touch(1000);
@@ -1543,12 +1611,13 @@ export class CityScene {
       let d = Math.PI - av.heading - this.rig.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       this.rig.yaw += d * ease;
-      this.rig.pitch += (0.42 - this.rig.pitch) * ease;
-      this.want.dist = 48;
+      const cv = this.chaseView;
+      this.rig.pitch += (cv.pitch - this.rig.pitch) * ease;
+      this.want.dist = cv.dist;
       if (this.following) {
         // Locked on (a fast car would outrun a lagging camera).
-        this.want.x = this.rig.x = av.x + Math.sin(av.heading) * 12;
-        this.want.y = this.rig.y = av.y + Math.cos(av.heading) * 12;
+        this.want.x = this.rig.x = av.x + Math.sin(av.heading) * cv.ahead;
+        this.want.y = this.rig.y = av.y + Math.cos(av.heading) * cv.ahead;
       }
       this.dirty = true;
     }
@@ -1572,6 +1641,14 @@ export class CityScene {
     // The people and the traffic move only in frames that are drawn.
     this.actors.setFocus(this.rig.x, this.rig.y, this.rig.dist);
     this.actors.update(t, this.opts.reduced, this.rig.dist);
+    if (this.chaseOn && this.following && !this.view) {
+      // The ride moved on this frame: the camera with it (a trip runs at tens of
+      // metres a frame, and a frame behind would leave the vehicle out of sight).
+      const a = this.actors.avatarPos();
+      const ahead = this.chaseView.ahead;
+      this.want.x = this.rig.x = a.x + Math.sin(a.heading) * ahead;
+      this.want.y = this.rig.y = a.y + Math.cos(a.heading) * ahead;
+    }
     // Shadows: redrawn with the camera, the avatar or the city changing; while
     // only the traffic and the passers-by move, every few frames.
     this.renderer.shadowMap.needsUpdate =
@@ -1734,14 +1811,16 @@ export class CityScene {
     for (const cb of this.onFrameCbs) cb();
   }
 
+  private offKit: () => void;
   dispose() {
     this.disposed = true;
+    this.offKit();
     cancelAnimationFrame(this.raf);
     document.removeEventListener('visibilitychange', this.onVis);
     this.actors.dispose();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
-      m.geometry?.dispose?.();
+      if (!m.geometry?.userData?.shared) m.geometry?.dispose?.();
       const mat = m.material as THREE.Material | THREE.Material[] | undefined;
       if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
       else mat?.dispose?.();

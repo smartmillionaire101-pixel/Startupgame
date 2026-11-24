@@ -8,7 +8,8 @@
  */
 import { useEffect, useState } from 'react';
 import { SHOP_COLOUR, itemIcon, wearing } from '../city/mall/shops';
-import { AvatarFigure, type AvatarLook } from '../city/art';
+import type { AvatarLook } from '../city/art';
+import { PersonSprite } from '../city/PersonSprite';
 import type { CatEntry, CatVariant } from './catalog';
 import type { ThumbSpec } from './thumbs3d';
 import { furnitureThumb } from './thumbs';
@@ -72,7 +73,9 @@ function render(spec: ThumbSpec): Promise<string | null> {
     () =>
       new Promise<string | null>((resolve) => {
         setTimeout(() => {
-          import('./thumbs3d').then((m) => resolve(m.renderThumb(spec))).catch(() => resolve(null));
+          import('./thumbs3d')
+            .then((m) => m.thumbsReady().then(() => resolve(m.renderThumb(spec))))
+            .catch(() => resolve(null));
         }, 0);
       }),
   );
@@ -147,7 +150,7 @@ export function Thumb({
         <img src={shown} alt="" draggable={false} />
       ) : wear ? (
         <svg viewBox="-24 -50 48 54" className="cat-thumb-look">
-          <AvatarFigure look={wear} />
+          <PersonSprite look={wear} />
         </svg>
       ) : (
         <span className="cat-thumb-icon">{iconOf(entry)}</span>

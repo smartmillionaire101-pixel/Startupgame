@@ -5,6 +5,12 @@
  * projected through the camera, as −1 … 1 across (left, right) and up
  * (bottom, top). Null when nothing of it is drawn or a corner is behind the
  * camera.
+ *
+ * A skinned mesh (the CC0 people, ../three-kit/humans) is measured as it is
+ * posed now, not by its geometry's bind-pose box: that box is in the rig's
+ * own space (lying down, a different size), nowhere near the person drawn.
+ * The model is brought up to date first (`updateMatrixWorld`, which a
+ * person's model hooks to follow its joints).
  */
 import * as THREE from 'three';
 
@@ -22,15 +28,25 @@ const _part = new THREE.Box3();
 const _v = new THREE.Vector3();
 
 export function screenBoxOf(obj: THREE.Object3D, camera: THREE.Camera): ScreenBox | null {
-  obj.updateWorldMatrix(true, true);
+  obj.parent?.updateWorldMatrix(true, false);
+  obj.updateMatrixWorld(true);
   camera.updateMatrixWorld();
   _inv.copy(obj.matrixWorld).invert();
   _box.makeEmpty();
   obj.traverseVisible((o) => {
     const g = (o as THREE.Mesh).geometry;
     if (!g) return;
-    if (!g.boundingBox) g.computeBoundingBox();
-    _box.union(_part.copy(g.boundingBox!).applyMatrix4(_m.multiplyMatrices(_inv, o.matrixWorld)));
+    let local: THREE.Box3;
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh) {
+      const sk = o as THREE.SkinnedMesh;
+      sk.computeBoundingBox();
+      local = sk.boundingBox!;
+    } else {
+      if (!g.boundingBox) g.computeBoundingBox();
+      local = g.boundingBox!;
+    }
+    if (local.isEmpty()) return;
+    _box.union(_part.copy(local).applyMatrix4(_m.multiplyMatrices(_inv, o.matrixWorld)));
   });
   if (_box.isEmpty()) return null;
   const out = { l: Infinity, r: -Infinity, b: Infinity, t: -Infinity };

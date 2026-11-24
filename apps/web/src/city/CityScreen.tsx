@@ -86,7 +86,8 @@ import { WhoIsAround } from './WhoIsHere';
 import { OnlineNowList } from './OnlineNow';
 import { usePresence } from './presence';
 import { HolidayBanner } from '../phone/apps/Holiday';
-import { RideWith } from './companions';
+import { HotelRide, rideMs } from './airport3d/HotelRide';
+import { use3d } from '../three-kit/quality';
 import { useLookVersion } from './acts/look';
 import { useGeo, type GeoData } from './geo';
 import { cachedCityLayout, hasCityLayout } from './geoLayout';
@@ -889,20 +890,32 @@ function CityBodyInner({
   const [transfer, setTransfer] = useState<string | null>(null);
   const transferTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(transferTimer.current), []);
+  // (In 3D the ride is a short scene of its own: it says when it's over,
+  // counted from its first frame; the timer here is the backstop.)
+  const ride3d = use3d();
+  const rideDone = useRef<(() => void) | null>(null);
   const rideToStay = useCallback(() => {
     const stay = layout.places.find((p) => p.id === 'home');
     if (!stay) return goToStory('home');
     setTransfer(hotelName ?? t('Home'));
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(transferTimer.current);
+      rideDone.current = null;
+      placeAvatarAt(layout.marketId, stay.door);
+      setArrival(false);
+      setInside(stay);
+      setTransfer(null);
+    };
+    const quick = reduceMotion() || !ride3d;
+    rideDone.current = quick ? null : finish;
     transferTimer.current = window.setTimeout(
-      () => {
-        placeAvatarAt(layout.marketId, stay.door);
-        setArrival(false);
-        setInside(stay);
-        setTransfer(null);
-      },
-      reduceMotion() ? 400 : 2200,
+      finish,
+      reduceMotion() ? 400 : ride3d ? rideMs(true) + 6000 : rideMs(false),
     );
-  }, [layout, goToStory, hotelName]);
+  }, [layout, goToStory, hotelName, ride3d]);
   const office = layout.places.find((p) => p.kind === 'office')!;
   // Going home is a trip like any other: the ticket home is booked, then you
   // go to the airport and check in for it (lite mode, without the airport
@@ -1459,18 +1472,12 @@ function CityBodyInner({
         </Sheet>
       )}
       {transfer && (
-        <div className="stay-transfer" role="status" data-transfer>
-          <div className="stay-transfer-road" aria-hidden="true">
-            <span className="stay-transfer-car">🚗</span>
-          </div>
-          <p className="stay-transfer-title">
-            {abroad ? t('On your way to {hotel}', { hotel: transfer }) : t('On your way home')}
-          </p>
-          {abroad && <RideWith market={layout.marketId} />}
-          <p className="stay-transfer-sub">
-            {abroad ? t('Your driver is taking you to the hotel.') : t('Nearly there.')}
-          </p>
-        </div>
+        <HotelRide
+          market={layout.marketId}
+          abroad={abroad}
+          hotel={transfer}
+          onDone={() => rideDone.current?.()}
+        />
       )}
       {inside && (
         <Suspense

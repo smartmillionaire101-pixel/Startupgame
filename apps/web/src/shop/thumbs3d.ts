@@ -1,13 +1,16 @@
 /**
  * Catalogue pictures rendered from the game's own 3D models (the home's
- * furniture, the cars, walls and dividers): one small offscreen renderer,
+ * furniture, the cars, walls and dividers): the shared offscreen renderer,
  * a three-quarter view in soft studio light, each picture kept as a data
  * URL for the session. Loaded lazily (three.js only when a picture is due).
  */
 import * as THREE from 'three';
 import { buildModel } from '../interiors3d/furniture';
+import { loadProps } from '../three-kit/props';
+import { loadCars } from '../three-kit/vehicles';
 import { buildDivider, refinish, upholstered, type DividerKind } from '../interiors3d/dividers';
 import { planFor } from '../home/layout';
+import { offscreenRenderer, snapshot } from '../three-kit/offscreen';
 
 export interface ThumbSpec {
   /** 'furniture' (slot), 'car' (model), 'wall' (kind). */
@@ -22,41 +25,32 @@ export interface ThumbSpec {
 
 const SIZE = 192;
 let gl: {
-  renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
 } | null = null;
-let broken = false;
 const cache = new Map<string, string>();
 
+/**
+ * The CC0 furniture and cars, fetched before the first picture (so a
+ * picture is never the low-poly stand-in). Resolves either way.
+ */
+export function thumbsReady(): Promise<void> {
+  return Promise.all([loadProps('furniture'), loadCars()]).then(() => undefined);
+}
+
 function setup() {
-  if (gl || broken) return gl;
-  try {
-    const canvas = document.createElement('canvas');
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: true,
-      preserveDrawingBuffer: true,
-    });
-    renderer.setSize(SIZE, SIZE, false);
-    renderer.setPixelRatio(1);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight('#ffffff', '#b9a98f', 1.6));
-    const sun = new THREE.DirectionalLight('#fff4e0', 2.2);
-    sun.position.set(3, 6, 4);
-    scene.add(sun);
-    const fill = new THREE.DirectionalLight('#dbe8ff', 0.7);
-    fill.position.set(-4, 3, -2);
-    scene.add(fill);
-    const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
-    gl = { renderer, scene, camera };
-  } catch {
-    broken = true;
-  }
+  // (The renderer is the one shared offscreen one: ../three-kit/offscreen.ts.)
+  if (gl || !offscreenRenderer()) return gl;
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight('#ffffff', '#b9a98f', 1.6));
+  const sun = new THREE.DirectionalLight('#fff4e0', 2.2);
+  sun.position.set(3, 6, 4);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight('#dbe8ff', 0.7);
+  fill.position.set(-4, 3, -2);
+  scene.add(fill);
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
+  gl = { scene, camera };
   return gl;
 }
 
@@ -106,14 +100,12 @@ export function renderThumb(s: ThumbSpec, type = 'image/png', quality?: number):
   const dist = r / Math.sin((g.camera.fov * Math.PI) / 360);
   g.camera.position.set(centre.x + dist * 0.15, centre.y + dist * 0.5, centre.z + dist * 0.86);
   g.camera.lookAt(centre);
-  g.renderer.setClearColor(0x000000, 0);
-  g.renderer.render(g.scene, g.camera);
-  const url = g.renderer.domElement.toDataURL(type, quality);
+  const url = snapshot(g.scene, g.camera, SIZE, SIZE, { type, quality });
   g.scene.remove(obj);
   obj.traverse((o) => {
     const m = o as THREE.Mesh;
     if (m.isMesh) m.geometry.dispose();
   });
-  cache.set(k, url);
+  if (url) cache.set(k, url);
   return url;
 }

@@ -13,7 +13,7 @@
  */
 import { useState } from 'react';
 import type { Command } from '@runway/engine';
-import { Portrait } from '../avatar/Portrait';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import { money, pct } from '../format';
 import { t, tx } from '../i18n';
 import { useView, type Company } from '../store';
@@ -244,7 +244,7 @@ function Prospect({
       className="convo-first"
     >
       <div className="convo-person">
-        <Portrait
+        <PersonPortrait
           id={`deal:${d?.businessId ?? d?.id ?? business?.name ?? ''}`}
           bg="b-commercial"
           size={60}

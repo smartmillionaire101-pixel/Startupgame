@@ -15,10 +15,10 @@ import { flavourOf } from '../flavour';
 import { rideLabel, RideIcon } from '../Transport';
 import { fnv, stopsAlong } from '../travel';
 import type { Frame } from './art';
-import { BusScene } from './BusScene';
+import { BusOnMap, BusScene } from './BusScene';
 import { CycleScene } from './CycleScene';
 import { setSkipRides, skipRide, skipRides, type Ride } from './state';
-import { BOOKING_MS, TaxiScene } from './TaxiScene';
+import { BOOKING_MS, TaxiOnMap, TaxiScene } from './TaxiScene';
 import { WalkScene } from './WalkScene';
 import './ride.css';
 
@@ -118,14 +118,31 @@ export function RideScene({ ride }: { ride: Ride }) {
   }, [ride, mode, chase, jam, minutes]);
 
   const common = { uid, flavour, marketId, part, look: ride.look, frameRef };
-  const scene = chase ? null : mode === 'walk' ? (
+  const livery = TRANSIT_LIVERY[marketId] ?? '#f59e0b';
+  // On the 3D map the city plays the ride (the vehicle, the people in it, the
+  // camera behind): only the ride's own overlays here.
+  const onMap = ride.onMap && !chase;
+  const scene = chase ? null : onMap ? (
+    mode === 'taxi' ? (
+      <TaxiOnMap
+        marketId={marketId}
+        flavour={flavour}
+        frameRef={frameRef}
+        path={ride.path}
+        rideId={ride.id}
+        total={ride.ms}
+      />
+    ) : mode === 'bus' ? (
+      <BusOnMap frameRef={frameRef} stops={stops} livery={livery} />
+    ) : null
+  ) : mode === 'walk' ? (
     <WalkScene {...common} />
   ) : mode === 'cycle' ? (
     <CycleScene {...common} />
   ) : mode === 'taxi' ? (
     <TaxiScene {...common} path={ride.path} rideId={ride.id} />
   ) : (
-    <BusScene {...common} stops={stops} livery={TRANSIT_LIVERY[marketId] ?? '#f59e0b'} />
+    <BusScene {...common} stops={stops} livery={livery} />
   );
   // Driving your own car on the 3D map: its route card and pedals are there.
   if (ride.hud) return null;
@@ -134,15 +151,16 @@ export function RideScene({ ride }: { ride: Ride }) {
 
   return (
     <div
-      className={`ride-scene${chase ? ' is-chase' : ''}`}
+      className={`ride-scene${chase ? ' is-chase' : ''}${onMap ? ' is-onmap' : ''}`}
       role="dialog"
       aria-modal={!chase}
       aria-label={where ? t('On the way to {place}', { place: where }) : t('On the way')}
       data-ride-mode={mode}
       data-ride-chase={chase ? '1' : undefined}
+      data-ride-3d={onMap ? '1' : undefined}
       data-part={part}
     >
-      {scene && <div className="ride-stage">{scene}</div>}
+      {scene && (onMap ? scene : <div className="ride-stage">{scene}</div>)}
       <div className="ride-card" role="status">
         <span className="ride-card-icon" aria-hidden>
           <RideIcon mode={mode} />

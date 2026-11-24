@@ -11,10 +11,11 @@
  */
 import { useEffect, useMemo, useRef } from 'react';
 import { t } from '../../i18n';
-import { AvatarFigure } from '../art';
+import { PersonSprite, type SpritePose } from '../PersonSprite';
 import { ENTRANCE } from '../rooms';
 import './acts.css';
-import { LyingFigure, SeatedFigure, roomScale } from './figure';
+import { roomScale } from './figure';
+import { SPRITE_K } from '../scenePose';
 import { clamp01, lerp, type ActCtx, type ActScript, type YouFrame } from './types';
 
 const SETTLE = 280;
@@ -27,10 +28,14 @@ export function timeline(s: ActScript) {
   return { walk, loopAt: walk + SETTLE, total: walk + SETTLE + s.loopMs + OUTRO };
 }
 
-/** Show or hide a node (only touching the DOM when it changes). */
+/**
+ * Show or hide a node (only touching the DOM when it changes). Hidden, not
+ * removed from the layout: a posed figure's picture (PersonSprite) is drawn
+ * while it waits, so it's ready the moment it shows.
+ */
 const display = (el: SVGElement | undefined, on: boolean) => {
-  const want = on ? '' : 'none';
-  if (el && el.style.display !== want) el.style.display = want;
+  const want = on ? '' : 'hidden';
+  if (el && el.style.visibility !== want) el.style.visibility = want;
 };
 const walkingCls = (el: SVGElement | undefined, on: boolean) => {
   if (el && el.classList.contains('is-walking') !== on) el.classList.toggle('is-walking', on);
@@ -177,12 +182,17 @@ export function ActStage({ script, ctx, ended, onEnd, reduced }: ActStageProps) 
   const hairChange = script.swapAt !== undefined;
   const posedNeeded = script.pose !== 'stand' || !!script.poseClass || !!script.hold || hairChange;
   const posedFig = (look: ActCtx['look']) =>
-    script.pose === 'sit' ? (
-      <SeatedFigure look={look} />
-    ) : script.pose === 'lie' ? (
-      <LyingFigure look={look} />
+    script.pose === 'lie' ? (
+      // Lying on your front (a massage table, a sun lounger): seen from behind, laid down.
+      <g className="act-lying" transform="rotate(-90)">
+        <g transform={`scale(${SPRITE_K})`}>
+          <PersonSprite look={look} pose="stand" angle="back" shadow={false} />
+        </g>
+      </g>
     ) : (
-      <AvatarFigure look={look} />
+      <g transform={`scale(${SPRITE_K})`}>
+        <PersonSprite look={look} pose={posedPose(script)} />
+      </g>
     );
   const dim = script.dim ?? 0.35;
   // Drawn once per act (the props don't change while it plays).
@@ -208,13 +218,15 @@ export function ActStage({ script, ctx, ended, onEnd, reduced }: ActStageProps) 
       {back}
       <g data-n="you" className="act-you" data-act-you="">
         <g data-n="you-stand" className="city-avatar">
-          <AvatarFigure look={ctx.look} />
+          <g transform={`scale(${SPRITE_K})`}>
+            <PersonSprite look={ctx.look} />
+          </g>
         </g>
         {posedNeeded && (
           <g
             data-n="you-posed"
             className={`act-posed city-avatar ${script.poseClass ?? ''}`}
-            style={{ display: 'none' }}
+            style={{ visibility: 'hidden' }}
             data-look={ctx.look.hairStyle}
           >
             {posedFig(ctx.look)}
@@ -225,7 +237,7 @@ export function ActStage({ script, ctx, ended, onEnd, reduced }: ActStageProps) 
           <g
             data-n="you-new"
             className={`act-posed city-avatar ${script.poseClass ?? ''}`}
-            style={{ display: 'none' }}
+            style={{ visibility: 'hidden' }}
             data-look={ctx.newLook.hairStyle}
             data-new-look=""
           >
@@ -236,4 +248,23 @@ export function ActStage({ script, ctx, ended, onEnd, reduced }: ActStageProps) 
       {front}
     </g>
   );
+}
+
+/** Your pose at an act's station, by what the act is. */
+const POSED: Partial<Record<ActScript['id'], SpritePose>> = {
+  meal: 'eat',
+  drink: 'drink',
+  haircut: 'sit',
+  cinema: 'sit',
+  showroom: 'sit',
+  dance: 'dance',
+  gig: 'cheer',
+  workout: 'lift',
+  karaoke: 'sing',
+  football: 'kick',
+  arcade: 'browse',
+  gallery: 'idle',
+};
+function posedPose(script: ActScript): SpritePose {
+  return POSED[script.id] ?? (script.pose === 'sit' ? 'sit' : 'stand');
 }

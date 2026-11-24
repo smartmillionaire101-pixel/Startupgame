@@ -24,6 +24,7 @@ import { t, tx } from '../i18n';
 import { useView, type Company } from '../store';
 import { Bar, Button, Card, Pill, Sheet } from '../ui';
 import { stageLabel } from './Sales';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import './decisions.css';
 
 type DecisionsV = PlayerView['decisions'];
@@ -627,6 +628,21 @@ function lifeOutcome(ev: Ev, ch: Choice): string {
 }
 
 /**
+ * Life events about someone unnamed (a friend, a neighbour, a reporter): their
+ * portrait, with the event's emoji as a badge. The value
+ * is the background their look is dressed from.
+ */
+const LIFE_PERSON: Record<string, string | undefined> = {
+  'life-friend-loan': 'f-dropout',
+  'life-wedding': 'b-commercial',
+  'life-family-visit': 'f-corporate',
+  'life-neighbour': 'f-dropout',
+  'life-cofounder': 'f-engineer',
+  'life-journalist': 'f-consultant',
+  'life-coffee': 'i-exited',
+};
+
+/**
  * A life event as a card (a sheet over the screen): the picture, what
  * happened, and a big button per choice with what it costs and changes
  * ("could go well or badly" ones say their odds). The default (what happens
@@ -640,6 +656,7 @@ export function LifeEventSheet({ ev, onClose }: { ev: Ev; onClose: () => void })
   const def = ev.choices.find((c) => c.isDefault);
   const done = ev.status !== 'open';
   const picked = ev.choices.find((c) => c.id === ev.choiceId);
+  const who = LIFE_PERSON[ev.template];
   return (
     <Sheet title={title} onClose={onClose}>
       <div
@@ -647,9 +664,16 @@ export function LifeEventSheet({ ev, onClose }: { ev: Ev; onClose: () => void })
         data-life-event={ev.id}
         data-life-template={ev.template}
       >
-        <div className="life-card-pic" aria-hidden="true">
-          {ev.emoji}
-        </div>
+        {who ? (
+          <div className="life-card-pic has-person" aria-hidden="true">
+            <PersonPortrait id={`life:${ev.id}:${String(ev.vars.name ?? '')}`} bg={who} size={88} />
+            <span className="life-card-badge">{ev.emoji}</span>
+          </div>
+        ) : (
+          <div className="life-card-pic" aria-hidden="true">
+            {ev.emoji}
+          </div>
+        )}
         <div className="row small life-card-tags">
           <Pill>{familyLabel(ev.family)}</Pill>
           {ev.companyName && <Pill>{ev.companyName}</Pill>}

@@ -6,6 +6,11 @@
   overflow: hidden;
   background: #0f172a;
 }
+/* Once the event is over, the hall gives up its height so the result tray
+   (and Leave the event) fits above the tab bar, however many people you met. */
+.tech-scene.phase-done .tech-hall {
+  min-height: min(44vh, 400px);
+}
 .tech-hall > svg {
   position: absolute;
   inset: 0;

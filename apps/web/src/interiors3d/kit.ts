@@ -643,6 +643,14 @@ export class Kit {
     });
   }
 
+  /** Chairs were drawn (./furniture.ts chairAt): they become CC0 chairs when the models arrive. */
+  chairs = false;
+
+  /** Forget the merged parts (a CC0 model stands in for them); kept meshes stay. */
+  dropParts() {
+    this.buckets.clear();
+  }
+
   /** Keep a mesh separate (it moves or changes colour). */
   keep(obj: THREE.Object3D) {
     this.extras.push(obj);
@@ -659,6 +667,8 @@ export class Kit {
       const mesh = new THREE.Mesh(geo, b.mat);
       mesh.castShadow = b.shadow;
       mesh.receiveShadow = true;
+      // (The low-poly body: swapped for a CC0 model when one arrives.)
+      mesh.userData.kitPart = true;
       g.add(mesh);
     }
     for (const x of this.extras) g.add(x);
@@ -686,6 +696,7 @@ export function contactShadow(w: number, d: number, opacity = 0.55): THREE.Mesh 
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.y = 0.012;
   mesh.renderOrder = 1;
+  mesh.userData.contactShadow = true;
   return mesh;
 }
 
@@ -697,9 +708,17 @@ export function disposeTree(root: THREE.Object3D) {
   root.traverse((o) => {
     if (o !== root && o.userData.keep) keep.push(o);
     const m = o as THREE.Mesh;
-    if (m.geometry) m.geometry.dispose();
+    // A furnished room's instanced meshes (./dress/core.ts) let go of their own
+    // buffers (matrices and colours). Only theirs: other views keep instanced
+    // meshes they draw again after this (a world's kept parts, pooled crowds),
+    // and a disposed one drawn again binds buffers that are gone.
+    if ((o as THREE.InstancedMesh).isInstancedMesh && o.userData.ownInstances)
+      (o as THREE.InstancedMesh).dispose();
+    // (The CC0 models' geometry and colours are shared by everyone drawn from them.)
+    if (m.geometry && !m.geometry.userData.shared) m.geometry.dispose();
     const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
     for (const x of mats) {
+      if (x.userData.shared) continue;
       let cached = false;
       for (const v of MATS.values()) if (v === x) cached = true;
       if (!cached) x.dispose();

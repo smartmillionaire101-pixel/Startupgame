@@ -407,14 +407,6 @@
   align-self: flex-start;
   pointer-events: auto;
 }
-/* The view's round buttons (HudRail): down the right, clear of the
-   title at the top and the landmarks along the bottom. */
-.panorama .panorama-rail {
-  top: 50%;
-  bottom: auto;
-  transform: translateY(-50%);
-  z-index: 2;
-}
 .panorama header .panorama-actions button {
   width: var(--hud-ib);
   height: var(--hud-ib);
@@ -761,6 +753,17 @@
 }
 .panorama-controls {
   align-items: center;
+}
+/* The view's own buttons: small round ones in the row under the landmarks
+   (look, zoom, photo, pause), a finger's 40px each. */
+.panorama footer .panorama-ib {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
 }
 .panorama header {
   padding: 14px 14px 30px;
@@ -1316,13 +1319,12 @@
   margin-top: 4px;
 }
 
-/* Round 7e: the kicker over the pitch, and the pool player over the table (never take a tap). */
+/* Round 7e: the kicker over the pitch (never takes a tap). */
 .shootout-stage,
 .pool-stage {
   position: relative;
 }
-.shootout-kicker,
-.pool-player-3d {
+.shootout-kicker {
   position: absolute;
   top: 0;
   left: 50%;
@@ -1335,7 +1337,4 @@
 }
 .shootout-banner {
   z-index: 3;
-}
-.pool-table.has-player {
-  padding-block: var(--stand-room, 0);
 }

@@ -23,7 +23,9 @@ import { defaultAppearance, seedGender, type MarketId } from '@runway/engine';
 import { useMemo, useState, type ReactNode } from 'react';
 import { t } from '../../i18n';
 import { useView } from '../../store';
-import { useQuality } from '../../three-kit/quality';
+import { use3d, useQuality } from '../../three-kit/quality';
+import { TerminalScene } from '../airport3d/TerminalScene';
+import type { TerminalOpts } from '../airport3d/terminal3d';
 import { AvatarFigure, lookFromAppearance, type AvatarLook } from '../art';
 import { hash } from '../contract';
 import { HOTEL_STARS } from '../HotelPicker';
@@ -1116,6 +1118,38 @@ export function ArrivalScene({
   const flightLine = trip.fromName
     ? t('{flight} from {city}', { flight: trip.flight, city: trip.fromName })
     : trip.flight;
+  // The hall in 3D: the same people, the boards with the same names.
+  const three = use3d();
+  const signKey = sign ? `${sign.hotel}|${sign.name}` : '';
+  const partyKey = party
+    ? `${party.withMe.map((f) => f.id).join(',')}|${party.waiting.map((f) => f.id).join(',')}`
+    : '';
+  const terminalOpts = useMemo<TerminalOpts>(() => {
+    const h = hash(marketId);
+    const liveries = [...new Set(airportSchedule(marketId, trip.day).map((f) => f.livery))];
+    return {
+      mode: 'arrivals',
+      night,
+      seed: `${marketId}:arrivals:${trip.day}`,
+      city: marketId,
+      me: look,
+      party: (party?.withMe ?? []).map((f) => ({ id: f.id, first: f.first, look: f.look })),
+      waiting: (party?.waiting ?? []).map((f) => ({ id: f.id, first: f.first, look: f.look })),
+      livery: trip.livery,
+      liveries,
+      airline: '',
+      toName: city,
+      gate: '',
+      kind: 'airliner',
+      belt: trip.belt,
+      beltLine: flightLine,
+      sign,
+      boards: [0, 1, 2, 3].map((k) => BOARDS[(h + k * 3) % BOARDS.length]!),
+      taxi: marketId === 'london' ? '#111827' : marketId === 'dubai' ? '#f8fafc' : '#facc15',
+    };
+    // Built once for this landing (the names and the party stand for themselves).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marketId, night, signKey, partyKey, trip.livery, trip.belt, flightLine]);
 
   const caption =
     step === 'passport'
@@ -1173,20 +1207,47 @@ export function ArrivalScene({
         <Fascia marketId={marketId} now={now} />
         <ArrivalsBoard rows={rows} />
         <div
-          className="arr-hall"
+          className={`arr-hall${three ? ' is-3d' : ''}`}
           data-arrival-scene={step}
           onClick={step === 'hall' ? undefined : next}
-          aria-hidden="true"
+          aria-hidden={three ? undefined : true}
         >
-          <svg key={step} viewBox="0 0 400 222" preserveAspectRatio="xMidYMid slice">
-            {step === 'passport' ? (
-              <Passport {...cast} />
-            ) : step === 'baggage' ? (
-              <Baggage {...cast} belt={trip.belt} flight={flightLine} />
-            ) : (
-              <Hall {...cast} sign={sign} />
-            )}
-          </svg>
+          <TerminalScene
+            opts={terminalOpts}
+            zone={step}
+            playing={false}
+            words={
+              <>
+                {(party?.withMe ?? []).map((f) => (
+                  <span key={f.id} data-arrival-friend={f.id}>
+                    {f.first}
+                  </span>
+                ))}
+                {step === 'hall' &&
+                  (party?.waiting ?? []).map((f) => (
+                    <span key={f.id} data-arrival-friend={f.id}>
+                      {f.first}
+                    </span>
+                  ))}
+                {step === 'hall' && sign && (
+                  <span className="arr-your-sign">
+                    {sign.hotel} {sign.name}
+                  </span>
+                )}
+              </>
+            }
+            fallback={
+              <svg key={step} viewBox="0 0 400 222" preserveAspectRatio="xMidYMid slice">
+                {step === 'passport' ? (
+                  <Passport {...cast} />
+                ) : step === 'baggage' ? (
+                  <Baggage {...cast} belt={trip.belt} flight={flightLine} />
+                ) : (
+                  <Hall {...cast} sign={sign} />
+                )}
+              </svg>
+            }
+          />
         </div>
       </div>
       <section className="trip-sheet arrival-sheet" data-arrival="" aria-label={t('Arrivals')}>

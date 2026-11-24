@@ -185,6 +185,48 @@ export async function setupPlayer(page: Page, command: unknown) {
  * Tap a building on the map the way the map listens for taps. Somewhere far
  * opens the ride chooser (Wave 4): go by `mode` (walking, unless told).
  */
+/** While you drive, the controls that must never sit on one another. */
+export const DRIVE_CONTROLS = {
+  banner: '[data-drive-card]',
+  pills: '.hud-top .hud-pill, .hud-sub > *, .hud-bell',
+  go: '[data-drive-pedal="go"]',
+  brake: '[data-drive-pedal="brake"]',
+  phone: '.hud-phone',
+  rail: '.city-rail > *',
+  nav: '.nav',
+  ways: '.dh-way',
+};
+
+/**
+ * Pairs of visible controls (from different groups) whose boxes overlap: a
+ * button drawn over another, or over the route banner. Empty when clear.
+ */
+export async function overlapping(page: Page, groups: Record<string, string>): Promise<string[]> {
+  return page.evaluate((gs) => {
+    type R = { g: string; n: string; l: number; t: number; r: number; b: number };
+    const boxes: R[] = [];
+    for (const [g, sel] of Object.entries(gs))
+      document.querySelectorAll<HTMLElement>(sel).forEach((el, i) => {
+        const cs = getComputedStyle(el);
+        if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05)
+          return;
+        const b = el.getBoundingClientRect();
+        if (b.width < 2 || b.height < 2) return;
+        boxes.push({ g, n: `${g}#${i}`, l: b.left, t: b.top, r: b.right, b: b.bottom });
+      });
+    const out: string[] = [];
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]!;
+        const c = boxes[j]!;
+        if (a.g === c.g) continue;
+        if (a.l < c.r - 1 && c.l < a.r - 1 && a.t < c.b - 1 && c.t < a.b - 1)
+          out.push(`${a.n} × ${c.n}`);
+      }
+    return out;
+  }, groups);
+}
+
 export async function tapPlace(page: Page, selector: string, mode = 'walk') {
   // The 3D map draws places as icon badges (data-badge), not data-place
   // labels: tap the badge, then Go on its card (named ones go at once).
@@ -198,7 +240,9 @@ export async function tapPlace(page: Page, selector: string, mode = 'walk') {
     await badge.dispatchEvent('pointerup', { pointerId: 1, clientX: 10, clientY: 10 });
     const go = page.locator(`[data-badge-card="${id}"] [data-badge-go]`);
     if (
-      await go.waitFor({ timeout: 1500 }).then(
+      // (On software WebGL at laptop size a frame takes ~0.7 s and the card can take
+      // seconds to open: 1.5 s missed it now and then, and nothing was tapped.)
+      await go.waitFor({ timeout: 8000 }).then(
         () => true,
         () => false,
       )

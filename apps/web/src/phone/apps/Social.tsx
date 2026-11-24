@@ -11,8 +11,9 @@ import { Button } from '../../ui';
 import { businessesOf } from '../../city/contract';
 import { eventsOf, newBusinessIds } from '../../city/people';
 import { cityViewOf } from '../../city/travel';
+import { genderOf } from '../../city/life';
 import type { IconName } from '../icons';
-import { Nothing, RowIcon, type PhoneCtx } from '../shared';
+import { Avatar, Nothing, RowIcon, type PhoneCtx } from '../shared';
 
 interface Post {
   key: string;
@@ -22,6 +23,8 @@ interface Post {
   text: string;
   month: number;
   place?: string;
+  /** A person said it (a host, you): their portrait instead of the icon. */
+  by?: string;
 }
 
 const POSTS_KEY = 'runway.posts';
@@ -66,6 +69,8 @@ export function Social({ ctx }: { ctx: PhoneCtx }) {
         icon: 'social',
         color: '#c026d3',
         who: e.host.name,
+        // A host the view describes (a player here): their face; anyone else keeps the icon.
+        by: view.players.some((x) => x.id === e.host.id) ? e.host.id : undefined,
         text: t('Hosting “{title}”, {going} going.', { title: e.title, going: e.going }),
         month: e.month,
         place: 'eventhall',
@@ -86,6 +91,7 @@ export function Social({ ctx }: { ctx: PhoneCtx }) {
         icon: 'founder',
         color: '#d97706',
         who: view.me.name,
+        by: view.me.id,
         text: tx(i.text),
         month: i.month,
       });
@@ -139,7 +145,17 @@ export function Social({ ctx }: { ctx: PhoneCtx }) {
         <ul className="phone-list" aria-label={t('Feed')}>
           {feed.slice(0, 50).map((p) => (
             <li key={p.key} className="phone-post-item">
-              <RowIcon name={p.icon} color={p.color} />
+              {p.by || p.key.startsWith('me:') ? (
+                <Avatar
+                  name={p.who}
+                  id={p.by ?? view.me.id}
+                  {...((p.by ?? view.me.id) === view.me.id
+                    ? { bg: view.me.background?.id, gender: genderOf(view.me) }
+                    : {})}
+                />
+              ) : (
+                <RowIcon name={p.icon} color={p.color} />
+              )}
               <div className="phone-row-main">
                 <span className="item-title">{p.who}</span>
                 <span>{p.text}</span>

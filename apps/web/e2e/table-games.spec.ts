@@ -67,14 +67,6 @@ async function table(p: Page) {
 }
 
 type Box = { l: number; r: number; b: number; t: number };
-/** Round 7e: the player leaning over the pool table (./game-avatar3d.ts), −1 … 1 on its layer. */
-const poolPlayer = (p: Page) =>
-  p.evaluate(
-    () =>
-      (
-        window as unknown as { __pool3d?: { onScreen(): { player: Box | null } } }
-      ).__pool3d?.onScreen().player ?? null,
-  );
 /** Round 7e: the kicker on the pitch, the ball and the goal line (−1 … 1 on the pitch). */
 const pitchKicker = (p: Page) =>
   p.evaluate(
@@ -94,35 +86,14 @@ const pitchKicker = (p: Page) =>
   );
 const inFrame = (b: Box | null | undefined) =>
   !!b && b.l > -1 && b.r < 1 && b.b > -1 && b.t < 1 && b.r - b.l > 0.05;
-/** A box on a layer (−1 … 1) in page px. */
-async function onPage(p: Page, sel: string, b: Box) {
-  const c = (await p.locator(sel).boundingBox())!;
-  return {
-    x: c.x + ((b.l + 1) / 2) * c.width,
-    y: c.y + ((1 - b.t) / 2) * c.height,
-    width: ((b.r - b.l) / 2) * c.width,
-    height: ((b.t - b.b) / 2) * c.height,
-  };
-}
-const overlaps = (
-  a: { x: number; y: number; width: number; height: number },
-  b: { x: number; y: number; width: number; height: number },
-) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 
-/** The player at the table, whole, on the table's layer, and over none of the controls. */
-async function expectPoolPlayer(p: Page, what: string) {
-  await expect
-    .poll(async () => inFrame(await poolPlayer(p)), {
-      timeout: 15000,
-      message: `${what}: the player at the table, all of them in the picture`,
-    })
-    .toBe(true);
-  const box = await onPage(p, '.pool-player-3d', (await poolPlayer(p))!);
-  for (const sel of ['.pool-controls', '.pool-hint', '.pool-power', '.pool-hud']) {
-    const el = p.locator(sel).first();
-    if (!(await el.count()) || !(await el.isVisible())) continue;
-    expect(overlaps(box, (await el.boundingBox())!), `${what}: the player over ${sel}`).toBe(false);
-  }
+/** No one at the pool table: no 3D layer over it, just the cue. */
+async function expectNoPoolPlayer(p: Page, what: string) {
+  await expect(p.locator('.pool-player-3d'), `${what}: no one drawn at the table`).toHaveCount(0);
+  expect(
+    await p.evaluate(() => '__pool3d' in window),
+    `${what}: no player layer over the table`,
+  ).toBe(false);
 }
 
 /** The kicker on the pitch, whole, beside the ball (the swipe starts there) and below the goal. */
@@ -192,12 +163,8 @@ test('8-ball pool against the AI on a phone: a full frame to the pot', async ({ 
   await expect(dialog.locator('.pool-table canvas')).toBeVisible({ timeout: 15000 });
   await expect(dialog.getByText(/Ball in hand: drag the cue ball behind the line/)).toBeVisible();
   await page.waitForTimeout(400);
-  // Round 7e: you, leaning over the table for the break.
-  await expectPoolPlayer(page, 'the break');
-  await expect(dialog.locator('.pool-player-3d')).toHaveAttribute(
-    'data-player',
-    (await state(page)).me.id,
-  );
+  // No one is drawn at the table, in 3D too: just the cue.
+  await expectNoPoolPlayer(page, 'the break');
   await snap(page, 'pool-break', info);
   let byHand = 0;
   let shots = 0;
@@ -248,11 +215,11 @@ test('8-ball pool against the AI on a phone: a full frame to the pot', async ({ 
       await snap(page, 'pool-aim', info);
     }
     if (shots === 2) {
-      // Lined up away from the break end too: still all in the picture, clear of the controls.
+      // While a shot plays out, still no one on (or at) the table.
       await expect(page.locator('.pool-table canvas')).toHaveAttribute('data-rolling', '1', {
         timeout: 15000,
       });
-      await expectPoolPlayer(page, 'watching the shot');
+      await expectNoPoolPlayer(page, 'watching the shot');
     }
   }
   const room = (await roomOf(page, 'snooker'))!;
@@ -457,9 +424,9 @@ test('two players at the pool table: one breaks, the other sees it and plays', a
 });
 
 /**
- * Round 7e: on an upright tablet and a laptop too, the player leaning over
- * the pool table for the break and the kicker behind the ball (then running
- * up and striking it) are all in the picture, clear of the controls.
+ * Round 7e: on an upright tablet and a laptop too, the pool table with no
+ * one drawn on it, and the kicker behind the ball (then running up and
+ * striking it) all in the picture, clear of the controls.
  */
 /** A new founder at this screen size, at the table games in 3D. */
 async function atSize(browser: Browser, url: string | undefined, w: number, h: number) {
@@ -482,22 +449,26 @@ async function atSize(browser: Browser, url: string | undefined, w: number, h: n
 for (const [w, h] of [
   [768, 1024],
   [1440, 900],
+  [390, 844],
 ] as const) {
-  test(`the pool player leaning over the table, in the picture at ${w}×${h}`, async ({
-    browser,
-  }, info) => {
+  test(`the pool table in 3D with no one on it, at ${w}×${h}`, async ({ browser }, info) => {
     test.setTimeout(240_000);
     const { context, page, errors, dialog } = await atSize(browser, info.project.use.baseURL, w, h);
     await dialog.getByRole('button', { name: /8-ball pool/ }).click();
     await dialog.getByRole('button', { name: 'Play vs AI' }).click();
     await expect(dialog.locator('.pool-table canvas')).toBeVisible({ timeout: 15000 });
-    await expectPoolPlayer(page, `the break at ${w}×${h}`);
-    await dialog.locator('.pool-table canvas').scrollIntoViewIfNeeded();
-    await snap(page, `pool-player-${w}x${h}`, info);
+    await expectNoPoolPlayer(page, `the break at ${w}×${h}`);
+    await dialog.locator('.pool-stage').scrollIntoViewIfNeeded();
+    await snap(page, `pool-table-${w}x${h}`, info);
     expect(errors).toEqual([]);
     await context.close();
   });
+}
 
+for (const [w, h] of [
+  [768, 1024],
+  [1440, 900],
+] as const) {
   test(`the kicker behind the ball, then the kick, in the picture at ${w}×${h}`, async ({
     browser,
   }, info) => {

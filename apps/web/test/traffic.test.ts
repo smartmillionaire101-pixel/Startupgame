@@ -206,4 +206,97 @@ describe('street traffic keeps its distance', () => {
     // Nothing ahead once past it.
     expect(sim.leadOf(ahead!.x + 10, ahead!.y, 1, 0, 4.4)).toBeNull();
   });
+  it('points every car along the way it moves, round corners too (no sideways jumps)', () => {
+    const kinds: VehicleKind[] = Array.from({ length: 40 }, () => 'car');
+    const sim = run(kinds, 5, 0);
+    const f = { x: 250, y: 250, r: 400 };
+    let worst = 1;
+    let turnJump = 0;
+    for (let k = 0; k < 1500; k++) {
+      const before = sim.vehicles.map((v) => ({
+        x: v.x,
+        y: v.y,
+        dx: v.dx,
+        dy: v.dy,
+        life: v.life,
+      }));
+      sim.step(0.05, f, null);
+      sim.vehicles.forEach((v, i) => {
+        const b = before[i]!;
+        if (b.life !== v.life) return; // put down somewhere else
+        const mx = v.x - b.x;
+        const my = v.y - b.y;
+        const d = Math.hypot(mx, my);
+        if (d < 0.05) return;
+        // The car's forward vector (the way its model points) against where it went.
+        const hx = v.dx + b.dx;
+        const hy = v.dy + b.dy;
+        worst = Math.min(worst, (mx * hx + my * hy) / (d * Math.hypot(hx, hy)));
+        // A turn takes many steps: the heading never swings far in one.
+        const c = Math.max(-1, Math.min(1, v.dx * b.dx + v.dy * b.dy));
+        turnJump = Math.max(turnJump, Math.acos(c));
+      });
+    }
+    expect(worst).toBeGreaterThan(0.9);
+    expect(turnJump).toBeLessThan(0.6);
+  });
+
+  it('keeps cars apart at junctions: one crosses while the others wait outside it', () => {
+    const kinds: VehicleKind[] = Array.from({ length: 60 }, () => 'car');
+    const sim = run(kinds, 9, 0);
+    const f = { x: 250, y: 250, r: 400 };
+    let overlaps = 0;
+    for (let k = 0; k < 1500; k++) {
+      sim.step(0.05, f, null);
+      const vs = sim.vehicles.filter((v) => v.e >= 0);
+      for (let i = 0; i < vs.length; i++)
+        for (let j = i + 1; j < vs.length; j++) {
+          const a = vs[i]!;
+          const b = vs[j]!;
+          // Two car bodies (4.4 x 1.8 m) can't share the road: their middles stay over 2 m apart.
+          if (Math.hypot(a.x - b.x, a.y - b.y) < 2) overlaps++;
+        }
+    }
+    expect(overlaps).toBe(0);
+    // And traffic still flows.
+    expect(sim.vehicles.filter((v) => v.v > 1).length).toBeGreaterThan(10);
+  });
+  it('queues without piling up on a road drawn in short pieces (OSM), behind you', () => {
+    // A straight road of 4 m pieces: the car in front is often two or three pieces on.
+    const segs = Array.from({ length: 200 }, (_, i) => ({
+      ax: i * 4,
+      ay: 0,
+      bx: (i + 1) * 4,
+      by: 0,
+      c: 3,
+      ha: 0,
+      hb: 0,
+    }));
+    const kinds: VehicleKind[] = ['bus', 'car', 'bus', 'car', 'keke', 'car', 'bus', 'moto'];
+    const sim = new TrafficSim(buildGraph(segs), kinds, 6, false);
+    const f = { x: 400, y: 0, r: 900 };
+    sim.fill(f);
+    sim.vehicles.forEach((v, i) => {
+      v.e = i * 3;
+      v.fwd = sim.g.nx[sim.g.ea[v.e]!]! < sim.g.nx[sim.g.eb[v.e]!]!;
+      v.s = 1;
+      v.v = 10;
+      v.ne = -1;
+    });
+    const you = { x: 300, y: sim.laneOf(sim.vehicles[1]!) };
+    let worst = Infinity;
+    for (let k = 0; k < 800; k++) {
+      sim.step(0.05, f, you);
+      const vs = [...sim.vehicles].filter((v) => v.dx > 0).sort((a, b) => a.x - b.x);
+      for (let i = 1; i < vs.length; i++) {
+        const a = vs[i - 1]!;
+        const b = vs[i]!;
+        if (Math.abs(a.y - b.y) > 1.5) continue;
+        const len = { car: 4.4, bus: 11, moto: 2, keke: 2.7 };
+        worst = Math.min(worst, b.x - a.x - (len[a.kind] + len[b.kind]) / 2);
+      }
+    }
+    // Bumper to bumper at worst, never one inside another.
+    expect(worst).toBeGreaterThan(0);
+  });
 });

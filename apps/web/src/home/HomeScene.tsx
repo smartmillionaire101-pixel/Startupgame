@@ -1,4 +1,5 @@
 import { openLiving } from '../experiences/living-bus';
+import { PersonPortrait } from '../avatar/PersonPortrait';
 import { useDaylight } from '../city/useDaylight';
 import { openPlay } from '../experiences/play-bus';
 /**
@@ -48,7 +49,8 @@ import { t, tx } from '../i18n';
 import { useView } from '../store';
 import { openPhone, type PhoneOpen } from '../phone/bus';
 import { HudButton, HudRail } from '../ui';
-import { AvatarFigure, avatarLook, type AvatarLook } from '../city/art';
+import { avatarLook, type AvatarLook } from '../city/art';
+import { PersonSprite } from '../city/PersonSprite';
 import { businessesOf, hash } from '../city/contract';
 import { carOf, genderOf, nearest, sellsOf, shopOf, storeForSlot } from '../city/life';
 import type { SceneProps } from '../city/PlaceScene';
@@ -1930,8 +1932,12 @@ export function HomeScene({
               fill="#000"
               opacity="0.16"
             />
-            <g className="city-avatar">
-              <AvatarFigure look={p.look} />
+            {/* Standing (or walking), and sitting: the pose shows the one that fits (home.css). */}
+            <g className="city-avatar home-fig-stand">
+              <PersonSprite look={p.look} angle="three-quarter" flip shadow={false} />
+            </g>
+            <g className="home-fig-sit">
+              <PersonSprite look={p.look} pose="sit" angle="three-quarter" flip shadow={false} />
             </g>
             {/* Round 7e: lying down (Lite): under the covers, the head on the pillow. */}
             <g className="home-covers" aria-hidden="true">
@@ -3554,6 +3560,7 @@ function PartyList({
   onInvite: (ids: string[]) => void;
   onContacts: () => void;
 }) {
+  const players = useView().view.players;
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const toggle = (id: string) =>
     setPicked((s) => {
@@ -3579,7 +3586,15 @@ function PartyList({
               aria-pressed={picked.has(p.id)}
               onClick={() => toggle(p.id)}
             >
-              <span aria-hidden="true">{picked.has(p.id) ? '✅' : '🧑'}</span>
+              <span className="home-row-face" aria-hidden="true">
+                <PersonPortrait
+                  id={p.id}
+                  bg={players.find((x) => x.id === p.id)?.backgroundId}
+                  gender={players.find((x) => x.id === p.id)?.gender}
+                  size={36}
+                />
+                {picked.has(p.id) && <b className="home-row-tick">✓</b>}
+              </span>
               <span>
                 <b>{p.name}</b>
                 <small>{t('Player in town')}</small>
@@ -3645,7 +3660,13 @@ function InviteList({
               disabled={busy || done}
               onClick={() => onInvite(p.personId, p.name)}
             >
-              <span aria-hidden="true">{p.contact ? '👤' : '💼'}</span>
+              <span className="home-row-face" aria-hidden="true">
+                <PersonPortrait
+                  id={p.personId}
+                  bg={p.contact ? undefined : 'b-finance'}
+                  size={36}
+                />
+              </span>
               <span>
                 <b>{p.name}</b>
                 <small>{p.sub || (p.contact ? t('Contact') : t('In town'))}</small>

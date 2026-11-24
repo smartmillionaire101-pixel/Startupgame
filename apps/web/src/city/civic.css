@@ -47,3 +47,13 @@
   width: 100%;
   margin: 4px 0 8px;
 }
+
+/* The front of a place you can't go into yet, with the people at its door. */
+.civic-door-scene {
+  display: block;
+  width: 100%;
+  height: 128px;
+  border-radius: var(--radius, 12px);
+  margin-bottom: var(--sp-2, 8px);
+  overflow: hidden;
+}

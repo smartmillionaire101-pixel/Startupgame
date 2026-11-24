@@ -103,8 +103,10 @@ test('sit on the cushions until you get up (stress falls), nap lying on the mat'
   await chip.getByRole('button', { name: 'Get up' }).click();
   await expect(chip).toBeHidden();
   await expect(avatar).toHaveAttribute('data-pose', 'stand');
+  // (The room stands you up at once; the server's answer can land a moment
+  // later, especially against a deploy preview.)
+  await expect.poll(async () => (await me(page)).rest?.resting ?? null).toBeNull();
   const up = await me(page);
-  expect(up.rest?.resting ?? null).toBeNull();
   // Stress fell (from where it was) and resting spent game hours.
   if (before.bars && before.bars.stress > 0)
     expect(up.bars!.stress).toBeLessThan(before.bars.stress);

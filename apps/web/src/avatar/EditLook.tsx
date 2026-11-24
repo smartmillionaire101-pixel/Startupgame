@@ -13,7 +13,7 @@ import { t } from '../i18n';
 import { useView } from '../store';
 import { Button, Sheet } from '../ui';
 import { Creator } from './Creator';
-import { Portrait } from './Portrait';
+import { PersonPortrait } from './PersonPortrait';
 
 /** Tops everyone has at home; the others come from the mall. */
 const BASIC_TOPS = ['tee', 'shirt'];
@@ -50,7 +50,7 @@ export function MyLook({ size = 88 }: { size?: number }) {
   };
   return (
     <div className="profile-look" data-my-look="">
-      <Portrait
+      <PersonPortrait
         id={me.id}
         bg={me.background?.id}
         gender={gender}

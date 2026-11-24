@@ -14,7 +14,7 @@ import { jobTitle } from '../screens/Company';
 import { PitchSheet, moodLabel } from '../screens/Money';
 import { avatarLook } from './art';
 import { useLookVersion } from './acts/look';
-import { PortraitOf } from '../avatar/Portrait';
+import { PersonPortraitOf } from '../avatar/PersonPortrait';
 import { MealSheet } from './Business';
 import { activeCompany, businessesOf, hash } from './contract';
 import { looseCmd } from './life';
@@ -278,7 +278,7 @@ export function PersonCard({
               aria-hidden="true"
             >
               {/* Phase 6a: their face, as they made it (or as their seed gives it). */}
-              <PortraitOf look={look} size={72} />
+              <PersonPortraitOf look={look} size={72} />
             </div>
             <div className="person-id">
               <div className="item-title">{name}</div>

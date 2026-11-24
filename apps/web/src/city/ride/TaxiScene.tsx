@@ -11,8 +11,9 @@ import { pointAlong, project, type Pt } from '../layout';
 import { npcName } from '../people';
 import { driveOnLeft, fnv, seeded } from '../travel';
 import { Sky, SKY, VB, type SceneProps } from './art';
+import { PICKUP_MS } from './state';
 
-export const BOOKING_MS = 2000;
+export const BOOKING_MS = PICKUP_MS;
 
 const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
 
@@ -45,6 +46,227 @@ function plateOf(marketId: string, seed: number): string {
   }
 }
 
+/** The taxi, its plate, its driver and their rating; the cab's colour. */
+function taxiOf(marketId: string, rideId: number, flavour: SceneProps['flavour']) {
+  const seed = fnv(`${marketId}:taxi:${rideId}`);
+  return {
+    seed,
+    driver: npcName(marketId, `taxi:${rideId}`),
+    plate: plateOf(marketId, seed),
+    rating: (4.6 + (seed % 4) / 10).toFixed(1),
+    cab:
+      marketId === 'london'
+        ? '#111827'
+        : (flavour.vehicles.find((v) => /taxi|cab/.test(v.id))?.body ?? '#facc15'),
+  };
+}
+
+/** The route, projected like the city map, framed in a small box. */
+function useRouteBox(path: Pt[]) {
+  return useMemo(() => {
+    const pts = path.map((p) => project(p.x, p.y));
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const w = Math.max(40, Math.max(...xs) - minX);
+    const h = Math.max(40, Math.max(...ys) - minY);
+    const pad = Math.max(w, h) * 0.15;
+    return {
+      d: pts.map((p, i) => `${i ? 'L' : 'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '),
+      box: `${minX - pad} ${minY - pad} ${w + pad * 2} ${h + pad * 2}`,
+      end: pts[pts.length - 1] ?? { x: 0, y: 0 },
+      u: Math.max(w, h) / 100,
+    };
+  }, [path]);
+}
+
+/** The little map of the booking: the car crawling to you. */
+function BookingCard({
+  crawl,
+  cab,
+  plate,
+  driver,
+  rating,
+}: {
+  crawl: React.RefObject<SVGGElement | null>;
+  cab: string;
+  plate: string;
+  driver: string;
+  rating: string;
+}) {
+  return (
+    <div className="taxi-booking" aria-live="polite">
+      <svg viewBox="0 0 240 120" className="taxi-booking-map" aria-hidden>
+        <rect width="240" height="120" rx="12" fill="#e7e5df" />
+        <path
+          d="M 0 30 H 240 M 120 0 V 120 M 0 90 H 240 M 200 0 V 120"
+          stroke="#fff"
+          strokeWidth="12"
+        />
+        <path
+          d="M 20 30 H 120 V 90"
+          stroke="#0f766e"
+          strokeWidth="3"
+          strokeDasharray="6 5"
+          fill="none"
+        />
+        <g transform="translate(120 92)">
+          <circle r="9" fill="#0f766e" opacity="0.25" className="taxi-pulse" />
+          <circle r="5" fill="#0f766e" stroke="#fff" strokeWidth="2" />
+        </g>
+        <g ref={crawl} transform="translate(20 30)">
+          <rect
+            x="-9"
+            y="-5"
+            width="18"
+            height="10"
+            rx="3"
+            fill={cab}
+            stroke="#111827"
+            strokeWidth="1"
+          />
+        </g>
+      </svg>
+      <p className="taxi-status">
+        <b className="taxi-finding">{t('Finding your driver…')}</b>
+        <b className="taxi-arriving">{t('Driver arriving')}</b>
+      </p>
+      <p className="taxi-driver">
+        <span className="taxi-plate">{plate}</span>
+        <span>
+          {driver} · ★ {rating}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+/** The mini-map of the real route, the car moving and turning along it. */
+function MiniMap({
+  path,
+  cab,
+  mini,
+}: {
+  path: Pt[];
+  cab: string;
+  mini: React.RefObject<SVGGElement | null>;
+}) {
+  const route = useRouteBox(path);
+  return (
+    <div className="taxi-mini" aria-hidden>
+      <svg viewBox={route.box} preserveAspectRatio="xMidYMid meet">
+        <path
+          d={route.d}
+          stroke="#cbd5e1"
+          strokeWidth={route.u * 9}
+          fill="none"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <path
+          d={route.d}
+          stroke="#0f766e"
+          strokeWidth={route.u * 4}
+          fill="none"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <circle
+          cx={route.end.x}
+          cy={route.end.y}
+          r={route.u * 6}
+          fill="#ef4444"
+          stroke="#fff"
+          strokeWidth={route.u * 2}
+        />
+        <g ref={mini} data-mini-car="">
+          <rect
+            x={-route.u * 7}
+            y={-route.u * 4}
+            width={route.u * 14}
+            height={route.u * 8}
+            rx={route.u * 2}
+            fill={cab}
+            stroke="#111827"
+            strokeWidth={route.u}
+          />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+/** The booking map's car crawling to you, over the pickup (b 0 … 1). */
+const crawlAt = (b: number) =>
+  b < 0.5
+    ? `translate(${(20 + b * 2 * 100).toFixed(0)} 30)`
+    : `translate(120 ${(30 + (b - 0.5) * 2 * 60).toFixed(0)}) rotate(90)`;
+
+/** The mini-map's car at a point along the route (0 … 1). */
+function miniAt(path: Pt[], f: number) {
+  const { p, dx: ddx, dy: ddy } = pointAlong(path, f);
+  const s = project(p.x, p.y);
+  const deg = (Math.atan2((ddx + ddy) * 16, (ddx - ddy) * 32) * 180) / Math.PI;
+  return `translate(${s.x.toFixed(1)} ${s.y.toFixed(1)}) rotate(${deg.toFixed(0)})`;
+}
+
+/**
+ * A taxi on the 3D map (the city plays the ride: the car comes to pick you
+ * up, then drives you there): the booking card over the map while it's on
+ * its way, then the driver's plate and the mini-map of the route.
+ */
+export function TaxiOnMap({
+  marketId,
+  flavour,
+  frameRef,
+  path,
+  rideId,
+  total,
+}: Pick<SceneProps, 'marketId' | 'flavour' | 'frameRef'> & {
+  path: Pt[];
+  rideId: number;
+  /** The ride's length (ms), the pickup included. */
+  total: number;
+}) {
+  const wrap = useRef<HTMLDivElement>(null);
+  const crawl = useRef<SVGGElement>(null);
+  const mini = useRef<SVGGElement>(null);
+  const { driver, plate, rating, cab } = taxiOf(marketId, rideId, flavour);
+  useEffect(() => {
+    let booked = false;
+    frameRef.current = (ms) => {
+      if (ms < BOOKING_MS) {
+        const b = ms / BOOKING_MS;
+        crawl.current?.setAttribute('transform', crawlAt(b));
+        wrap.current?.classList.toggle('is-arriving', b > 0.4);
+        return;
+      }
+      if (!booked) {
+        booked = true;
+        wrap.current?.classList.add('is-arriving', 'is-riding');
+      }
+      const k = Math.min(1, (ms - BOOKING_MS) / Math.max(1, total - BOOKING_MS));
+      mini.current?.setAttribute('transform', miniAt(path, ease(k)));
+    };
+    return () => {
+      frameRef.current = null;
+    };
+  }, [frameRef, path, total]);
+  return (
+    <div ref={wrap} className="taxi is-onmap" data-taxi="">
+      <BookingCard crawl={crawl} cab={cab} plate={plate} driver={driver} rating={rating} />
+      <p className="taxi-chip" aria-hidden>
+        <span className="taxi-plate">{plate}</span>
+        <span>
+          {driver} · ★ {rating}
+        </span>
+      </p>
+      <MiniMap path={path} cab={cab} mini={mini} />
+    </div>
+  );
+}
+
 export function TaxiScene({
   uid,
   flavour,
@@ -61,47 +283,17 @@ export function TaxiScene({
   const charm = useRef<SVGGElement>(null);
   const mini = useRef<SVGGElement>(null);
   const body = useRef<SVGGElement>(null);
-  const seed = fnv(`${marketId}:taxi:${rideId}`);
-  const driver = npcName(marketId, `taxi:${rideId}`);
+  const { driver, plate, rating, cab } = taxiOf(marketId, rideId, flavour);
   const driverLook = avatarLook('b-commercial', `taxi:${rideId}`);
-  const plate = plateOf(marketId, seed);
-  const rating = (4.6 + (seed % 4) / 10).toFixed(1);
   const rhd = driveOnLeft(marketId);
   const dx = rhd ? 290 : 110;
-  const cab =
-    marketId === 'london'
-      ? '#111827'
-      : (flavour.vehicles.find((v) => /taxi|cab/.test(v.id))?.body ?? '#facc15');
-
-  // The route, projected like the city map, framed in a small box.
-  const route = useMemo(() => {
-    const pts = path.map((p) => project(p.x, p.y));
-    const xs = pts.map((p) => p.x);
-    const ys = pts.map((p) => p.y);
-    const minX = Math.min(...xs);
-    const minY = Math.min(...ys);
-    const w = Math.max(40, Math.max(...xs) - minX);
-    const h = Math.max(40, Math.max(...ys) - minY);
-    const pad = Math.max(w, h) * 0.15;
-    return {
-      d: pts.map((p, i) => `${i ? 'L' : 'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '),
-      box: `${minX - pad} ${minY - pad} ${w + pad * 2} ${h + pad * 2}`,
-      end: pts[pts.length - 1] ?? { x: 0, y: 0 },
-      u: Math.max(w, h) / 100,
-    };
-  }, [path]);
 
   useEffect(() => {
     let booked = false;
     frameRef.current = (ms, k) => {
       if (ms < BOOKING_MS) {
         const b = ms / BOOKING_MS;
-        crawl.current?.setAttribute(
-          'transform',
-          b < 0.5
-            ? `translate(${(20 + b * 2 * 100).toFixed(0)} 30)`
-            : `translate(120 ${(30 + (b - 0.5) * 2 * 60).toFixed(0)}) rotate(90)`,
-        );
+        crawl.current?.setAttribute('transform', crawlAt(b));
         wrap.current?.classList.toggle('is-arriving', b > 0.4);
         return;
       }
@@ -137,13 +329,7 @@ export function TaxiScene({
         'transform',
         `translate(0 ${(Math.sin(ms / 140) * 1.2).toFixed(1)})`,
       );
-      const { p, dx: ddx, dy: ddy } = pointAlong(path, ease(k));
-      const s = project(p.x, p.y);
-      const deg = (Math.atan2((ddx + ddy) * 16, (ddx - ddy) * 32) * 180) / Math.PI;
-      mini.current?.setAttribute(
-        'transform',
-        `translate(${s.x.toFixed(1)} ${s.y.toFixed(1)}) rotate(${deg.toFixed(0)})`,
-      );
+      mini.current?.setAttribute('transform', miniAt(path, ease(k)));
     };
     return () => {
       frameRef.current = null;
@@ -155,49 +341,7 @@ export function TaxiScene({
 
   return (
     <div ref={wrap} className="taxi" data-taxi="">
-      <div className="taxi-booking" aria-live="polite">
-        <svg viewBox="0 0 240 120" className="taxi-booking-map" aria-hidden>
-          <rect width="240" height="120" rx="12" fill="#e7e5df" />
-          <path
-            d="M 0 30 H 240 M 120 0 V 120 M 0 90 H 240 M 200 0 V 120"
-            stroke="#fff"
-            strokeWidth="12"
-          />
-          <path
-            d="M 20 30 H 120 V 90"
-            stroke="#0f766e"
-            strokeWidth="3"
-            strokeDasharray="6 5"
-            fill="none"
-          />
-          <g transform="translate(120 92)">
-            <circle r="9" fill="#0f766e" opacity="0.25" className="taxi-pulse" />
-            <circle r="5" fill="#0f766e" stroke="#fff" strokeWidth="2" />
-          </g>
-          <g ref={crawl} transform="translate(20 30)">
-            <rect
-              x="-9"
-              y="-5"
-              width="18"
-              height="10"
-              rx="3"
-              fill={cab}
-              stroke="#111827"
-              strokeWidth="1"
-            />
-          </g>
-        </svg>
-        <p className="taxi-status">
-          <b className="taxi-finding">{t('Finding your driver…')}</b>
-          <b className="taxi-arriving">{t('Driver arriving')}</b>
-        </p>
-        <p className="taxi-driver">
-          <span className="taxi-plate">{plate}</span>
-          <span>
-            {driver} · ★ {rating}
-          </span>
-        </p>
-      </div>
+      <BookingCard crawl={crawl} cab={cab} plate={plate} driver={driver} rating={rating} />
       <svg
         className="ride-svg taxi-interior ride-interior"
         viewBox={`0 0 ${VB.w} ${VB.h}`}
@@ -270,46 +414,7 @@ export function TaxiScene({
           <ellipse cx="250" cy="600" rx="56" ry="40" fill="#1f2937" />
         </g>
       </svg>
-      <div className="taxi-mini" aria-hidden>
-        <svg viewBox={route.box} preserveAspectRatio="xMidYMid meet">
-          <path
-            d={route.d}
-            stroke="#cbd5e1"
-            strokeWidth={route.u * 9}
-            fill="none"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-          <path
-            d={route.d}
-            stroke="#0f766e"
-            strokeWidth={route.u * 4}
-            fill="none"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-          <circle
-            cx={route.end.x}
-            cy={route.end.y}
-            r={route.u * 6}
-            fill="#ef4444"
-            stroke="#fff"
-            strokeWidth={route.u * 2}
-          />
-          <g ref={mini} data-mini-car="">
-            <rect
-              x={-route.u * 7}
-              y={-route.u * 4}
-              width={route.u * 14}
-              height={route.u * 8}
-              rx={route.u * 2}
-              fill={cab}
-              stroke="#111827"
-              strokeWidth={route.u}
-            />
-          </g>
-        </svg>
-      </div>
+      <MiniMap path={path} cab={cab} mini={mini} />
     </div>
   );
 }

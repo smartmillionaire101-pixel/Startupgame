@@ -5,6 +5,9 @@
  * that move (a screen, a door, a pan) stay separate and are returned by name.
  */
 import * as THREE from 'three';
+import { CAR_FOR_MODEL, carModel as carGlb } from '../three-kit/vehicles';
+import { refinish } from './dividers';
+import { chairGlb, furnitureGlb, hasGlb, swapLater } from './furnitureModels';
 import {
   Kit,
   RUG_Y,
@@ -241,6 +244,16 @@ export function chairAt(
     z - lx * s + lz * c,
   ];
   const seatH = style === 'bar' ? 0.72 : style === 'stool' ? 0.46 : 0.45;
+  // The CC0 chair for this style, when the furniture models are here (restaurants,
+  // bars and clubs, offices, dining sets); the low-poly one otherwise.
+  k.chairs = true;
+  const glb = chairGlb(style, color);
+  if (glb) {
+    glb.position.set(x, 0, z);
+    glb.rotation.y = ry;
+    k.keep(glb);
+    return;
+  }
   const col =
     color ??
     (style === 'fold'
@@ -1065,6 +1078,14 @@ function carModel(k: Kit, paint: string, kind: string, m?: Model) {
     return;
   }
   const L = kind === 'luxury' ? 4.6 : kind === 'city-suv' ? 4.4 : kind === 'hatchback' ? 3.7 : 4.2;
+  // The CC0 car for this model, when the cars have arrived (the city fetches them).
+  const cc = carGlb(CAR_FOR_MODEL[kind] ?? 'NormalCar1', paint, L);
+  if (cc) {
+    cc.userData.cc0 = true;
+    k.extras.push(cc);
+    if (m) m.seats.push(new THREE.Vector3(-0.38, 0.5, -0.1));
+    return;
+  }
   const W = kind === 'city-suv' || kind === 'luxury' ? 1.85 : 1.7;
   const bodyH = kind === 'city-suv' ? 0.75 : 0.55;
   const clear = kind === 'city-suv' ? 0.3 : 0.2;
@@ -2025,7 +2046,11 @@ export function buildModel(id: string, o: ModelOpts): Model {
   const carKind = id.startsWith('car:') ? id.slice(4) : null;
   if (carKind) carModel(k, o.tint ?? carPaint(carKind), carKind, m);
   else (BUILDERS[id] ?? fallback)(k, o, m);
+  const glb = carKind ? null : withGlb(k, id, o);
   m.group = k.build();
+  if (!glb && !carKind) swapLater(m.group, id, o, refinish, rebuildGroup, usesChairs(k));
+  if (carKind && carKind !== 'motorbike' && !m.group.children.some((c) => c.userData.cc0))
+    swapLater(m.group, id, o, refinish, rebuildGroup, false, true);
   // A soft contact shadow under floor-standing things.
   if (!NO_SHADOW.includes(id)) {
     const sw = carKind ? 2.2 : Math.max(0.5, o.w * 0.95);
@@ -2038,3 +2063,21 @@ export function buildModel(id: string, o: ModelOpts): Model {
 }
 
 export const hasBuilder = (id: string) => id in BUILDERS || id.startsWith('car:');
+
+const rebuildGroup = (id: string, o: ModelOpts) => buildModel(id, o).group;
+/** Whether a builder drew chairs (they become CC0 chairs when the models arrive). */
+const usesChairs = (k: Kit) => k.chairs;
+
+/**
+ * The CC0 model for this item in place of the builder's low-poly body (its
+ * separate meshes kept unless the model has its own), when the models are here.
+ */
+export function withGlb(k: Kit, id: string, o: ModelOpts): boolean {
+  if (!hasGlb(id)) return false;
+  const glb = furnitureGlb(id, o);
+  if (!glb) return false;
+  k.dropParts();
+  if (!glb.keepExtras) k.extras.length = 0;
+  k.extras.push(glb.group);
+  return true;
+}

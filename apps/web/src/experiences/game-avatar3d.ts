@@ -1,20 +1,15 @@
 /**
- * Round 7e: you in the table games, on the current avatar model
+ * Round 7e: you in the penalty shootout, on the current avatar model
  * (../interiors3d/character.ts), drawn in a see-through WebGL layer over
  * the 2D canvas of the game (it never takes a tap: the swipe, the dive
- * buttons and the cue stay the game's own).
+ * buttons stay the game's own).
  *
- * - The penalty shootout: the kicker in a football kit in your outfit's
- *   colours (the shirt your top's, the shorts and socks your trousers'),
- *   ready a couple of steps back and to the left of the ball, then the
- *   run-up, the plant beside the ball, the strike and the follow-through.
- *   Seen through the shootout's own camera (./shootout-view.ts), so the
- *   kicker stands on the same pitch as the 2D ball and the goal.
- * - 8-ball pool, top down: whoever is at the table leans over it along the
- *   cue, the bridge hand on the cloth behind the cue ball, the cue hand
- *   back at the hip (it draws back with the pull), standing at the rail
- *   and leaning less when the cue ball is close to it, always inside the
- *   picture.
+ * The kicker is in a football kit in your outfit's colours (the shirt your
+ * top's, the shorts and socks your trousers'), ready a couple of steps back
+ * and to the left of the ball, then the run-up, the plant beside the ball,
+ * the strike and the follow-through. Seen through the shootout's own camera
+ * (./shootout-view.ts), so the kicker stands on the same pitch as the 2D
+ * ball and the goal.
  *
  * Loaded on demand (three.js only when a game is played in 3D).
  */
@@ -134,6 +129,8 @@ export function footballer(look: AvatarLook, id: string): Character {
     limb.material = skin;
     const s = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.058, 0.22, 10), sock);
     s.position.y = -0.27;
+    // Part of the low-poly body: hidden with it under the CC0 model (../interiors3d/characterModel.ts).
+    s.userData.procBody = true;
     shin.add(s);
   }
   return c;
@@ -276,146 +273,6 @@ export class PitchLayer extends Layer {
       T: this.T,
       ball: { x: ball.x, y: ball.y },
       goalLine: line.y,
-    };
-  }
-}
-
-// ---------------------------------------------------------------- Pool
-
-/**
- * Leaning over the table for a shot, along the cue (the root at the hips,
- * facing the shot): `lean` 0 (close to the rail: upright, the bridge hand
- * near) … 1 (stretched along the cue), `back` how far the cue hand has
- * drawn the cue back (metres, the pull; below 0 the follow-through).
- */
-export function cuePose(c: Character, lean: number, back = 0) {
-  pose(c, 'stand', 0);
-  const p = 0.35 + 0.85 * lean;
-  c.torso.rotation.x = p;
-  c.head.rotation.x = -p * 0.75;
-  // The bridge arm (left) forward and down to the cloth.
-  // Turned in so the bridge sits on the cue's line (it runs under the chin, to the right).
-  c.armL.rotation.set(-(0.75 + 0.55 * lean) - p, 0, -0.5 - 0.25 * (1 - lean));
-  c.foreL.rotation.set(-0.35 * (1 - lean), 0, 0);
-  // The cue arm (right): the elbow up and back, the forearm hanging, swinging with the pull.
-  const swing = Math.asin(Math.max(-0.9, Math.min(0.9, back / 0.3)));
-  c.armR.rotation.set(0.7 - p, 0, 0.12);
-  c.foreR.rotation.set(-0.7 + swing, 0, 0);
-  // Feet apart, the right one back.
-  c.thighL.rotation.set(-0.1, 0, 0.1);
-  c.thighR.rotation.set(0.28, 0, -0.12);
-  c.shadow.visible = false;
-}
-
-/** From the hips to the bridge hand along the floor (m), at this lean. */
-export const bridgeReach = (lean: number) => 0.38 + 0.62 * lean;
-
-/** One pool player at the table, from above. */
-export interface PoolStance {
-  id: string;
-  look: AvatarLook;
-  /** The cue ball and the shot's direction on screen (overlay px, a unit vector). */
-  at: { x: number; y: number };
-  dir: [number, number];
-  /** Cue tip behind the ball (px, as the 2D cue draws it, the pull included) and the pull (px). */
-  tip: number;
-  pull: number;
-  /** The outer edge of the table on the overlay (px). */
-  table: { x0: number; y0: number; x1: number; y1: number };
-}
-
-/** The player over the pool table, from straight above (the overlay's px are the table's). */
-export class TableLayer extends Layer {
-  readonly camera = new THREE.OrthographicCamera(0, 1, 0, -1, 0.1, 20);
-  private w = 1;
-  private h = 1;
-  /** Px per metre (the table's scale). */
-  private ppm = 100;
-
-  constructor(canvas: HTMLCanvasElement, soft: boolean) {
-    super(canvas, soft);
-    this.camera.position.set(0, 10, 0);
-    this.camera.up.set(0, 0, -1);
-    this.camera.lookAt(0, 0, 0);
-  }
-
-  /** The overlay's size (CSS px) and the table's scale (CSS px per cm). */
-  setSize(w: number, h: number, pxPerCm: number) {
-    this.w = w;
-    this.h = h;
-    this.ppm = pxPerCm * 100;
-    this.resize(w, h);
-    // World x, z in metres = overlay px / ppm (z down the screen).
-    this.camera.left = 0;
-    this.camera.right = w / this.ppm;
-    this.camera.top = 0;
-    this.camera.bottom = -h / this.ppm;
-    this.camera.updateProjectionMatrix();
-    this.camera.updateMatrixWorld(true);
-  }
-
-  /**
-   * Stand them at the table for this shot: behind the cue ball along the
-   * cue, leaning as far as the room behind it allows (the hips no further
-   * out than just past the rail), slid in along the cue until all of them
-   * is in the picture.
-   */
-  stand(s: PoolStance) {
-    const c = this.person(s.id, () => {
-      const look: AvatarLook = { ...s.look };
-      delete look.bag;
-      if (look.shoes === 'heels') look.shoes = 'courts';
-      return makeCharacter(look, s.id);
-    });
-    const m = this.ppm;
-    const [dx, dy] = s.dir;
-    // Room behind the ball along the cue to the table's outer edge (px).
-    const room = (() => {
-      let best = Infinity;
-      const { x0, y0, x1, y1 } = s.table;
-      if (dx > 1e-6) best = Math.min(best, (s.at.x - x0) / dx);
-      if (dx < -1e-6) best = Math.min(best, (s.at.x - x1) / dx);
-      if (dy > 1e-6) best = Math.min(best, (s.at.y - y0) / dy);
-      if (dy < -1e-6) best = Math.min(best, (s.at.y - y1) / dy);
-      return Math.max(0, best) / m;
-    })();
-    const tip = (s.tip - s.pull) / m;
-    // The bridge hand ~20 cm behind the cue's tip; the hips behind it by the reach.
-    const want = tip + 0.2 + bridgeReach(1);
-    let hips = Math.min(want, Math.max(tip + 0.2 + bridgeReach(0), room + 0.02));
-    const ry = Math.atan2(dx, dy);
-    // The cue runs under the chin on the right: the body a little to its left.
-    const lx = Math.cos(ry),
-      lz = -Math.sin(ry);
-    const put = (d: number) => {
-      const lean = Math.max(0, Math.min(1, (d - tip - 0.2 - bridgeReach(0)) / 0.62));
-      cuePose(c, lean, s.pull / m);
-      c.root.rotation.set(0, ry, 0);
-      c.root.position.set(s.at.x / m - dx * d + lx * 0.13, 0, s.at.y / m - dy * d + lz * 0.13);
-    };
-    put(hips);
-    // Inside the picture: in along the cue (a step at a time) if a foot or an elbow is out.
-    for (let i = 0; i < 24; i++) {
-      const b = screenBoxOf(c.root, this.camera);
-      if (!b || (b.l > -0.995 && b.r < 0.995 && b.b > -0.995 && b.t < 0.995)) break;
-      hips = Math.max(0.15, hips - 0.03);
-      put(hips);
-    }
-  }
-
-  render() {
-    try {
-      this.renderer.render(this.scene, this.camera);
-    } catch {
-      // A lost context: the game plays on in 2D.
-    }
-  }
-
-  /** Where the player is on the overlay (−1 … 1 each way), for the tests. */
-  onScreen(): { player: ScreenBox | null; size: { w: number; h: number } } {
-    return {
-      player: this.who?.root.visible ? screenBoxOf(this.who.root, this.camera) : null,
-      size: { w: this.w, h: this.h },
     };
   }
 }

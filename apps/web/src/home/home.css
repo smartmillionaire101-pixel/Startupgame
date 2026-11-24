@@ -137,6 +137,14 @@
 .home-person {
   pointer-events: none;
 }
+/* The sprite drawn for the pose: standing (and walking, lying) or sitting. */
+.home-fig-sit,
+.home-person[data-pose='sit'] .home-fig-stand {
+  visibility: hidden;
+}
+.home-person[data-pose='sit'] .home-fig-sit {
+  visibility: visible;
+}
 .home-person[data-pose='sit'] .city-leg,
 .home-person[data-pose='lie'] .city-leg {
   display: none;
@@ -435,6 +443,27 @@
 }
 .home-row > span:first-child {
   font-size: 1.3rem;
+}
+.home-row-face {
+  position: relative;
+  flex: none;
+  display: grid;
+  width: 36px;
+  height: 36px;
+}
+.home-row-tick {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent, #0ea5e9);
+  color: #fff;
+  font-size: 0.7rem;
+  line-height: 1;
 }
 .home-row > span:last-child {
   display: flex;

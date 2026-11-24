@@ -6,8 +6,10 @@
  * the right), your partners, and the ball's arc. The view zooms out to keep
  * the ball in shot while it flies.
  */
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement, type RefObject } from 'react';
 import type { AvatarLook } from '../art';
+import { useSprite } from '../../three-kit/humans/useSprite';
+import { UNITS_PER_M, frameFor, type SpritePose } from '../../three-kit/humans/spriteCache';
 import { along, dist, lieAt, type Lie } from './game';
 import { markScreen, type GolfDrawProps, type GolfFrame } from './frame';
 
@@ -170,8 +172,65 @@ function drawGolfer(
   ctx.fillRect(cx - 0.06 * m, cy - 0.025 * m, 0.12 * m, 0.05 * m);
 }
 
+/** The pictures of people the canvas draws, by `who:pose` (loaded as they're ready). */
+type Pictures = Map<string, HTMLImageElement>;
+
+/**
+ * Loads one person's picture (../PersonSprite.tsx's 3D person) into `into`
+ * for the canvas; draws nothing itself. Until it's there (or with no WebGL)
+ * the canvas draws its own flat figure.
+ */
+function Picture({
+  id,
+  look,
+  pose,
+  canvas,
+  into,
+}: {
+  id: string;
+  look: AvatarLook;
+  pose: SpritePose;
+  canvas: RefObject<HTMLCanvasElement | null>;
+  into: RefObject<Pictures>;
+}) {
+  // About as tall as a golfer stands at address (a third of the picture).
+  const { url } = useSprite({ kind: 'body', look, pose, angle: 'front', cssPx: 170 }, canvas);
+  useEffect(() => {
+    const key = `${id}:${pose}`;
+    const pics = into.current;
+    if (!url) return;
+    const img = new Image();
+    img.onload = () => pics.set(key, img);
+    img.src = url;
+    return () => {
+      img.onload = null;
+      pics.delete(key);
+    };
+  }, [url, id, pose, into]);
+  return null;
+}
+
+/** A person's picture with their feet at (x, y), `m` pixels a metre. */
+function drawPicture(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  pose: SpritePose,
+  x: number,
+  y: number,
+  m: number,
+) {
+  const f = frameFor(pose);
+  const k = m / UNITS_PER_M;
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 0.3 * m, 0.09 * m, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.drawImage(img, x + f.x * k, y + f.y * k, f.w * k, f.h * k);
+}
+
 export default function Golf2D(props: GolfDrawProps): ReactElement {
   const ref = useRef<HTMLCanvasElement>(null);
+  const pictures = useRef<Pictures>(new Map());
   const live = useRef(props);
   useEffect(() => {
     live.current = props;
@@ -300,11 +359,17 @@ export default function Golf2D(props: GolfDrawProps): ReactElement {
         const a = alongOf(p);
         const look = live.current.partners[i];
         if (!look) return;
-        drawGolfer(ctx, look, sxOf(a), gy - 4, scale * 0.8, 0, false, p.clap);
+        const pose = p.clap ? 'clap' : 'idle';
+        const img = pictures.current.get(`p${i}:${pose}`);
+        if (img) drawPicture(ctx, img, pose, sxOf(a), gy - 4, scale * 0.8);
+        else drawGolfer(ctx, look, sxOf(a), gy - 4, scale * 0.8, 0, false, p.clap);
       });
       // You.
       const gx = sxOf(0);
-      drawGolfer(ctx, live.current.me, gx, gy, scale, f.swing, f.putting, f.cheer);
+      // (The swing itself stays drawn: the 3D person has no golf swing to picture.)
+      const cheering = f.cheer ? pictures.current.get('me:cheer') : undefined;
+      if (cheering) drawPicture(ctx, cheering, 'cheer', gx, gy, scale);
+      else drawGolfer(ctx, live.current.me, gx, gy, scale, f.swing, f.putting, f.cheer);
       // The ball's trail while it flies.
       if (flying) {
         const lastT = trail[trail.length - 1];
@@ -352,5 +417,22 @@ export default function Golf2D(props: GolfDrawProps): ReactElement {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
-  return <canvas ref={ref} className="golf-2d" data-golf-2d="" aria-hidden="true" />;
+  return (
+    <>
+      <canvas ref={ref} className="golf-2d" data-golf-2d="" aria-hidden="true" />
+      {props.partners.map((look, i) =>
+        (['idle', 'clap'] as const).map((pose) => (
+          <Picture
+            key={`${i}:${pose}`}
+            id={`p${i}`}
+            look={look}
+            pose={pose}
+            canvas={ref}
+            into={pictures}
+          />
+        )),
+      )}
+      <Picture id="me" look={props.me} pose="cheer" canvas={ref} into={pictures} />
+    </>
+  );
 }

@@ -7,7 +7,8 @@
  * stands at your side.
  */
 import type { MallShopId } from '@runway/engine';
-import { AvatarFigure, type AvatarLook } from '../art';
+import type { AvatarLook } from '../art';
+import { PersonSprite } from '../PersonSprite';
 import { tx } from '../../i18n';
 import { SHOP_COLOUR, SHOP_ICON, SHOP_ORDER } from './shops';
 
@@ -232,11 +233,11 @@ export function Mall2D({
         <ShopRoom shop={focus} colour={SHOP_COLOUR[focus]} />
         {friend && (
           <g transform="translate(270 252) scale(3.1)" data-mall-friend="">
-            <AvatarFigure look={friend} />
+            <PersonSprite look={friend} pose="chat" angle="three-quarter" />
           </g>
         )}
         <g transform={`translate(${friend ? 150 : 180} 252) scale(3.4)`} data-mall-me="">
-          <AvatarFigure look={me} />
+          <PersonSprite look={me} />
         </g>
       </svg>
     );
@@ -301,17 +302,24 @@ export function Mall2D({
           transform={`translate(${30 + i * 48} ${215 + (i % 3) * 12}) scale(1.25)`}
           className="mall-walker"
         >
-          <AvatarFigure look={look} />
-          <rect x={6} y={-16} width={6} height={7} fill={TOPS[i % TOPS.length]} />
+          {/* Shoppers stroll along the concourse, or stop at a window. */}
+          <PersonSprite
+            look={look}
+            pose={i % 3 === 1 ? 'browse' : 'walk'}
+            angle={i % 3 === 1 ? 'back' : 'side'}
+            phase={i % 2 ? 0.5 : 0}
+            flip={i % 2 === 0}
+          />
+          <rect x={-3} y={-17} width={6} height={7} fill={TOPS[i % TOPS.length]} />
         </g>
       ))}
       {friend && (
         <g transform="translate(212 250) scale(1.55)" data-mall-friend="">
-          <AvatarFigure look={friend} />
+          <PersonSprite look={friend} angle="three-quarter" />
         </g>
       )}
       <g transform="translate(184 250) scale(1.6)" data-mall-me="">
-        <AvatarFigure look={me} />
+        <PersonSprite look={me} angle="three-quarter" flip />
       </g>
     </svg>
   );

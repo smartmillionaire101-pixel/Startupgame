@@ -16,6 +16,7 @@ import { goToTechEvent, techKindLabel } from '../../city/techevent';
 import { hereOf } from '../../city/travel';
 import { readRsvps, techEventsOf, writeRsvps, type TechEventView } from '../friends';
 import { H, Nothing, type PhoneCtx } from '../shared';
+import { PersonPortrait } from '../../avatar/PersonPortrait';
 import { Invitations, PlanHangout } from './Friends';
 import { Competitions } from './Competitions';
 import { competitionsHere } from '../../city/wave10';
@@ -158,8 +159,11 @@ function TechEvents({ ctx }: { ctx: PhoneCtx }) {
         <ul className="phone-speakers" aria-label={t('Speakers')}>
           {e.speakers.map((s) => (
             <li key={s.id} className="small">
-              <b>{s.name}</b>
-              {s.org ? `, ${s.org}` : ''} · “{tx(s.talk)}”
+              <PersonPortrait id={s.id} size={30} className="phone-speaker-face" />
+              <span>
+                <b>{s.name}</b>
+                {s.org ? `, ${s.org}` : ''} · “{tx(s.talk)}”
+              </span>
             </li>
           ))}
         </ul>

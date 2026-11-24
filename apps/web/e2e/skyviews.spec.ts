@@ -3,15 +3,7 @@
  * founder, no lifestyle needed): ride the London cable car over the Thames,
  * skip to the view, find a landmark, change the light, switch to The Shard.
  */
-import {
-  test,
-  expect,
-  letters,
-  openTogether,
-  playAsGuest,
-  setupFounder,
-  hudMore,
-} from './fixtures';
+import { test, expect, letters, openTogether, playAsGuest, setupFounder } from './fixtures';
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
@@ -58,8 +50,18 @@ test('a new player rides the real London cable car and looks around the skyline'
   await sky.getByRole('button', { name: 'The O2', exact: true }).click();
   await expect(sky.locator('footer > p')).toHaveText('The O2', { timeout: SKY_STEP });
   await sky.getByRole('button', { name: 'Look left' }).click();
-  await hudMore(sky);
+  // The view's buttons are one row under the landmarks: zoom and the photo with them.
   await sky.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(sky.locator('[data-hud-rail]')).toHaveCount(0);
+  await expect(sky.getByRole('button', { name: 'Take a photo' })).toBeVisible();
+  const tops = await sky
+    .locator('.panorama-ib')
+    .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(tops.length).toBeGreaterThanOrEqual(5);
+  expect(
+    Math.max(...tops) - Math.min(...tops),
+    'the view’s buttons on one row',
+  ).toBeLessThanOrEqual(2);
   await sky.getByLabel('Light').selectOption('sunset');
   await page.waitForTimeout(1500);
   await page.screenshot({ path: info.outputPath('cable-car.png') });
